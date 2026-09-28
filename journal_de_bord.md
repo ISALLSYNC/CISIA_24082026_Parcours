@@ -57,7 +57,7 @@
 - [x] TP 3 — normalisation des IDs machine (`normalize_machine_id`)
 - [ ] Extension (facultative d'après le pas-à-pas R2) : extraire `clean_sensor_data` dans `features/cleaning.py`
 - [x] Preuve finale
-- [ ] QCM J1 (questions 1-3)
+- [ ] QCM J1 (questions 1-3) — **en attente** : le texte des questions n'est pas disponible (voir Difficultés)
 
 **Étape 0a — Récupérer le jalon 01**
 - Commande : `powershell -ExecutionPolicy Bypass -File .\scripts\formation\mettre_a_niveau.ps1 -Jalon 01`
@@ -293,8 +293,9 @@
 
 **Difficultés / questions**
 - Le jalon 01 a été lancé **sans attendre le signal du formateur**. C'est réversible via la branche `sauvegarde/ismael-sall/20260928-112927`, et sans impact ici puisque le jalon ne change que le marqueur.
-- **Incohérence entre supports** : la fiche jalon 01 demande d'extraire `clean_sensor_data`, alors que le pas-à-pas R2 la classe en extension facultative. → À confirmer avec le formateur.
-- La fiche TD 23, citée par le pas-à-pas pour le code de `cleaning.py`, **n'est pas dans le dépôt**. → À demander.
+- **Incohérence entre supports** : la fiche jalon 01 demande d'extraire `clean_sensor_data`, alors que le pas-à-pas R2 la classe en extension facultative. → **Tranché par la fiche TD 23** (« Definition of done ») : « `test_cleaning.py` n'est exigé que si l'extension est jouée ». L'extension est donc bien **facultative**.
+- La fiche TD 23, citée par le pas-à-pas pour le code de `cleaning.py`, **n'est pas dans le dépôt**. → **Retrouvée** hors dépôt : `OneDrive\Documents\FORMATION\Docs\Sprint3\fiches_TD_apprenant_sprint3_AELION_20260928_R2.pdf` (section « Fiche TD 23 »).
+- **QCM J1 (questions 1-3)** : le pas-à-pas R2 (ligne 661 dans VS Code) donne les thèmes (package `src/`, rôle de `pyproject.toml`, fuite par split non temporel) et la correction attendue (1-B · 2-C · 3-A), mais **pas le texte des questions**. Les fichiers cités (`QCM_fin_de_journee_sprint3`, `kahoot_J1.xlsx`) sont introuvables dans le dépôt et sur mon poste ; la fiche TD précise que les QCM sont « fournis séparément par le formateur ». → À demander au formateur. Je ne réponds pas sans l'énoncé.
 - **Prérequis Sprint 2 (scénario B)** : un contrat I/O **d'exemple** est disponible ([docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json](docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json)), mais ses valeurs sont illustratives. → À confirmer avec le formateur : le scénario B me concerne-t-il ? Quel est le **seuil réel** du modèle du dépôt ? Où sont la model card v1 et le contrat validé ?
 
 **Module 24 — CI/CD, tests & versioning** · *C6*
