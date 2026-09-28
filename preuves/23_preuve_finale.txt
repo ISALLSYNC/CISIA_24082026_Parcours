@@ -1,0 +1,37 @@
+﻿# Preuve : M23 preuve finale
+# Date : 2026-09-28 15:14
+# Branche : ismael-sall @ 0e765dc
+
+PS> uv run pytest -q
+............                                                             [100%]
+12 passed in 1.47s
+# code retour : 0
+
+PS> uv run ruff check .
+All checks passed!
+# code retour : 0
+
+PS> uv run indusense --help
+                                                                               
+ Usage: indusense [OPTIONS] COMMAND [ARGS]...                                  
+                                                                               
+ InduSense Sprint 3 starter CLI                                                
+                                                                               
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --install-completion          Install completion for the current shell.     │
+│ --show-completion             Show completion for the current shell, to     │
+│                               copy it or customize the installation.        │
+│ --help                        Show this message and exit.                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+┌─ Commands ──────────────────────────────────────────────────────────────────┐
+│ check-data  Load sample sources and print a short health summary.           │
+│ build-gold  Build and save the gold dataset from raw InduSense sources.     │
+│ train       Train the baseline RandomForest model on sample data.           │
+│ predict     Score the latest observation per machine.                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+# code retour : 0
+
+PS> uv run python --version
+Python 3.13.15
+# code retour : 0
+

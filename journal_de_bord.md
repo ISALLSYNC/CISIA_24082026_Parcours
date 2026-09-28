@@ -56,7 +56,8 @@
 - [x] TP 2 — anti-fuite : `shift(1)` avant `rolling` dans `features/temporal.py`
 - [x] TP 3 — normalisation des IDs machine (`normalize_machine_id`)
 - [ ] Extension (facultative d'après le pas-à-pas R2) : extraire `clean_sensor_data` dans `features/cleaning.py`
-- [ ] Preuve finale + commit M23 + QCM J1 (questions 1-3)
+- [x] Preuve finale
+- [ ] QCM J1 (questions 1-3)
 
 **Étape 0a — Récupérer le jalon 01**
 - Commande : `powershell -ExecutionPolicy Bypass -File .\scripts\formation\mettre_a_niveau.ps1 -Jalon 01`
@@ -268,6 +269,23 @@
 | Fuseau horaire | timestamps en UTC (`Z`) | non vérifié dans les données du dépôt | *À contrôler* : mélanger des dates avec et sans fuseau fait échouer ou fausse le tri |
 
 *Ce qui manque pour un contrat complet :* les réponses d'**erreur** (422 données invalides · 401 · 413 · 429, vues aux M25-M26), les **unités** (°C ? le fichier ne le dit pas) et l'**ordre** attendu des mesures (le code les trie de toute façon).
+
+**Preuve finale M23** *(pas-à-pas R2, « Preuve finale »)*
+
+📎 **Preuve brute** : [preuves/23_preuve_finale.txt](preuves/23_preuve_finale.txt), rejouée le 28/09/2026 à 15:14 sur le commit `0e765dc`
+
+*À quoi elle sert :* c'est le **bilan de sortie** du module. Les TP ont vérifié chaque brique **séparément** ; la preuve finale vérifie, en une fois et sur l'état final de ma branche, que **tout le projet** est sain. C'est la preuve à montrer au formateur (« Partage tes sorties terminal ») et au jury : elle montre qu'on sort du module **sans rien avoir cassé**.
+
+| Commande | Ce qu'elle vérifie | Résultat | Code retour |
+|---|---|---|---|
+| `uv run pytest -q` | **Toute** la suite de tests (package, loaders, anti-fuite, normalisation) | **`12 passed`**, 0 échec | 0 |
+| `uv run ruff check .` | Qualité du code : erreurs, imports, pièges courants | **`All checks passed!`** | 0 |
+| `uv run indusense --help` | La commande `indusense` déclarée dans `pyproject.toml` est installée et répond | Aide affichée avec 4 commandes : `check-data`, `build-gold`, **`train`**, **`predict`** | 0 |
+| `uv run python --version` | Le `.venv` utilise la bonne version | **`Python 3.13.15`** (exigé : `>=3.13,<3.14`) | 0 |
+
+- Conforme au résultat attendu du pas-à-pas : tests à 0 échec · ruff propre · CLI qui répond (`train` / `predict`) · Python 3.13.x.
+- Les 12 tests sont les mêmes qu'au départ (`verifier_jalon`) : **aucune régression**. C'est normal, le M23 n'a modifié **aucun fichier de code**, seulement le journal, les preuves et la documentation.
+- `indusense --help` prouve le lien `[project.scripts]` → `indusense.cli:main` vu au TP 1 : la ligne 85 de `pyproject.toml` crée bien une vraie commande.
 
 **Compétence(s)** : C6 (implémenter / intégrer les briques) · lien C3 (features sans fuite, au TP 2)
 
