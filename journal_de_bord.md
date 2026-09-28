@@ -686,6 +686,31 @@ outs:
 
 - *Bonus possible* : une **capture** de l'interface **http://127.0.0.1:5000** (les 2 runs côte à côte), tant que le serveur tourne.
 - *Ma reformulation :* …
+
+**Livrable — `versioning_strategy.md` à la racine** *(pas-à-pas R2 : « Complète `versioning_strategy.md` à la racine » · fiche TD 24, étape 6)*
+
+📎 **Livrable** : [versioning_strategy.md](versioning_strategy.md)
+
+*Comment je l'ai construit :*
+1. **Copie du modèle sans écraser** (commande de la fiche) : `if (-not (Test-Path .\versioning_strategy.md)) { Copy-Item .\docs\versioning_strategy.md .\versioning_strategy.md }` → `copie faite`.
+2. **Deux sources fusionnées** : le modèle fourni (tableau *Objet / Source de vérité / Identifiant / Stockage / Preuve de restauration* + 4 « questions à trancher ») **et** le contenu attendu par la fiche TD 24 (sections *Code / Données / Modèle / Secrets* + tableau « contrat d'expérience vision »).
+3. **Uniquement des valeurs réellement obtenues**, chacune reliée à sa preuve : hash de commit, md5 du Gold et du modèle, 2 `run_id`, 2 versions, liens PR / CI, résultat gitleaks.
+4. **Ce qui n'est pas prouvé est dit** : aller-retour `dvc pull` non rejoué ; contrat vision laissé « à produire » / `MESURES=NOT_READY` (je n'ai pas de modèle vision : aucune valeur inventée).
+
+*Ce que contient le document :*
+
+| Section | Contenu clé |
+|---|---|
+| Vue d'ensemble | Le tableau du modèle, rempli pour Code, Données, Modèle, Secrets |
+| Code | PR + CI verte (ruff, black, pytest, build) ; hooks locaux ; `uv.lock` jamais modifié (`--frozen`) |
+| Données | DVC, pointeurs dans Git, remote local portable ; limites (historique, remote non partagé) |
+| Modèle | Tableau des 2 versions du registre avec `run_id` et métriques ; lecture fuite / honnête ; **décision : ne pas promouvoir** ce modèle en l'état |
+| Secrets | `.env` ignoré, secrets CI dans GitHub Actions, révoquer un secret commité, attention aux fichiers de preuve |
+| Questions à trancher | Les 4 réponses : commit ↔ modèle, empreinte du Gold, rejouer sans toucher au lock, restaurer code + données + modèle |
+| Contrat vision | Tableau de la fiche, statut `NOT_READY` |
+
+*Erreur évitée en vérifiant :* j'avais d'abord écrit que les runs MLflow « n'enregistrent pas le hash de commit Git ». En lisant les tags via l'API (`runs/get`), j'ai trouvé que MLflow l'enregistre **automatiquement** : `mlflow.source.git.commit = 193be25fb9347e981c3d708d220c60a0e8097069`, `mlflow.source.git.branch = ismael-sall`. Corrigé : le lien **commit ↔ données (`gold_md5`) ↔ run ↔ version du registre** est complet. Leçon : **vérifier avant d'écrire une limite**, pas seulement avant d'écrire un succès.
+- *Ma reformulation :* …
 - *Ma reformulation :* …
 
 - Ce que j'ai fait : …
