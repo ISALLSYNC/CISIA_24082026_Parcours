@@ -55,7 +55,7 @@
 - [x] TP 1 — structure & `pyproject.toml` (lecture, sans modification)
 - [x] TP 2 — anti-fuite : `shift(1)` avant `rolling` dans `features/temporal.py`
 - [x] TP 3 — normalisation des IDs machine (`normalize_machine_id`)
-- [ ] Extension (facultative d'après le pas-à-pas R2) : extraire `clean_sensor_data` dans `features/cleaning.py`
+- [x] Extension (facultative d'après le pas-à-pas R2) : extraire `clean_sensor_data` dans `features/cleaning.py`
 - [x] Preuve finale
 - [ ] QCM J1 (questions 1-3) — **en attente** : le texte des questions n'est pas disponible (voir Difficultés)
 
@@ -270,6 +270,49 @@
 
 *Ce qui manque pour un contrat complet :* les réponses d'**erreur** (422 données invalides · 401 · 413 · 429, vues aux M25-M26), les **unités** (°C ? le fichier ne le dit pas) et l'**ordre** attendu des mesures (le code les trie de toute façon).
 
+**Extension — Extraire une fonction propre : `clean_sensor_data`** *(fiche TD 23, « Extension si le groupe avance » · facultative)*
+
+📎 **Preuve brute** : [preuves/23_ext_clean_sensor_data.txt](preuves/23_ext_clean_sensor_data.txt) (ma prédiction, le test, ruff, black, la suite complète, la démo avec / sans `groupby` et son code)
+
+*Pourquoi :* dans un notebook, un nettoyage est souvent recopié de cellule en cellule. Ici on l'**extrait** dans une fonction **unique, testée, rangée au bon endroit** (`features/`) : c'est exactement l'esprit du M23.
+
+*Fichiers créés (code de la fiche TD 23, + commentaires `[PÉDAGOGIE]` et docstring dans le style du projet) :*
+- [src/indusense/features/cleaning.py](src/indusense/features/cleaning.py) : la fonction `clean_sensor_data`
+- [tests/test_cleaning.py](tests/test_cleaning.py) : le test `test_clean_sensor_data_imputes_by_machine`
+
+*Ce que fait la fonction :*
+
+| Étape | Code | Effet |
+|---|---|---|
+| 1. Doublons | `df.drop_duplicates().copy()` | Supprime les lignes identiques ; `.copy()` évite de modifier le DataFrame de l'appelant |
+| 2. Par machine | `df.groupby("machine")[col]` | Traite chaque machine **séparément** |
+| 3. Imputation | `.transform(lambda s: s.fillna(s.median()))` | Remplace chaque valeur manquante (`NaN`) par la **médiane de sa machine** |
+
+*Prédire puis exécuter (température) :*
+
+| Ligne | Machine | Avant | Ma prédiction | Réel (avec `groupby`) | Sans `groupby` (démo) |
+|---|---|---|---|---|---|
+| 1 | MACH-01 | NaN | `NA` → corrigé en **10.0** (guidé : `fillna` **remplace** les trous) | 10.0 ✅ | **20.0** ❌ |
+| 3 | MACH-02 | NaN | **30.0** (trouvé seul) | 30.0 ✅ | **20.0** ❌ |
+
+- **Pourquoi `groupby("machine")` :** sans lui, la médiane porte sur **toutes** les machines : médiane de [10, 30] = **20**. MACH-01 recevrait une valeur **empruntée en partie à MACH-02**, qui peut avoir un fonctionnement normal très différent. C'est une fausse mesure.
+- **Rappel médiane :** valeur du milieu une fois triées ; avec un nombre **pair** de valeurs, moyenne des deux du milieu ((10 + 30) / 2 = 20) ; avec **une seule** valeur, la valeur elle-même.
+- **Pourquoi la médiane plutôt que la moyenne :** elle résiste aux valeurs aberrantes (un capteur qui envoie une fois 999 °C fausse beaucoup une moyenne, presque pas une médiane).
+- Même esprit que le **TP 2** (`groupby` pour que les lags ne débordent pas d'une machine sur l'autre) et le **TP 3** (chaque machine bien identifiée).
+
+*Résultats :*
+
+| Commande | Résultat | Ce que ça prouve |
+|---|---|---|
+| `uv run pytest tests/test_cleaning.py -v` | **`1 passed`** | L'imputation se fait bien par machine (10.0 et 30.0, jamais 20.0) |
+| `uv run ruff check .` | **`All checks passed!`** | Les nouveaux fichiers respectent les règles du projet |
+| `uv run black --check …` | **`2 files would be left unchanged`** | Le formatage est déjà conforme (black ne changerait rien) |
+| `uv run pytest -q` | **`13 passed`** (12 + 1 nouveau) | Aucune régression sur les tests existants |
+
+- Si quelqu'un retirait le `groupby`, les deux assertions recevraient 20.0 et le test échouerait : il **protège** contre cette erreur.
+- *Limite :* une machine dont **toutes** les valeurs manquent garde ses `NaN` (pas de médiane à propager). Non couverte par le test.
+- *Ma reformulation :* …
+
 **Preuve finale M23** *(pas-à-pas R2, « Preuve finale »)*
 
 📎 **Preuve brute** : [preuves/23_preuve_finale.txt](preuves/23_preuve_finale.txt), rejouée le 28/09/2026 à 15:14 sur le commit `0e765dc`
@@ -284,7 +327,8 @@
 | `uv run python --version` | Le `.venv` utilise la bonne version | **`Python 3.13.15`** (exigé : `>=3.13,<3.14`) | 0 |
 
 - Conforme au résultat attendu du pas-à-pas : tests à 0 échec · ruff propre · CLI qui répond (`train` / `predict`) · Python 3.13.x.
-- Les 12 tests sont les mêmes qu'au départ (`verifier_jalon`) : **aucune régression**. C'est normal, le M23 n'a modifié **aucun fichier de code**, seulement le journal, les preuves et la documentation.
+- Les 12 tests sont les mêmes qu'au départ (`verifier_jalon`) : **aucune régression**. C'est normal, à ce stade le M23 n'avait modifié **aucun fichier de code**, seulement le journal, les preuves et la documentation.
+- *Mise à jour après l'extension :* `cleaning.py` et `test_cleaning.py` ont été ajoutés ensuite. La suite complète passe alors à **`13 passed`** et ruff reste propre (voir la preuve de l'extension).
 - `indusense --help` prouve le lien `[project.scripts]` → `indusense.cli:main` vu au TP 1 : la ligne 85 de `pyproject.toml` crée bien une vraie commande.
 
 **Compétence(s)** : C6 (implémenter / intégrer les briques) · lien C3 (features sans fuite, au TP 2)
