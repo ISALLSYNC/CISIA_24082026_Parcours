@@ -95,7 +95,7 @@
   - Le chemin affiché (`__file__`) garantit qu'on exécute **le code qu'on modifie**, et non une autre copie (ancien clone, vieux `site-packages`).
   - Conséquence : les tests tournent contre le package **installé**, comme en production. Une erreur de packaging (fichier oublié, mauvaise config) est donc détectée tôt.
   - C'est un prérequis pour tout le reste : tests, CLI `indusense` et, plus tard, l'API font tous `from indusense... import ...`.
-  - *Le projet d'indusens sert de base pour vérifier que tout fonction comme ça se doit:* …
+  - *Ma reformulation :* L'import d'indusense permet de s'assurer du bon fonctionnement des tests, de la CLI et de l'API. Le chemin affiché permet d'identifier l'emplacement du code.
   - *Nuance vue au TP 1 :* `pyproject.toml` contient `pythonpath = ["src"]` dans `[tool.pytest.ini_options]`, donc **pytest** ajoute lui-même `src/` au chemin Python. Les tests trouveraient le code même sans installation. C'est la commande `import indusense` hors pytest, et la CLI `indusense`, qui prouvent l'installation.
 
 **TP 1 — Structure du projet & `pyproject.toml`** *(lecture seule, aucun fichier modifié)*
