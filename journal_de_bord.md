@@ -570,7 +570,13 @@
 - **Base = mon fork** : GitHub propose souvent le dépôt d'origine comme base ; je l'ai vérifiée pour que la PR ne parte pas chez le formateur.
 - Heures GitHub en **UTC** : 15:11 UTC = 17:11 à Paris.
 - **Visibilité** : un fork d'un dépôt public est **public** ; journal et preuves y sont lisibles. Contrôle gitleaks fait avant le push.
-- *Reste à faire pour la fiche* : une **capture d'écran** du job `quality` (`preuves/24_ci_github_quality.png`) — à prendre par moi sur la page du run.
+- 📸 **Capture d'écran** (demandée par la fiche, prise par moi) : [preuves/24_ci_github_quality.png](preuves/24_ci_github_quality.png). On y voit le titre de la PR avec la coche verte, `quality` et `build` en vert, les 12 étapes de `quality` cochées, « succeeded in 13s ». Vérifiée : aucune donnée sensible.
+
+![Job quality vert sur GitHub Actions](preuves/24_ci_github_quality.png)
+
+- **Annotations « 1 warning and 1 notice »** visibles sur la capture (lues via l'API `check-runs/…/annotations`) — messages d'**infrastructure GitHub**, pas des erreurs de mon code ; le job reste **success** :
+  - ⚠️ *warning* : « Node.js 20 is deprecated » pour `actions/checkout@v4`, `actions/setup-python@v5`, `astral-sh/setup-uv@v3`. GitHub les exécute déjà sous Node.js 24. → Maintenance future : passer à des versions plus récentes des actions. Je garde celles de la fiche TD 24.
+  - ℹ️ *notice* : « `ubuntu-latest` will migrate to Ubuntu 26 beginning October 19, 2026 ». La machine « Linux la plus récente » changera de version.
 - *Ma reformulation :* …
 
 - Ce que j'ai fait : …
