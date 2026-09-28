@@ -1,0 +1,34 @@
+# Preuve : M24 - 2e CI reelle sur GitHub (etat final du M24, PR #1 du fork)
+# Date : 2026-09-28 19:44
+# Branche : ismael-sall @ 23b18e4 (pousse vers fork : c24bfef..23b18e4, 7 commits)
+#
+# 💬 BUT : verifier que l'etat COMPLET du M24 (DVC, MLflow, .gitignore, versioning_strategy.md) passe la CI
+# 💬 sur une machine neuve, alors que le Gold et le modele ne sont plus dans Git (seulement leurs pointeurs .dvc).
+
+PS> GET .../actions/runs/36460158718
+run 36460158718 'CI' event=pull_request branche=ismael-sall@23b18e4
+   status=completed conclusion=success
+   https://github.com/ISALLSYNC/CISIA_24082026_Parcours/actions/runs/36460158718
+
+PS> GET .../jobs
+job quality: success  (2026-09-28T17:43:38Z -> 2026-09-28T17:43:53Z)
+    Run actions/checkout@v4        success
+    Run actions/setup-python@v5    success
+    Run astral-sh/setup-uv@v3      success
+    Install                        success
+    Lint                           success
+    Format                         success
+    Tests                          success
+job build: success  (2026-09-28T17:43:56Z -> 2026-09-28T17:44:06Z)
+    Run actions/checkout@v4        success
+    Run actions/setup-python@v5    success
+    Run astral-sh/setup-uv@v3      success
+    Build wheel                    success
+    Upload artifact                success
+
+PS> GET .../artifacts
+artefact 'indusense-wheel' 14971 octets
+
+# 💬 LECTURE : event=pull_request -> un push sur la branche d'une PR ouverte relance la CI (evenement 'synchronize').
+# 💬 quality + build verts sur l'etat final : sortir le Gold et le modele de Git n'a rien casse, car aucun test ne les lit.
+# 💬 C'est la preuve que la CI ne depend d'aucun fichier local (piege 'CI verte en local mais rouge sur GitHub').
