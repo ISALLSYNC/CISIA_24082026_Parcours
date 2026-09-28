@@ -340,6 +340,7 @@
 - **Incohérence entre supports** : la fiche jalon 01 demande d'extraire `clean_sensor_data`, alors que le pas-à-pas R2 la classe en extension facultative. → **Tranché par la fiche TD 23** (« Definition of done ») : « `test_cleaning.py` n'est exigé que si l'extension est jouée ». L'extension est donc bien **facultative**.
 - La fiche TD 23, citée par le pas-à-pas pour le code de `cleaning.py`, **n'est pas dans le dépôt**. → **Retrouvée** hors dépôt : `OneDrive\Documents\FORMATION\Docs\Sprint3\fiches_TD_apprenant_sprint3_AELION_20260928_R2.pdf` (section « Fiche TD 23 »).
 - **QCM J1 (questions 1-3)** : le pas-à-pas R2 (ligne 661 dans VS Code) donne les thèmes (package `src/`, rôle de `pyproject.toml`, fuite par split non temporel) et la correction attendue (1-B · 2-C · 3-A), mais **pas le texte des questions**. Les fichiers cités (`QCM_fin_de_journee_sprint3`, `kahoot_J1.xlsx`) sont introuvables dans le dépôt et sur mon poste ; la fiche TD précise que les QCM sont « fournis séparément par le formateur ». → À demander au formateur. Je ne réponds pas sans l'énoncé.
+- **Preuve CI GitHub** : faite sur **mon fork** (`ISALLSYNC`) plutôt que sur le dépôt du formateur, faute de savoir si les apprenants doivent y pousser. → À confirmer avec le formateur que la PR #1 du fork convient comme preuve.
 - **Jalon 02 lancé sur ma décision** (« On peut le lancer ») après la pré-vérification sans conflit ; signal formateur à confirmer. Branche de secours : `sauvegarde/ismael-sall/20260928-154713`.
 - **Prérequis Sprint 2 (scénario B)** : un contrat I/O **d'exemple** est disponible ([docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json](docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json)), mais ses valeurs sont illustratives. → À confirmer avec le formateur : le scénario B me concerne-t-il ? Quel est le **seuil réel** du modèle du dépôt ? Où sont la model card v1 et le contrat validé ?
 
@@ -533,7 +534,43 @@
 - **Dans la CI**, ce code retour 1 rendrait l'étape *Tests* rouge → le job `quality` échoue → grâce à `needs: quality`, le job `build` **ne démarre pas** : aucun wheel n'est fabriqué à partir d'un code cassé.
 - `-p no:warnings` : masque les 4 `DeprecationWarning` déjà connus, pour lire le rouge sans bruit. Il ne change pas le verdict des tests.
 - `git restore` : annule les modifications **non commitées** d'un fichier. C'est la bonne réparation ici, car la casse était volontaire et jamais commitée.
-- *Variante non faite* : la version « PR rouge → verte » sur GitHub (commit cassé poussé, puis correction) demande un push. **En attente** de l'accord sur l'accès au dépôt.
+- *Variante non faite* : la version « PR rouge → verte » sur GitHub (commit cassé poussé, puis correction). Non jouée : le rouge est prouvé en local, et un commit cassé resterait dans l'historique de la PR.
+- *Ma reformulation :* …
+
+**TP 5 — CI réelle sur GitHub : fork + Pull Request en brouillon** *(fiche TD 24, étape 3 : « Pousse ta branche puis ouvre une Pull Request en brouillon »)*
+
+📎 **Preuve brute** : [preuves/24_ci_github_pr1.txt](preuves/24_ci_github_pr1.txt) (PR, run, jobs, étapes, artefact — lus via l'API publique GitHub)
+🔗 **PR** : https://github.com/ISALLSYNC/CISIA_24082026_Parcours/pull/1 · 🔗 **Run CI** : https://github.com/ISALLSYNC/CISIA_24082026_Parcours/actions/runs/36441665863
+
+*Pourquoi un fork :* `origin` est le dépôt **du formateur**, sur lequel aucune branche d'apprenant n'a été poussée (seulement `main` et `jalon/01` à `jalon/12`). Plutôt que d'y pousser sans savoir si c'est attendu, j'ai créé un **fork** : une copie **indépendante** du dépôt sur **mon** compte GitHub (`ISALLSYNC`). Je peux y pousser et y faire tourner la CI sans rien toucher chez le formateur.
+
+*Les étapes :*
+
+| # | Qui | Action | Résultat |
+|---|---|---|---|
+| 1 | moi (site GitHub) | **Fork** de `thomasfesq/CISIA_24082026_Parcours` vers `ISALLSYNC`, puis activation des workflows dans l'onglet Actions (désactivés par défaut sur un fork) | Fork créé ; `git ls-remote` → `main` @ `5e77d57` |
+| 2 | Claude | `git remote add fork https://github.com/ISALLSYNC/CISIA_24082026_Parcours.git` | 2 remotes : **`origin`** = formateur (pour récupérer les jalons), **`fork`** = moi (pour pousser) |
+| 2b | Claude | Contrôle avant envoi : `git rev-list --count fork/main..ismael-sall` + `pre-commit run gitleaks --all-files` | **42 commits** à envoyer · gitleaks **Passed** |
+| 3 | moi + Claude | `git push -u fork ismael-sall` | Branche sur GitHub @ `c24bfef` · suivi `ismael-sall...fork/ismael-sall` |
+| 4 | moi (site GitHub) | **Compare & pull request** → base **`ISALLSYNC/…:main`** ← `ismael-sall` → titre modifié → **Create draft pull request** | PR **#1**, `draft=True` |
+| 5 | GitHub (automatique) | La PR déclenche l'événement `pull_request` → run CI | **`completed success`** |
+
+*Résultat de la CI réelle :*
+
+| Job | Étapes | Verdict | Durée |
+|---|---|---|---|
+| `quality` | checkout · setup-python · setup-uv · **Install · Lint · Format · Tests** | ✅ **success** | 15:11:19 → 15:11:32 UTC (13 s) |
+| `build` | checkout · setup-python · setup-uv · **Build wheel · Upload artifact** | ✅ **success** | 15:11:34 → 15:11:45 UTC (11 s) |
+| Artefact | `indusense-wheel`, **14 971 octets**, expire le 27/12/2026 | ✅ publié | — |
+
+- **`needs: quality` vérifié en conditions réelles** : `build` démarre à 15:11:34, **après** la fin de `quality` (15:11:32).
+- **Machine Ubuntu neuve** : même verdict qu'en local, donc **aucun test ne dépend d'un fichier local non commité** (piège cité par la fiche : « CI verte en local mais rouge sur GitHub »).
+- **Pourquoi la PR était nécessaire** : `on: push` ne vise que `main`. Le push sur `ismael-sall` seul **n'a rien déclenché** ; c'est l'ouverture de la PR (`on: pull_request`) qui a lancé la CI.
+- **Brouillon (draft)** : signale « pas prêt à fusionner », évite une fusion accidentelle. **Ne pas fusionner la PR** pendant le TD (consigne de la fiche).
+- **Base = mon fork** : GitHub propose souvent le dépôt d'origine comme base ; je l'ai vérifiée pour que la PR ne parte pas chez le formateur.
+- Heures GitHub en **UTC** : 15:11 UTC = 17:11 à Paris.
+- **Visibilité** : un fork d'un dépôt public est **public** ; journal et preuves y sont lisibles. Contrôle gitleaks fait avant le push.
+- *Reste à faire pour la fiche* : une **capture d'écran** du job `quality` (`preuves/24_ci_github_quality.png`) — à prendre par moi sur la page du run.
 - *Ma reformulation :* …
 
 - Ce que j'ai fait : …
