@@ -509,6 +509,33 @@
 - *Limite* : j'ai vérifié la **syntaxe** et l'étape `uv build` **en local**. Seule une vraie exécution sur GitHub Actions (push + pull request) prouvera que `needs:` et `upload-artifact` fonctionnent.
 - *Ma reformulation :* …
 
+**TP 4 — Cycle rouge → vert** *(pas-à-pas R2, « Démo PR rouge → verte », variante locale)*
+
+📎 **Preuve brute** : [preuves/24_rouge_vert.txt](preuves/24_rouge_vert.txt)
+
+*Le principe :* on **casse exprès** le code pour vérifier qu'un test **attrape** la régression (rouge), puis on **répare** et on vérifie que tout **repasse** (vert). Un test qui ne rougit jamais ne protège de rien : ce cycle prouve que le filet de sécurité fonctionne.
+
+*Casse choisie :* retirer le `shift(1)` de [temporal.py:59](src/indusense/features/temporal.py#L59), c'est-à-dire **recréer la fuite de données** du M23 TP 2. Choix volontaire : on sait déjà quelle valeur doit apparaître.
+
+*Prédiction avant exécution :* le test anti-fuite échoue avec **25.0 au lieu de 15.0** ; les 12 autres restent verts.
+
+| # | Étape | Commande | Résultat |
+|---|---|---|---|
+| 0 | Départ | `uv run --frozen pytest -q -p no:warnings` | **`13 passed`** |
+| 1 | **Casse** | `series.shift(1).rolling(window)` → `series.rolling(window)` (vu dans `git diff`) | 1 ligne modifiée |
+| 2 | **ROUGE** | `uv run --frozen pytest -q -p no:warnings` | **`1 failed, 12 passed`** · `assert np.float64(25.0) == 15.0` · code retour **1** |
+| 3 | **Réparation** | `git restore -- src/indusense/features/temporal.py` | Fichier du dernier commit restauré |
+| 4 | **VERT** | `uv run --frozen pytest -q -p no:warnings` | **`13 passed`** · code retour **0** |
+| 5 | Contrôle | `git status --short` | Aucune trace : rien n'a été commité |
+
+- **Prédiction confirmée** : le seul test en échec est `test_temporal_features_do_not_use_current_value`, avec **25.0** = moyenne(20, **30**), la valeur « fuite » du M23. Le test détecte la régression **pour la bonne raison**.
+- **Lire un échec pytest** : `F` dans la ligne de points = test en échec ; `>` montre la ligne fautive ; `E` donne *valeur obtenue* `==` *valeur attendue*.
+- **Dans la CI**, ce code retour 1 rendrait l'étape *Tests* rouge → le job `quality` échoue → grâce à `needs: quality`, le job `build` **ne démarre pas** : aucun wheel n'est fabriqué à partir d'un code cassé.
+- `-p no:warnings` : masque les 4 `DeprecationWarning` déjà connus, pour lire le rouge sans bruit. Il ne change pas le verdict des tests.
+- `git restore` : annule les modifications **non commitées** d'un fichier. C'est la bonne réparation ici, car la casse était volontaire et jamais commitée.
+- *Variante non faite* : la version « PR rouge → verte » sur GitHub (commit cassé poussé, puis correction) demande un push. **En attente** de l'accord sur l'accès au dépôt.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : …
 - Ma preuve : … (CI verte · `gitleaks` bloque · `dvc status`)
 - Compétence(s) : C6
