@@ -223,7 +223,7 @@
 - `"MACH-123"` → `MACH-123` : `:02d` impose **au moins** 2 chiffres, sans tronquer. Une 100ᵉ machine reste donc distincte.
 - `"MACH-XX"` → `ValueError: machine_id sans numero : 'MACH-XX'` : le cas d'échec est bien bloqué. Le code retour 1 de cette commande est **attendu**.
 - Limite repérée : seule la **première** suite de chiffres compte. `"LIGNE2-M05"` donnerait `MACH-02` et non `MACH-05`. *Hypothèse non testée, déduite de la lecture du code* : sans conséquence tant que les sources respectent les formats listés.
-- *Ma reformulation :* …
+- *Ma reformulation :* La normalisation consiste à unifier le nommage des machines afin d'éviter que la même machine porte plusieurs noms différents.
 
 **Compétence(s)** : C6 (implémenter / intégrer les briques) · lien C3 (features sans fuite, au TP 2)
 
