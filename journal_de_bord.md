@@ -340,11 +340,14 @@
 - **Incohérence entre supports** : la fiche jalon 01 demande d'extraire `clean_sensor_data`, alors que le pas-à-pas R2 la classe en extension facultative. → **Tranché par la fiche TD 23** (« Definition of done ») : « `test_cleaning.py` n'est exigé que si l'extension est jouée ». L'extension est donc bien **facultative**.
 - La fiche TD 23, citée par le pas-à-pas pour le code de `cleaning.py`, **n'est pas dans le dépôt**. → **Retrouvée** hors dépôt : `OneDrive\Documents\FORMATION\Docs\Sprint3\fiches_TD_apprenant_sprint3_AELION_20260928_R2.pdf` (section « Fiche TD 23 »).
 - **QCM J1 (questions 1-3)** : le pas-à-pas R2 (ligne 661 dans VS Code) donne les thèmes (package `src/`, rôle de `pyproject.toml`, fuite par split non temporel) et la correction attendue (1-B · 2-C · 3-A), mais **pas le texte des questions**. Les fichiers cités (`QCM_fin_de_journee_sprint3`, `kahoot_J1.xlsx`) sont introuvables dans le dépôt et sur mon poste ; la fiche TD précise que les QCM sont « fournis séparément par le formateur ». → À demander au formateur. Je ne réponds pas sans l'énoncé.
+- **M24 — seuil de décision** : `demo_versioning.py` calibre le seuil sur le **train** (0.975) → précision / rappel / F1 à 0 dans les 2 runs. *Hypothèse* : sur-apprentissage. → À signaler au formateur (je n'ai pas modifié le script fourni).
+- **M24 — modèle Sprint 2** : ROC-AUC 0.25 en split temporel (< hasard). Limite assumée ; investigation à mener avant toute promotion.
+- **M24 — `DeprecationWarning`** (4, `loaders.py:152` et `:169`) apparus avec pandas 2.3.3 imposé par le lock du jalon 02. → À signaler.
 - **Preuve CI GitHub** : faite sur **mon fork** (`ISALLSYNC`) plutôt que sur le dépôt du formateur, faute de savoir si les apprenants doivent y pousser. → À confirmer avec le formateur que la PR #1 du fork convient comme preuve.
 - **Jalon 02 lancé sur ma décision** (« On peut le lancer ») après la pré-vérification sans conflit ; signal formateur à confirmer. Branche de secours : `sauvegarde/ismael-sall/20260928-154713`.
 - **Prérequis Sprint 2 (scénario B)** : un contrat I/O **d'exemple** est disponible ([docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json](docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json)), mais ses valeurs sont illustratives. → À confirmer avec le formateur : le scénario B me concerne-t-il ? Quel est le **seuil réel** du modèle du dépôt ? Où sont la model card v1 et le contrat validé ?
 
-**Module 24 — CI/CD, tests & versioning** · *C6* · *(en cours — 28/09/2026)*
+**Module 24 — CI/CD, tests & versioning** · *C6* · *(terminé — 28/09/2026)*
 
 **Étape 0 — Pré-vérification de la fusion du jalon 02** *(avant le signal, sans rien modifier)*
 
@@ -711,12 +714,35 @@ outs:
 
 *Erreur évitée en vérifiant :* j'avais d'abord écrit que les runs MLflow « n'enregistrent pas le hash de commit Git ». En lisant les tags via l'API (`runs/get`), j'ai trouvé que MLflow l'enregistre **automatiquement** : `mlflow.source.git.commit = 193be25fb9347e981c3d708d220c60a0e8097069`, `mlflow.source.git.branch = ismael-sall`. Corrigé : le lien **commit ↔ données (`gold_md5`) ↔ run ↔ version du registre** est complet. Leçon : **vérifier avant d'écrire une limite**, pas seulement avant d'écrire un succès.
 - *Ma reformulation :* …
-- *Ma reformulation :* …
 
-- Ce que j'ai fait : …
-- Ma preuve : … (CI verte · `gitleaks` bloque · `dvc status`)
-- Compétence(s) : C6
-- Difficulté / question : …
+**Preuve finale M24** *(pas-à-pas R2, « ✓ Preuve finale visée »)*
+
+📎 **Preuve brute** : [preuves/24_preuve_finale.txt](preuves/24_preuve_finale.txt), rejouée le 28/09/2026 à 19:42 sur le commit `3ebe4bb`
+
+*À quoi elle sert :* comme au M23, c'est le **bilan de sortie** : vérifier **en une fois**, sur l'état final, que tout ce qui a été ajouté au M24 (hooks, CI, DVC, MLflow, livrable) n'a rien cassé.
+
+| # | Commande | Ce qu'elle vérifie | Résultat |
+|---|---|---|---|
+| 1 | `uv sync --frozen --extra dev --extra mlops` | Environnement conforme au lock | `Checked 175 packages` |
+| 2 | `uv run --frozen pytest -q -p no:warnings` | Tous les tests | **`13 passed`** |
+| 3 | `uv run --frozen ruff check .` | Linter | **`All checks passed!`** |
+| 4 | `uv run --frozen black --check .` | Formatage | **`15 files would be left unchanged`** |
+| 5 | `uv run --frozen pre-commit run --all-files` | Les 3 hooks, dont gitleaks (**0 secret**) | ruff · black · gitleaks **Passed** |
+| 6 | `git diff --exit-code -- uv.lock` | Lock inchangé | code retour **0** |
+| 7 | `dvc status` · `dvc status -c` | Fichiers, cache, remote cohérents | **up to date** · **in sync** |
+| 8 | `dir versioning_strategy.md metrics.json params.yaml *.dvc` | Livrables présents | les 5 fichiers |
+| 9 | `git status --short` | Rien d'oublié | aucune sortie |
+
+- **9 / 9 verts**, code retour 0 partout : conforme à la « preuve finale visée » du pas-à-pas.
+- `-p no:warnings` masque les 4 `DeprecationWarning` déjà connus (pandas 2.3.3), sans changer le verdict.
+
+**Bilan M24**
+
+- **Ce que j'ai fait** : récupéré et vérifié le jalon 02 (fusion simulée d'abord) · activé **pre-commit** (ruff, black, gitleaks) et prouvé le blocage d'un faux secret · lu la CI et corrigé ses commandes (`--frozen`) · ajouté le job **`build`** (`needs: quality`) · prouvé le cycle **rouge → vert** · fait tourner la **CI réelle** sur une PR brouillon de mon fork · versionné le Gold et le modèle avec **DVC** · tracé **2 runs MLflow** (stratifié vs temporel) et **2 versions** au registre · rédigé **`versioning_strategy.md`**.
+- **Mes preuves** : [PR #1](https://github.com/ISALLSYNC/CISIA_24082026_Parcours/pull/1) avec `quality` + `build` verts ([capture](preuves/24_ci_github_quality.png)) · `gitleaks … leaks found: 1` · `dvc status` *up to date* / *in sync* · `run_id` `dc83b65f…` (v1) et `ac4544af…` (v2) · [versioning_strategy.md](versioning_strategy.md) · 13 tests verts, lock inchangé.
+- **Compétence(s)** : C6 (implémenter / intégrer les briques) · lien C8 (traçabilité, mesures reproductibles)
+- **Aide IA reçue** : Claude Code a exécuté les commandes (sauf le fork, la PR et la capture, faits par moi sur GitHub), écrit le job `build` et `versioning_strategy.md` d'après la fiche TD 24, produit et commenté les preuves, et expliqué chaque notion. Il a aussi corrigé ses propres erreurs (numérotation des TP, encodage, affirmation fausse sur MLflow). **Je dois savoir réexpliquer : pre-commit vs CI, `needs:`, pointeur DVC, run vs version, pourquoi le split temporel.**
+- **Difficultés / questions** : voir la liste « Difficultés / questions » de la section M23 (seuil calibré sur le train, `DeprecationWarning`, preuve CI sur le fork, jalons lancés sur ma décision).
 
 ### J2 — mar. 25/08
 
