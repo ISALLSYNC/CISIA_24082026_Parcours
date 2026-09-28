@@ -424,7 +424,7 @@
 - **Règle de sécurité respectée** : jamais une vraie clé, même révoquée, et aucun commit tenté.
 - **Incident corrigé en cours de route** : ma première version de la preuve **citait la clé d'exemple** dans un commentaire. Le hook que je venais d'installer aurait (à juste titre) bloqué ce commit. J'ai **masqué la clé** dans la preuve et retiré les codes couleur du terminal. Leçon : **un fichier de preuve peut lui aussi contenir un secret**.
 - *Hypothèse (non vérifiée)* : le hook analyse les **changements préparés**, pas tout l'historique. C'est pourquoi les clés d'exemple déjà présentes dans `docs/` (guide multiplateforme) ne font pas échouer `run --all-files`.
-- *Ma reformulation :* …
+- *Ma reformulation :* Bloquer le secret avant le commit permet d'éviter sa divulgation, car une fois commité, il reste dans l'historique Git même si on supprime le fichier. *(phrase construite avec l'aide de Claude à partir de mes réponses : « éviter la divulgation du secret » + B)*
 
 - Ce que j'ai fait : …
 - Ma preuve : … (CI verte · `gitleaks` bloque · `dvc status`)
