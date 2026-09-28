@@ -426,6 +426,51 @@
 - *Hypothèse (non vérifiée)* : le hook analyse les **changements préparés**, pas tout l'historique. C'est pourquoi les clés d'exemple déjà présentes dans `docs/` (guide multiplateforme) ne font pas échouer `run --all-files`.
 - *Ma reformulation :* Bloquer le secret avant le commit permet d'éviter sa divulgation, car une fois commité, il reste dans l'historique Git même si on supprime le fichier. *(phrase construite avec l'aide de Claude à partir de mes réponses : « éviter la divulgation du secret » + B)*
 
+**TP 2 — Lire la CI : [.github/workflows/ci.yml](.github/workflows/ci.yml)** *(pas-à-pas R2, « La CI, le robot qualité »)*
+
+📎 **Preuve brute** : [preuves/24_ci_quality_local.txt](preuves/24_ci_quality_local.txt) (job `quality` rejoué en local)
+
+*Le principe :* la **CI** (intégration continue) est un **robot** de GitHub qui relance automatiquement les contrôles sur une **machine neuve** à chaque push ou pull request. pre-commit protège **mon** poste ; la CI protège le **dépôt partagé**, même si quelqu'un n'a pas installé les hooks.
+
+*Lecture bloc par bloc (numéros = lignes réelles du fichier, commentaires compris) :*
+
+| Ligne | Code | Explication |
+|---|---|---|
+| [18](.github/workflows/ci.yml#L18) | `name: CI` | Nom affiché dans l'onglet **Actions** de GitHub |
+| [21](.github/workflows/ci.yml#L21)-[27](.github/workflows/ci.yml#L27) | `on: push: branches: [main]` · `pull_request:` | **Quand** le robot se lance : push sur `main`, ou n'importe quelle pull request. ⚠️ Un push sur `ismael-sall` seul **ne déclenche pas** la CI |
+| [32](.github/workflows/ci.yml#L32) | `quality:` | Un **job** = une machine + une suite d'étapes. Ici, un seul job |
+| [34](.github/workflows/ci.yml#L34) | `runs-on: ubuntu-latest` | Machine Linux **neuve**, jetée à la fin : « ça marche sur ma machine » ne suffit plus |
+| [40](.github/workflows/ci.yml#L40) | `actions/checkout@v4` | Récupérer le code du dépôt |
+| [43](.github/workflows/ci.yml#L43)-[49](.github/workflows/ci.yml#L49) | `actions/setup-python@v5` · `python-version: "3.13"` | Python **3.13**, cohérent avec `requires-python` |
+| [52](.github/workflows/ci.yml#L52) | `astral-sh/setup-uv@v3` | Installer `uv` |
+| [58](.github/workflows/ci.yml#L58) | `uv sync --extra dev` | **Install** : dépendances + outils de dev |
+| [64](.github/workflows/ci.yml#L64) | `uv run ruff check .` | **Lint** (même contrôle que le hook ruff) |
+| [70](.github/workflows/ci.yml#L70) | `uv run black --check .` | **Format** : `--check` vérifie **sans modifier** et échoue si un fichier est mal formaté |
+| [76](.github/workflows/ci.yml#L76) | `uv run pytest -q` | **Tests** |
+
+- Les étapes s'exécutent **dans l'ordre** et **la première qui échoue arrête tout** : le job devient **rouge**.
+- `@v4`, `@v5`, `@v3` : on **épingle** la version des actions GitHub, comme `rev:` dans pre-commit.
+
+*Écart repéré avec la consigne :*
+- Le pas-à-pas R2 insiste sur `uv sync --frozen --extra dev` et `uv run --frozen …`. Le fichier fourni **n'a aucun `--frozen`** (lignes 58 à 76).
+- Risque : sans `--frozen`, la CI peut **recalculer** les versions au lieu d'utiliser exactement celles de `uv.lock`, et ne plus tester le même environnement que moi.
+- Ce fichier n'a **pas** été modifié par le jalon 02 (dernier changement : socle `5e77d57`). *Hypothèse* : « trou » volontaire du M24. → Je décide de le corriger en même temps que l'ajout du job `build`.
+
+*Rejouer la CI en local (avec `--frozen`) :*
+
+| Étape CI | Commande | Résultat |
+|---|---|---|
+| Install | `uv sync --frozen --extra dev` | OK · **48 paquets retirés** (voir ci-dessous) |
+| Lint | `uv run --frozen ruff check .` | **`All checks passed!`** |
+| Format | `uv run --frozen black --check .` | **`15 files would be left unchanged`** |
+| Tests | `uv run --frozen pytest -q` | **`13 passed, 4 warnings`** (les 4 `DeprecationWarning` déjà notés) |
+| Contrôle | `git diff --exit-code -- uv.lock` | Code retour **0** : le lock n'a pas bougé |
+
+- Toutes les étapes sont **vertes** : si la CI tournait sur ce commit, le job `quality` passerait (sous réserve de la limite ci-dessous).
+- **Effet de bord appris** : `uv sync` **aligne** l'environnement **exactement** sur ce qu'on demande. Sans `--extra mlops`, il a **désinstallé** DVC / MLflow (48 paquets). C'est voulu : c'est le périmètre exact de la CI. Il faudra relancer `uv sync --frozen --extra dev --extra mlops` avant l'étape DVC.
+- *Limite* : ce n'est pas une vraie CI (mon `.venv` existait déjà, Windows au lieu d'Ubuntu). Le dépôt `origin` est celui du formateur : **je ne pousse pas** sans accord, donc pas de CI GitHub observée pour l'instant.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : …
 - Ma preuve : … (CI verte · `gitleaks` bloque · `dvc status`)
 - Compétence(s) : C6
