@@ -225,6 +225,50 @@
 - Limite repérée : seule la **première** suite de chiffres compte. `"LIGNE2-M05"` donnerait `MACH-02` et non `MACH-05`. *Hypothèse non testée, déduite de la lecture du code* : sans conséquence tant que les sources respectent les formats listés.
 - *Ma reformulation :* La normalisation consiste à unifier le nommage des machines afin d'éviter que la même machine porte plusieurs noms différents.
 
+**Prérequis Sprint 2 — Contrat I/O (exemple du cours)** *(pas-à-pas R2, « Ouvrir le Sprint 3 — scénario B » · lien C7)*
+
+📎 Fichier analysé : [docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json](docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json) · 📎 Preuve : [preuves/23_contrat_io_machine_exemple.txt](preuves/23_contrat_io_machine_exemple.txt)
+
+*Qu'est-ce que c'est ?* Un **contrat I/O** (entrée / sortie) : l'accord écrit entre le modèle (bientôt l'API, M25) et ceux qui l'appellent. Il fixe **ce qu'on envoie** (`request_schema`), **ce qu'on reçoit** (`response_schema`) et les **règles de validation** (types, bornes, champs obligatoires), au format standard JSON Schema.
+- **Les schémas** sont la structure de référence, réutilisable au M25.
+- **Les valeurs d'exemple** (`MACH-EXEMPLE`, seuil `0.65`, version `EXEMPLE-FICTIF-1`) sont **illustratives** : le fichier le déclare (`"example_only": true`, « ne décrit pas le seuil du dépôt commun et ne prouve aucune prédiction exécutée »). Je ne les cite donc **pas** comme des résultats réels.
+- Source indiquée : « Repères du cours Sprint 2, module 22 ». Le fichier n'est cité par aucun autre document du dépôt.
+
+*Requête (`request_schema`) :*
+
+| Champ | Règle | Pourquoi |
+|---|---|---|
+| `machine_id` | texte non vide, obligatoire | Identifier la machine |
+| `readings` | liste d'**au moins 7** mesures | Assez d'historique pour les features (voir ci-dessous) |
+| `timestamp` | date ISO 8601 (`2026-09-01T08:00:00Z`) | Trier dans le temps, condition de l'anti-fuite (TP 2) |
+| `temperature` | nombre entre **-20 et 200** | Rejeter une valeur physiquement absurde |
+| `pressure_bar` | nombre **> 0** et ≤ 400 | Une pression nulle ou négative = capteur défaillant |
+| `additionalProperties: false` | aucun champ en plus | Un champ mal orthographié est **refusé** au lieu d'être ignoré en silence |
+
+- **Pourquoi 7 mesures minimum** *(ma déduction, non écrite dans le fichier)* : le modèle utilise `lag6` et `roll6_mean` ([model_metadata.json](artifacts/models/model_metadata.json)). Avec le `shift(1)` du TP 2, une moyenne sur 6 mesures passées exige **6 mesures d'avant + la mesure courante = 7**. En dessous, les features valent `NaN`. Le contrat est donc **cohérent** avec le code anti-fuite.
+
+*Réponse (`response_schema`) :*
+
+| Champ | Règle | Rôle |
+|---|---|---|
+| `proba_panne` | entre 0 et 1 | Probabilité de panne donnée par le modèle |
+| `decision` | `"ok"` ou `"alerte"` uniquement (`enum`) | Décision métier lisible, sans valeur surprise |
+| `threshold` | entre 0 et 1 | Seuil utilisé pour décider |
+| `model_version` | texte non vide | **Traçabilité** : quel modèle a répondu |
+
+- Règle de décision : `proba_panne ≥ threshold` → `"alerte"`, sinon `"ok"`. Exemple du fichier : 0,72 ≥ 0,65 → alerte.
+- Bonne pratique : renvoyer le **seuil** et la **version** dans chaque réponse permet de **revérifier une décision après coup**.
+
+*Confrontation avec le code du dépôt :*
+
+| Écart | Contrat | Code actuel | Conséquence |
+|---|---|---|---|
+| ID d'exemple | `"MACH-EXEMPLE"` | `normalize_machine_id` exige un chiffre (TP 3) | **Testé** : `ValueError: machine_id sans numero : 'MACH-EXEMPLE'`. L'exemple serait rejeté (fail fast, comportement voulu) |
+| Nom de la colonne machine | `machine_id` | `add_temporal_features` attend `machine` par défaut | Renommage nécessaire entre l'API et les features (M25) |
+| Fuseau horaire | timestamps en UTC (`Z`) | non vérifié dans les données du dépôt | *À contrôler* : mélanger des dates avec et sans fuseau fait échouer ou fausse le tri |
+
+*Ce qui manque pour un contrat complet :* les réponses d'**erreur** (422 données invalides · 401 · 413 · 429, vues aux M25-M26), les **unités** (°C ? le fichier ne le dit pas) et l'**ordre** attendu des mesures (le code les trie de toute façon).
+
 **Compétence(s)** : C6 (implémenter / intégrer les briques) · lien C3 (features sans fuite, au TP 2)
 
 **Aide IA reçue** : Claude Code a lancé la mise à niveau, la vérification du jalon et les commandes de contrôle du squelette. Il a ensuite expliqué le rôle de chaque commande, le sens de `--frozen` et l'intérêt de l'import de `indusense`. Au TP 2, il a lu `temporal.py` et ses tests, écrit et lancé le script de démonstration avec / sans `shift(1)`, et produit la preuve. Au TP 3, il m'a guidé pas à pas pour **prédire moi-même** la sortie (mes erreurs sont notées dans le tableau), puis a exécuté la vérification, les tests et un cas limite / un cas d'échec. **Je dois savoir réexpliquer chaque ligne du tableau ci-dessus sans aide.**
@@ -233,6 +277,7 @@
 - Le jalon 01 a été lancé **sans attendre le signal du formateur**. C'est réversible via la branche `sauvegarde/ismael-sall/20260928-112927`, et sans impact ici puisque le jalon ne change que le marqueur.
 - **Incohérence entre supports** : la fiche jalon 01 demande d'extraire `clean_sensor_data`, alors que le pas-à-pas R2 la classe en extension facultative. → À confirmer avec le formateur.
 - La fiche TD 23, citée par le pas-à-pas pour le code de `cleaning.py`, **n'est pas dans le dépôt**. → À demander.
+- **Prérequis Sprint 2 (scénario B)** : un contrat I/O **d'exemple** est disponible ([docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json](docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json)), mais ses valeurs sont illustratives. → À confirmer avec le formateur : le scénario B me concerne-t-il ? Quel est le **seuil réel** du modèle du dépôt ? Où sont la model card v1 et le contrat validé ?
 
 **Module 24 — CI/CD, tests & versioning** · *C6*
 - Ce que j'ai fait : …

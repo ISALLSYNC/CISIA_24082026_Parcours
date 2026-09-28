@@ -1,0 +1,15 @@
+﻿# Preuve : contrat I/O d'exemple - l'ID MACH-EXEMPLE confronte au code du TP 3
+# Date : 2026-09-28 14:55
+# Branche : ismael-sall @ b49eb14
+# Fichier analyse : docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json (synthetic_request.machine_id)
+
+PS> uv run python -c "from indusense.data.loaders import normalize_machine_id as n; n('MACH-EXEMPLE')"
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from indusense.data.loaders import normalize_machine_id as n; n('MACH-EXEMPLE')
+                                                                  ~^^^^^^^^^^^^^^^^
+  File "C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py", line 54, in normalize_machine_id
+    raise ValueError(f"machine_id sans numero : {raw!r}")
+ValueError: machine_id sans numero : 'MACH-EXEMPLE'
+
+# Resultat attendu et obtenu : ValueError (l'ID d'exemple ne contient aucun chiffre). Code retour 1 = echec volontaire.
