@@ -3,7 +3,8 @@
 > **Livrable certifiant** : prouve, module par module, *ce que j'ai fait · ma preuve · la compétence visée · une difficulté*. Sert d'antisèche pour l'oral (C1→C9), à raconter en **contexte → problème → choix → preuve → limite**.
 
 **Règles de remplissage**
-- **Une preuve** = une commande qui répond, un résultat chiffré, un fichier produit ou une capture (rangée dans `preuves/`, numérotée par module).
+- **Une preuve** = une commande qui répond, un résultat chiffré, un fichier produit ou une capture, rangée dans `preuves/` sous la forme `<module>_<étape>_<quoi>.<ext>` (ex. `23_tp2_pytest_temporal.txt`, `24_ci_verte.png`) et liée depuis l'entrée du module (📎).
+- **Sorties terminal** : enregistrées en `.txt` (en-tête : date, branche, commit, puis `PS> commande` et sa sortie exacte). **Captures** : seulement pour ce qui est visuel (page web, CI, dashboard), en vérifiant qu'aucun secret n'apparaît.
 - **Aide IA** : noter l'aide reçue, séparer *fait observé · hypothèse · correctif · preuve*, et savoir réexpliquer chaque commande sans aide.
 - **Jamais** de secret ni de donnée nominative.
 - **Dates** : les dates du modèle (cohorte précédente, J1 = 24/08) sont remplacées par mes dates réelles au fil des modules.
@@ -77,6 +78,8 @@
 
 **Point 1 — Contrôle du squelette** *(pas-à-pas R2, « Montrer le squelette »)*
 
+📎 **Preuve brute** : [preuves/23_p1_squelette.txt](preuves/23_p1_squelette.txt), sorties exactes des commandes ci-dessous + `verifier_jalon.ps1`, rejouées le 28/09/2026 à 12:05 sur le commit `a2aceba` (commandes en lecture seule, résultats identiques à la première exécution).
+
 | Commande | À quoi elle sert | Résultat obtenu | Ce que ça prouve |
 |---|---|---|---|
 | `uv --version` | Vérifier que le gestionnaire de paquets est installé | `uv 0.12.5` | L'outil est disponible |
@@ -129,7 +132,7 @@
 | `[tool.black]` | `line-length = 100` | Formateur automatique, même limite que ruff pour qu'ils ne se contredisent pas |
 | `[tool.pytest.ini_options]` | `testpaths = ["tests"]` · `pythonpath = ["src"]` | pytest ne cherche les tests que dans `tests/` et ajoute `src/` au chemin |
 
-*Audit du contrat (sans modification) :*
+*Audit du contrat (sans modification) :* 📎 [preuves/23_tp1_audit_pyproject.txt](preuves/23_tp1_audit_pyproject.txt)
 - `Select-String -Path .\pyproject.toml -Pattern 'requires-python','optional-dependencies','indusense\s*='` → lignes **35** (`requires-python = ">=3.13,<3.14"`), **64** (`[project.optional-dependencies]`), **85** (`indusense = "indusense.cli:main"`) : les trois éléments du contrat sont présents.
 - `git diff -- pyproject.toml uv.lock` → **aucune sortie** (code retour 0) : ni le manifeste ni le verrou n'ont été modifiés. L'environnement reste reproductible.
 

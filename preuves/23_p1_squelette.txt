@@ -1,0 +1,29 @@
+﻿# Preuve : M23 point 1 - controle du squelette
+# Date : 2026-09-28 12:05 (rejouee apres coup, commandes en lecture seule)
+# Branche : ismael-sall @ a2aceba
+
+PS> uv --version
+uv 0.12.5 (210d1f678 2026-08-14 x86_64-pc-windows-msvc)
+
+PS> uv sync --frozen --extra dev
+Checked 48 packages in 9ms
+
+PS> Test-Path -LiteralPath .\pyproject.toml
+True
+
+PS> Test-Path -LiteralPath .\uv.lock
+True
+
+PS> uv run python -c "import indusense; print(indusense.__file__)"
+C:\Users\issal\CISIA_24082026_Parcours\src\indusense\__init__.py
+
+PS> uv run python --version
+Python 3.13.15
+
+PS> powershell -ExecutionPolicy Bypass -File .\scripts\formation\verifier_jalon.ps1 -Jalon 01
+Checked 48 packages in 14ms
+............                                                             [100%]
+12 passed in 1.42s
+All checks passed!
+Jalon verifie : jalon/01
+

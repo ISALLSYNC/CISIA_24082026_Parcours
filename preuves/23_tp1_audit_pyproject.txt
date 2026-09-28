@@ -1,0 +1,14 @@
+﻿# Preuve : M23 TP 1 - audit du contrat pyproject (sans modification)
+# Date : 2026-09-28 12:05 (rejouee apres coup, commandes en lecture seule)
+# Branche : ismael-sall @ a2aceba
+
+PS> Select-String -Path .\pyproject.toml -Pattern 'requires-python','optional-dependencies','indusense\s*='
+
+pyproject.toml:35:requires-python = ">=3.13,<3.14"
+pyproject.toml:62:# [PÉDAGOGIE] SECTION — `[project.optional-dependencies]` regroupe des réglages lus par le même
+pyproject.toml:64:[project.optional-dependencies]
+pyproject.toml:85:indusense = "indusense.cli:main"
+
+PS> git diff --quiet -- pyproject.toml uv.lock; "git diff exit code: $LASTEXITCODE (0 = pyproject.toml et uv.lock non modifies)"
+git diff exit code: 0 (0 = pyproject.toml et uv.lock non modifies)
+
