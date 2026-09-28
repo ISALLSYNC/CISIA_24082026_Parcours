@@ -54,7 +54,7 @@
 - [x] Point 1 — contrôle du squelette
 - [x] TP 1 — structure & `pyproject.toml` (lecture, sans modification)
 - [x] TP 2 — anti-fuite : `shift(1)` avant `rolling` dans `features/temporal.py`
-- [ ] TP 3 — normalisation des IDs machine (`normalize_machine_id`)
+- [x] TP 3 — normalisation des IDs machine (`normalize_machine_id`)
 - [ ] Extension (facultative d'après le pas-à-pas R2) : extraire `clean_sensor_data` dans `features/cleaning.py`
 - [ ] Preuve finale + commit M23 + QCM J1 (questions 1-3)
 
@@ -95,7 +95,7 @@
   - Le chemin affiché (`__file__`) garantit qu'on exécute **le code qu'on modifie**, et non une autre copie (ancien clone, vieux `site-packages`).
   - Conséquence : les tests tournent contre le package **installé**, comme en production. Une erreur de packaging (fichier oublié, mauvaise config) est donc détectée tôt.
   - C'est un prérequis pour tout le reste : tests, CLI `indusense` et, plus tard, l'API font tous `from indusense... import ...`.
-  - *Ma reformulation :* …
+  - *Le projet d'indusens sert de base pour vérifier que tout fonction comme ça se doit:* …
   - *Nuance vue au TP 1 :* `pyproject.toml` contient `pythonpath = ["src"]` dans `[tool.pytest.ini_options]`, donc **pytest** ajoute lui-même `src/` au chemin Python. Les tests trouveraient le code même sans installation. C'est la commande `import indusense` hors pytest, et la CLI `indusense`, qui prouvent l'installation.
 
 **TP 1 — Structure du projet & `pyproject.toml`** *(lecture seule, aucun fichier modifié)*
@@ -178,11 +178,56 @@
 - Ce que ça prouve : la valeur 15.0 attendue par le test est **exactement** celle de la démo avec `shift(1)`. Si quelqu'un retirait le `shift(1)`, la valeur passerait à 25.0 et le test échouerait : le test **protège** contre la régression.
 - « Compléter » le test : non nécessaire, les 3 cas demandés par le pas-à-pas (anti-fuite, tri temporel, colonne manquante) sont déjà couverts.
 - Hors périmètre : le **split train/test temporel** (entraîner sur le passé, tester sur le futur) est un autre mécanisme anti-fuite, traité dans l'exercice avancé.
+- *La gestion de fuite de données parmet de s'assurer de l'unicité des donnéesS* …
+
+**TP 3 — Normalisation des IDs machine** *(pas-à-pas R2, « TP 3 — Normalisation des machines »)*
+
+📎 **Preuve brute** : [preuves/23_tp3_normalize_machine_id.txt](preuves/23_tp3_normalize_machine_id.txt) (ma prédiction, la sortie réelle, les 6 tests, un cas limite et un cas d'échec)
+
+*Le problème :* les fichiers sources n'écrivent pas l'ID machine de la même façon (`MACH-01`, `MACH_01`, `M-06`, `M-2`…). Pour pandas, `MACH-01` et `MACH_01` sont **deux machines différentes**. Les jointures entre température, pression et incidents rateraient alors des lignes, en silence.
+
+*La solution — [loaders.py:46-56](src/indusense/data/loaders.py#L46-L56), `normalize_machine_id` :*
+
+| Étape | Code | Effet |
+|---|---|---|
+| 1. Trouver les chiffres | `_DIGITS.search(str(raw))` avec `_DIGITS = re.compile(r"(\d+)")` ([ligne 29](src/indusense/data/loaders.py#L29)) | Récupère la **première suite de chiffres** ; tout le reste (`MACH`, `M`, `-`, `_`) est ignoré |
+| 2. Refuser si aucun chiffre | `raise ValueError("machine_id sans numero : …")` | **Fail fast** : un ID inutilisable est bloqué tout de suite au lieu de produire un faux identifiant |
+| 3a. Convertir en nombre | `int(match.group(1))` | `"06"` → `6` (retire les zéros en tête) |
+| 3b. Écrire sur 2 chiffres | `:02d` | `6` → `"06"`, `2` → `"02"` (complète avec un `0`, **minimum** 2 chiffres) |
+| 3c. Reconstruire | `f"MACH-{…}"` | Préfixe **unique** `MACH-` → format standard `MACH-NN` |
+
+*Prédire puis exécuter :*
+
+| Entrée | Ma prédiction (avant exécution) | Sortie réelle | Verdict |
+|---|---|---|---|
+| `"MACH-01"` | `MACH-01` *(exemple guidé)* | `MACH-01` | ✅ |
+| `"MACH_01"` | `01` → corrigé en `MACH-01` (j'avais oublié le préfixe) | `MACH-01` | ✅ |
+| `"M-06"` | `MACHINE-06` → corrigé en `MACH-06` (le préfixe est toujours `MACH-`, pas `MACHINE-`) | `MACH-06` | ✅ |
+| `"M-2"` | `MACH-02` | `MACH-02` | ✅ du premier coup |
+
+- Commande : `uv run python -c "…print([n(raw) for raw in ids])"` → **`['MACH-01', 'MACH-01', 'MACH-06', 'MACH-02']`**, exactement le résultat attendu par le pas-à-pas et ma prédiction finale.
+- Ce que j'ai appris en me trompant : la fonction ne garde **que les chiffres**, puis **reconstruit tout le reste** avec un préfixe fixe. Deux écritures du même ID donnent donc la même sortie.
+
+*Les tests de [test_loaders.py](tests/test_loaders.py) :*
+
+| Test | Cas couverts | Résultat |
+|---|---|---|
+| [`test_normalize_machine_id_variants`](tests/test_loaders.py#L53) | 5 variantes via `@pytest.mark.parametrize` : `MACH-01`, `MACH_01`, `M-06`, `M-2`, **`M_07`** (un cas en plus de la consigne) | 5 PASSED |
+| [`test_normalize_machine_id_without_number_raises`](tests/test_loaders.py#L62) | ID sans chiffre `"NOPE"` → doit lever `ValueError` | PASSED |
+
+- Commande : `uv run pytest tests/test_loaders.py -v -k normalize_machine_id` (`-k` = ne lancer que les tests dont le nom contient `normalize_machine_id`)
+- Résultat : **`6 passed, 2 deselected in 1.34s`**, 0 échec. Les 2 tests « deselected » sont les autres tests du fichier, volontairement écartés par `-k`.
+- `parametrize` : **un seul** test écrit, exécuté **5 fois** avec des données différentes. Ajouter un nouveau format d'ID = ajouter une ligne, pas un nouveau test.
+
+*Cas limite et cas d'échec (au-delà de la consigne) :*
+- `"MACH-123"` → `MACH-123` : `:02d` impose **au moins** 2 chiffres, sans tronquer. Une 100ᵉ machine reste donc distincte.
+- `"MACH-XX"` → `ValueError: machine_id sans numero : 'MACH-XX'` : le cas d'échec est bien bloqué. Le code retour 1 de cette commande est **attendu**.
+- Limite repérée : seule la **première** suite de chiffres compte. `"LIGNE2-M05"` donnerait `MACH-02` et non `MACH-05`. *Hypothèse non testée, déduite de la lecture du code* : sans conséquence tant que les sources respectent les formats listés.
 - *Ma reformulation :* …
 
 **Compétence(s)** : C6 (implémenter / intégrer les briques) · lien C3 (features sans fuite, au TP 2)
 
-**Aide IA reçue** : Claude Code a lancé la mise à niveau, la vérification du jalon et les commandes de contrôle du squelette. Il a ensuite expliqué le rôle de chaque commande, le sens de `--frozen` et l'intérêt de l'import de `indusense`. Au TP 2, il a lu `temporal.py` et ses tests, écrit et lancé le script de démonstration avec / sans `shift(1)`, et produit la preuve. **Je dois savoir réexpliquer chaque ligne du tableau ci-dessus sans aide.**
+**Aide IA reçue** : Claude Code a lancé la mise à niveau, la vérification du jalon et les commandes de contrôle du squelette. Il a ensuite expliqué le rôle de chaque commande, le sens de `--frozen` et l'intérêt de l'import de `indusense`. Au TP 2, il a lu `temporal.py` et ses tests, écrit et lancé le script de démonstration avec / sans `shift(1)`, et produit la preuve. Au TP 3, il m'a guidé pas à pas pour **prédire moi-même** la sortie (mes erreurs sont notées dans le tableau), puis a exécuté la vérification, les tests et un cas limite / un cas d'échec. **Je dois savoir réexpliquer chaque ligne du tableau ci-dessus sans aide.**
 
 **Difficultés / questions**
 - Le jalon 01 a été lancé **sans attendre le signal du formateur**. C'est réversible via la branche `sauvegarde/ismael-sall/20260928-112927`, et sans impact ici puisque le jalon ne change que le marqueur.
