@@ -311,7 +311,7 @@
 
 - Si quelqu'un retirait le `groupby`, les deux assertions recevraient 20.0 et le test échouerait : il **protège** contre cette erreur.
 - *Limite :* une machine dont **toutes** les valeurs manquent garde ses `NaN` (pas de médiane à propager). Non couverte par le test.
-- *Ma reformulation :* …
+- *Ma reformulation :* On calcule la médiane machine par machine pour que chaque machine soit complétée avec ses propres valeurs. Sinon, elle recevrait une fausse valeur calculée en partie avec les mesures d'une autre machine. *(phrase construite avec l'aide de Claude à partir de mes réponses B / B)*
 
 **Preuve finale M23** *(pas-à-pas R2, « Preuve finale »)*
 
