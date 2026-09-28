@@ -178,7 +178,7 @@
 - Ce que ça prouve : la valeur 15.0 attendue par le test est **exactement** celle de la démo avec `shift(1)`. Si quelqu'un retirait le `shift(1)`, la valeur passerait à 25.0 et le test échouerait : le test **protège** contre la régression.
 - « Compléter » le test : non nécessaire, les 3 cas demandés par le pas-à-pas (anti-fuite, tri temporel, colonne manquante) sont déjà couverts.
 - Hors périmètre : le **split train/test temporel** (entraîner sur le passé, tester sur le futur) est un autre mécanisme anti-fuite, traité dans l'exercice avancé.
-- *La gestion de fuite de données parmet de s'assurer de l'unicité des donnéesS* …
+- *Ma reformulation :* La fuite de données consiste à utiliser, pour entraîner le modèle, des informations qui ne sont pas encore connues au moment de la prédiction. Le `shift(1)` permet de n'utiliser que les informations connues avant ce moment.
 
 **TP 3 — Normalisation des IDs machine** *(pas-à-pas R2, « TP 3 — Normalisation des machines »)*
 
