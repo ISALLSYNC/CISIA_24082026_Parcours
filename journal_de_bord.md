@@ -427,7 +427,7 @@
 - *Hypothèse (non vérifiée)* : le hook analyse les **changements préparés**, pas tout l'historique. C'est pourquoi les clés d'exemple déjà présentes dans `docs/` (guide multiplateforme) ne font pas échouer `run --all-files`.
 - *Ma reformulation :* Bloquer le secret avant le commit permet d'éviter sa divulgation, car une fois commité, il reste dans l'historique Git même si on supprime le fichier. *(phrase construite avec l'aide de Claude à partir de mes réponses : « éviter la divulgation du secret » + B)*
 
-**TP 2 — Lire la CI : [.github/workflows/ci.yml](.github/workflows/ci.yml)** *(pas-à-pas R2, « La CI, le robot qualité »)*
+**La CI, le robot qualité — lire [.github/workflows/ci.yml](.github/workflows/ci.yml)** *(pas-à-pas R2, « La CI, le robot qualité »)*
 
 📎 **Preuve brute** : [preuves/24_ci_quality_local.txt](preuves/24_ci_quality_local.txt) (job `quality` rejoué en local)
 
@@ -472,13 +472,13 @@
 - *Limite* : ce n'est pas une vraie CI (mon `.venv` existait déjà, Windows au lieu d'Ubuntu). Le dépôt `origin` est celui du formateur : **je ne pousse pas** sans accord, donc pas de CI GitHub observée pour l'instant.
 - *Ma reformulation :* …
 
-**TP 3 — Compléter la CI : `--frozen` + job `build`** *(fiche TD 24, étapes 2 et 3)*
+**TP 2 — Workflow GitHub Actions (+ job build) : `--frozen` + job `build`** *(pas-à-pas R2, « TP 2 — Workflow GitHub Actions (+ job build) » · fiche TD 24, étapes 2 et 3)*
 
 📎 **Preuve brute** : [preuves/24_ci_build_local.txt](preuves/24_ci_build_local.txt) (diff, validation YAML, `dist/` ignoré, `uv build`, contenu du wheel)
 
 *Modification de [.github/workflows/ci.yml](.github/workflows/ci.yml)* : 34 lignes ajoutées, 4 modifiées ; chaque ajout est commenté en `[PÉDAGOGIE]` dans le style du fichier.
 
-*A. `--frozen` dans le job `quality`* — confirme l'hypothèse du TP 2 : la fiche TD 24 (étape 2) exige « `uv sync --frozen --extra dev` (CI reproductible : jamais de résolution à la volée) ».
+*A. `--frozen` dans le job `quality`* — confirme l'hypothèse faite en lisant la CI (section « La CI, le robot qualité ») : la fiche TD 24 (étape 2) exige « `uv sync --frozen --extra dev` (CI reproductible : jamais de résolution à la volée) ».
 
 | Avant | Après |
 |---|---|
@@ -510,7 +510,7 @@
 - *Limite* : j'ai vérifié la **syntaxe** et l'étape `uv build` **en local**. Seule une vraie exécution sur GitHub Actions (push + pull request) prouvera que `needs:` et `upload-artifact` fonctionnent.
 - *Ma reformulation :* …
 
-**TP 4 — Cycle rouge → vert** *(pas-à-pas R2, « Démo PR rouge → verte », variante locale)*
+**Démo PR rouge → verte (variante locale)** *(pas-à-pas R2, « Démo PR rouge → verte »)*
 
 📎 **Preuve brute** : [preuves/24_rouge_vert.txt](preuves/24_rouge_vert.txt)
 
@@ -537,7 +537,7 @@
 - *Variante non faite* : la version « PR rouge → verte » sur GitHub (commit cassé poussé, puis correction). Non jouée : le rouge est prouvé en local, et un commit cassé resterait dans l'historique de la PR.
 - *Ma reformulation :* …
 
-**TP 5 — CI réelle sur GitHub : fork + Pull Request en brouillon** *(fiche TD 24, étape 3 : « Pousse ta branche puis ouvre une Pull Request en brouillon »)*
+**TP 2 (suite) — PR brouillon et CI réelle sur GitHub (fork)** *(pas-à-pas R2, « TP 2 — Workflow GitHub Actions (+ job build) » · fiche TD 24, étape 3 : « Pousse ta branche puis ouvre une Pull Request en brouillon »)*
 
 📎 **Preuve brute** : [preuves/24_ci_github_pr1.txt](preuves/24_ci_github_pr1.txt) (PR, run, jobs, étapes, artefact — lus via l'API publique GitHub)
 🔗 **PR** : https://github.com/ISALLSYNC/CISIA_24082026_Parcours/pull/1 · 🔗 **Run CI** : https://github.com/ISALLSYNC/CISIA_24082026_Parcours/actions/runs/36441665863
@@ -578,7 +578,7 @@
   - ⚠️ *warning* : « Node.js 20 is deprecated » pour `actions/checkout@v4`, `actions/setup-python@v5`, `astral-sh/setup-uv@v3`. GitHub les exécute déjà sous Node.js 24. → Maintenance future : passer à des versions plus récentes des actions. Je garde celles de la fiche TD 24.
   - ℹ️ *notice* : « `ubuntu-latest` will migrate to Ubuntu 26 beginning October 19, 2026 ». La machine « Linux la plus récente » changera de version.
 
-**TP 6 — DVC : versionner le Gold et le modèle** *(fiche TD 24, étape 4)*
+**Versioning données — DVC : versionner le Gold et le modèle** *(pas-à-pas R2, « Versioning données — DVC » · fiche TD 24, étape 4)*
 
 📎 **Preuve brute** : [preuves/24_dvc.txt](preuves/24_dvc.txt)
 
@@ -604,7 +604,7 @@ DVC  : garde le GROS FICHIER               →  dans un « remote » (stockage �
 
 | # | Commande | Rôle | Résultat |
 |---|---|---|---|
-| 0 | `uv sync --frozen --extra dev --extra mlops` | Réinstaller DVC / MLflow (retirés au TP 2) | 48 paquets · lock inchangé |
+| 0 | `uv sync --frozen --extra dev --extra mlops` | Réinstaller DVC / MLflow (retirés en rejouant la CI en local) | 48 paquets · lock inchangé |
 | 1 | `uv run --frozen dvc init` | Initialiser DVC | `.dvc/` + `.dvcignore` créés |
 | 2 | `New-Item ..\dvc-store` + `dvc remote add -d -f localstore ..\dvc-store` | Créer le remote **à côté** du dépôt (pas dedans) et le déclarer **par défaut** (`-d`) | `Setting 'localstore' as a default remote.` |
 | 3 | `git rm --cached -- data/gold/gold_dataset.csv artifacts/models/rf.joblib` | Git **arrête de suivre** les 2 fichiers. `--cached` = **ils restent sur le disque** | `rm '…'` ×2 · fichiers toujours présents (`True` / `True`) |
