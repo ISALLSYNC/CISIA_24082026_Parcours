@@ -471,6 +471,44 @@
 - *Limite* : ce n'est pas une vraie CI (mon `.venv` existait déjà, Windows au lieu d'Ubuntu). Le dépôt `origin` est celui du formateur : **je ne pousse pas** sans accord, donc pas de CI GitHub observée pour l'instant.
 - *Ma reformulation :* …
 
+**TP 3 — Compléter la CI : `--frozen` + job `build`** *(fiche TD 24, étapes 2 et 3)*
+
+📎 **Preuve brute** : [preuves/24_ci_build_local.txt](preuves/24_ci_build_local.txt) (diff, validation YAML, `dist/` ignoré, `uv build`, contenu du wheel)
+
+*Modification de [.github/workflows/ci.yml](.github/workflows/ci.yml)* : 34 lignes ajoutées, 4 modifiées ; chaque ajout est commenté en `[PÉDAGOGIE]` dans le style du fichier.
+
+*A. `--frozen` dans le job `quality`* — confirme l'hypothèse du TP 2 : la fiche TD 24 (étape 2) exige « `uv sync --frozen --extra dev` (CI reproductible : jamais de résolution à la volée) ».
+
+| Avant | Après |
+|---|---|
+| `uv sync --extra dev` | `uv sync --frozen --extra dev` |
+| `uv run ruff check .` | `uv run --frozen ruff check .` |
+| `uv run black --check .` | `uv run --frozen black --check .` |
+| `uv run pytest -q` | `uv run --frozen pytest -q` |
+
+*B. Nouveau job `build`* (code de la fiche TD 24, étape 3) :
+
+| Élément | Rôle | Pourquoi |
+|---|---|---|
+| `needs: quality` | `build` attend que `quality` soit **vert** | On ne fabrique pas un artefact à partir d'un code qui ne passe pas les tests. **Oublier `needs:`** est un piège cité par la fiche (« build lancé malgré des tests rouges ») |
+| `runs-on: ubuntu-latest` + `checkout` / `setup-python` / `setup-uv` | Chaque job a sa **propre machine neuve** | D'où la répétition des étapes d'installation |
+| `uv build` | Fabriquer le **wheel** (`.whl`) dans `dist/` | Prouve que `[build-system]` et `[tool.hatch…]` de `pyproject.toml` fonctionnent |
+| `actions/upload-artifact@v4` (`name: indusense-wheel`, `path: dist/*.whl`) | Conserver le wheel sur GitHub | Le **livrable** de la CI, téléchargeable depuis l'onglet Actions |
+
+*Vérifications locales :*
+
+| Contrôle | Résultat | Ce que ça prouve |
+|---|---|---|
+| Charger le YAML (PyYAML, outil temporaire `--with`, lock intact) | `jobs: ['quality', 'build']` · `build.needs: quality` · 4 commandes avec `--frozen` | Le fichier est **syntaxiquement valide** et la structure est la bonne |
+| `git check-ignore -v dist/` | `.gitignore:43:dist/` | `dist/` est **ignoré** : le wheel ne sera jamais commité par erreur |
+| `uv build` | `…-0.1.0.tar.gz` + **`…-0.1.0-py3-none-any.whl`** | Le packaging fonctionne |
+| Contenu du wheel (liste des `.py`) | 10 fichiers, **dont `features/cleaning.py`** | Mon extension M23 est bien **livrée** dans le package |
+| `git status --short` | Seul `ci.yml` modifié | Rien d'inattendu à commiter |
+
+- **Wheel** = le fichier installable d'un package Python (`pip install fichier.whl`). `py3-none-any` = Python 3 pur, sans code compilé, valable sur **tout OS**. Le `.tar.gz` (sdist) est l'archive des sources.
+- *Limite* : j'ai vérifié la **syntaxe** et l'étape `uv build` **en local**. Seule une vraie exécution sur GitHub Actions (push + pull request) prouvera que `needs:` et `upload-artifact` fonctionnent.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : …
 - Ma preuve : … (CI verte · `gitleaks` bloque · `dvc status`)
 - Compétence(s) : C6

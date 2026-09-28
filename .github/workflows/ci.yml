@@ -55,22 +55,52 @@ jobs:
       - name: Install
         # [PÉDAGOGIE] COMMANDE — elle s'exécute dans le shell du runner et son code de sortie
         # [PÉDAGOGIE] porte le verdict.
-        run: uv sync --extra dev
+        # [PÉDAGOGIE] M24 — --frozen : installer exactement uv.lock, jamais de résolution à la
+        # [PÉDAGOGIE] volée (fiche TD 24, étape 2).
+        run: uv sync --frozen --extra dev
       # [PÉDAGOGIE] IDENTITÉ — ce nom doit permettre de retrouver rapidement la preuve dans
       # [PÉDAGOGIE] l'interface.
       - name: Lint
         # [PÉDAGOGIE] COMMANDE — elle s'exécute dans le shell du runner et son code de sortie
         # [PÉDAGOGIE] porte le verdict.
-        run: uv run ruff check .
+        run: uv run --frozen ruff check .
       # [PÉDAGOGIE] IDENTITÉ — ce nom doit permettre de retrouver rapidement la preuve dans
       # [PÉDAGOGIE] l'interface.
       - name: Format
         # [PÉDAGOGIE] COMMANDE — elle s'exécute dans le shell du runner et son code de sortie
         # [PÉDAGOGIE] porte le verdict.
-        run: uv run black --check .
+        run: uv run --frozen black --check .
       # [PÉDAGOGIE] IDENTITÉ — ce nom doit permettre de retrouver rapidement la preuve dans
       # [PÉDAGOGIE] l'interface.
       - name: Tests
         # [PÉDAGOGIE] COMMANDE — elle s'exécute dans le shell du runner et son code de sortie
         # [PÉDAGOGIE] porte le verdict.
-        run: uv run pytest -q
+        run: uv run --frozen pytest -q
+
+  # [PÉDAGOGIE] M24 — JOB `build` (fiche TD 24, étape 3) : fabriquer le package installable.
+  # [PÉDAGOGIE] Chaque job tourne sur sa propre machine neuve : il refait checkout et setup.
+  build:
+    # [PÉDAGOGIE] GARDE — `needs: quality` : build ne démarre que si quality est vert. On ne
+    # [PÉDAGOGIE] fabrique pas un artefact à partir d'un code qui ne passe pas les tests.
+    needs: quality
+    # [PÉDAGOGIE] CLÉ `runs-on` — machine Linux neuve fournie par GitHub, jetée à la fin.
+    runs-on: ubuntu-latest
+    steps:
+      # [PÉDAGOGIE] DÉPENDANCE CI — mêmes actions épinglées que le job quality.
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@v3
+      # [PÉDAGOGIE] CONSTRUCTION — `uv build` produit le wheel (.whl) dans dist/ à partir de
+      # [PÉDAGOGIE] [build-system] et [tool.hatch…] de pyproject.toml : prouve que le packaging
+      # [PÉDAGOGIE] fonctionne.
+      - name: Build wheel
+        run: uv build
+      # [PÉDAGOGIE] LIVRABLE — conserve le wheel sur GitHub, téléchargeable depuis l'onglet
+      # [PÉDAGOGIE] Actions sous le nom indusense-wheel.
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: indusense-wheel
+          path: dist/*.whl
