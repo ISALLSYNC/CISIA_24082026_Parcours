@@ -65,7 +65,7 @@ Pour chaque module, complète les 5 champs. Exemple (module 24) :
 - [x] Étape 0a — récupération du jalon 01
 - [x] Étape 0b — vérification du jalon 01
 - [x] Point 1 — contrôle du squelette
-- [ ] TP 1 — structure & `pyproject.toml` (lecture, sans modification)
+- [x] TP 1 — structure & `pyproject.toml` (lecture, sans modification)
 - [ ] TP 2 — anti-fuite : `shift(1)` avant `rolling` dans `features/temporal.py`
 - [ ] TP 3 — normalisation des IDs machine (`normalize_machine_id`)
 - [ ] Extension (facultative d'après le pas-à-pas R2) : extraire `clean_sensor_data` dans `features/cleaning.py`
@@ -107,6 +107,45 @@ Pour chaque module, complète les 5 champs. Exemple (module 24) :
   - Conséquence : les tests tournent contre le package **installé**, comme en production. Une erreur de packaging (fichier oublié, mauvaise config) est donc détectée tôt.
   - C'est un prérequis pour tout le reste : tests, CLI `indusense` et, plus tard, l'API font tous `from indusense... import ...`.
   - *Ma reformulation :* …
+  - *Nuance vue au TP 1 :* `pyproject.toml` contient `pythonpath = ["src"]` dans `[tool.pytest.ini_options]`, donc **pytest** ajoute lui-même `src/` au chemin Python. Les tests trouveraient le code même sans installation. C'est la commande `import indusense` hors pytest, et la CLI `indusense`, qui prouvent l'installation.
+
+**TP 1 — Structure du projet & `pyproject.toml`** *(lecture seule, aucun fichier modifié)*
+
+*Classement de ce qui existe :*
+
+| Couche | Emplacement | Contenu observé | Rôle |
+|---|---|---|---|
+| **data** | `src/indusense/data/loaders.py` | `normalize_machine_id`, `load_temperature`, `load_pressure`, `load_incidents`, `load_machines`, `build_dataset`, `add_machine_criticality` | Lire les fichiers bruts, harmoniser les IDs machine, assembler le dataset |
+| **features** | `src/indusense/features/temporal.py` | `add_temporal_features` | Créer les variables temporelles (lags, moyennes glissantes) **sans fuite** → TP 2 |
+| **models** | `src/indusense/models/tabular.py` | `select_features`, `train_model`, `predict_proba`, `save_model`, `load_model` | Entraîner, prédire, sauvegarder / recharger le Random Forest |
+| **cli** | `src/indusense/cli.py` | commandes `check-data`, `build-gold`, `train`, `predict` + `main()` | Interface en ligne de commande (Typer) qui enchaîne les couches ci-dessus |
+| **config** | `src/indusense/config.py` | classe `Settings` (pydantic-settings) | Chemins et paramètres centralisés, surchargeables par variables d'environnement |
+| **api** | *absent* | — | Normal : l'API FastAPI arrive au **M25** (jalon 03) |
+| tests | `tests/` | `test_package.py`, `test_loaders.py`, `test_temporal.py` | Vérifier l'import du package, les loaders et l'anti-fuite |
+| données | `data/raw/` · `data/sample/` · `data/gold/` | CSV / TSV / SQL bruts · petit échantillon · `gold_dataset.csv` | Entrées du pipeline : brut → Gold (niveau « propre, prêt à l'usage ») |
+| artefacts | `artifacts/models/` | `rf.joblib` + `model_metadata.json` | Modèle entraîné et sa fiche d'identité (features, seuils…) |
+
+- Commentaire : la séparation **data → features → models → cli** suit le flux réel : on charge, on transforme, on entraîne/prédit, on expose. Chaque couche est testable seule. C'est l'intérêt du refactoring par rapport au notebook, où tout est mélangé dans des cellules.
+- Commentaire : le code (`src/`), les données (`data/`) et les résultats (`artifacts/`) sont **séparés**. Au M24, DVC versionnera `data/` et `artifacts/` à part, Git gardant le code.
+
+*`pyproject.toml` bloc par bloc :*
+
+| Bloc | Valeur clé | Explication |
+|---|---|---|
+| `[build-system]` | `hatchling` | Outil qui **construit** le package (le transforme en « wheel » installable) |
+| `[project]` | `name = "indusense-sprint3-starter"` · `version = "0.1.0"` | Identité du package distribué (≠ nom importé `indusense`) |
+| `requires-python` | `">=3.13,<3.14"` | Seules les versions 3.13.x sont garanties → d'où le contrôle `python --version` |
+| `dependencies` | pandas, numpy, scikit-learn, joblib, pydantic-settings, typer, loguru | Ce dont le code a besoin **pour tourner** (runtime). Bornes minimales (`>=`) : `uv.lock` fige les versions exactes |
+| `[project.optional-dependencies] dev` | pytest, ruff, black, pre-commit | Outils de **développement** seulement, installés avec `--extra dev`. Ils ne partent pas en production |
+| `[project.scripts]` | `indusense = "indusense.cli:main"` | Crée la commande `indusense` qui appelle la fonction `main()` de `cli.py` |
+| `[tool.hatch.build.targets.wheel]` | `packages = ["src/indusense"]` | Dit à hatchling où est le code → c'est ce qui rend le **layout `src/`** installable |
+| `[tool.ruff]` / `[tool.ruff.lint]` | `line-length = 100` · `select = ["E","F","I","UP","B"]` · `ignore = ["B008"]` | Règles du linter : erreurs de style (E), bugs (F), ordre des imports (I), syntaxe moderne (UP), pièges courants (B). B008 (« appel de fonction dans une valeur par défaut ») est ignoré : aucun cas dans le code actuel, mais c'est le style habituel de Typer (`typer.Option(...)`) et de FastAPI (`Depends(...)`, M25) — *hypothèse, raison non documentée dans le dépôt* |
+| `[tool.black]` | `line-length = 100` | Formateur automatique, même limite que ruff pour qu'ils ne se contredisent pas |
+| `[tool.pytest.ini_options]` | `testpaths = ["tests"]` · `pythonpath = ["src"]` | pytest ne cherche les tests que dans `tests/` et ajoute `src/` au chemin |
+
+*Audit du contrat (sans modification) :*
+- `Select-String -Path .\pyproject.toml -Pattern 'requires-python','optional-dependencies','indusense\s*='` → lignes **35** (`requires-python = ">=3.13,<3.14"`), **64** (`[project.optional-dependencies]`), **85** (`indusense = "indusense.cli:main"`) : les trois éléments du contrat sont présents.
+- `git diff -- pyproject.toml uv.lock` → **aucune sortie** (code retour 0) : ni le manifeste ni le verrou n'ont été modifiés. L'environnement reste reproductible.
 
 **Compétence(s)** : C6 (implémenter / intégrer les briques) · lien C3 (features sans fuite, au TP 2)
 
