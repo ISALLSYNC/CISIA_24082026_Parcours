@@ -379,6 +379,53 @@
 - **Changement de version imposé par le lock : pandas 3.0.4 → 2.3.3.** Ce n'est pas moi qui l'ai choisi : c'est le `uv.lock` du jalon 02. *Hypothèse (non vérifiée)* : compatibilité avec les dépendances DVC / MLflow.
 - **4 avertissements `DeprecationWarning`** dans [loaders.py:152](src/indusense/data/loaders.py#L152) et [loaders.py:169](src/indusense/data/loaders.py#L169) (`pd.Timedelta(minutes=...)` / `pd.Timedelta(hours=...)`), déclenchés par 2 tests de `test_loaders.py`. Un *warning* n'est **pas un échec** : il annonce qu'une écriture sera refusée par une **future** version de NumPy. Absents avec pandas 3.0.4, ils sont *probablement* liés au passage à pandas 2.3.3 (hypothèse). **Je ne corrige pas** : ce code vient du socle, et le M24 interdit de toucher au lock. → À signaler au formateur.
 
+**TP 1 — Activer pre-commit** *(pas-à-pas R2, « TP 1 — pre-commit »)*
+
+📎 **Preuves brutes** : [preuves/24_tp1_precommit.txt](preuves/24_tp1_precommit.txt) (installation + 1er passage) · [preuves/24_tp1_gitleaks_demo.txt](preuves/24_tp1_gitleaks_demo.txt) (démo « secret bloqué »)
+
+*Le principe :* **pre-commit** est un **gardien** qui s'exécute automatiquement juste avant chaque `git commit` (et ici avant chaque `git push`). Si un contrôle échoue, **le commit est refusé**. On attrape l'erreur **sur mon poste**, avant qu'elle n'arrive dans la CI, sur GitHub ou chez les collègues : c'est « déplacer la détection vers la gauche », là où corriger coûte le moins cher.
+
+*La configuration — [.pre-commit-config.yaml](.pre-commit-config.yaml) (fournie par le jalon, non modifiée) :*
+
+| Hook | Version (`rev:`) | Rôle | Comportement en cas de problème |
+|---|---|---|---|
+| **ruff** `--fix` | v0.6.9 | Linter : imports inutiles ou mal triés, erreurs, pièges | **Corrige seul** ce qu'il peut ; refuse le commit si un fichier a changé (pour que je relise) |
+| **black** | 24.8.0 | Formateur : espaces, sauts de ligne, guillemets | **Reformate** les `.py` ; refuse le commit le temps que je relise |
+| **gitleaks** | v8.18.4 | Détecteur de **secrets** (clés, jetons, mots de passe) | **Bloque** le commit ; ne corrige rien, c'est à moi de retirer le secret |
+
+- `rev:` **épingle** la version de chaque outil : tout le monde a exactement les mêmes contrôles.
+
+*Étape A — Installer et lancer une première fois :*
+
+| Commande | Rôle | Résultat |
+|---|---|---|
+| `uv sync --frozen --extra dev --extra mlops` | Ajouter l'extra `mlops` (DVC / MLflow), non installé par `verifier_jalon` | **48 paquets** ajoutés (dont `mlflow` 3.14.0) · lock inchangé |
+| `uv run --frozen pre-commit install --hook-type pre-commit --hook-type pre-push` | **Brancher** le gardien dans `.git/hooks` | `pre-commit installed at .git\hooks\pre-commit` et `…\pre-push` |
+| `uv run --frozen pre-commit run --all-files` | Lancer les 3 contrôles sur **tout** le projet | 1er lancement : téléchargement des 3 outils · **ruff Passed · black Passed · gitleaks Passed** |
+| `git status --short` | Les hooks ont-ils modifié un fichier ? | **Aucune sortie** : le code était déjà conforme, rien à corriger |
+
+- **Les hooks sont locaux** : `.git/hooks` n'est **pas versionné**. Un collègue qui clone le dépôt doit lancer `pre-commit install` lui-même. C'est pour ça qu'on garde **aussi** les contrôles dans la CI (M24, suite).
+- **Écart de versions** : les hooks utilisent ruff 0.6.9 / black 24.8.0, le projet ruff 0.15.20 / black 26.5.1. Aucun désaccord sur le code actuel (tout est `Passed` des deux côtés). À surveiller si un jour les deux se contredisent.
+- `--frozen` partout : on **utilise** le lock sans jamais le réécrire.
+
+*Étape B — Démo « secret bloqué » (réversible, sans commit) :*
+
+| # | Commande | Pourquoi | Résultat |
+|---|---|---|---|
+| 1 | `Set-Content .\fuite_demo.txt …` | Créer un **fichier piège** avec la clé d'**exemple officielle** de la doc AWS (publique, invalide) | Fichier créé |
+| 2 | `git add -f -- fuite_demo.txt` | Le **préparer** au commit : gitleaks analyse ce qui est « staged » (`-f` force l'ajout) | OK |
+| 3 | `uv run --frozen pre-commit run gitleaks --files fuite_demo.txt` | Lancer **seulement** gitleaks, **sans** commit | **`Failed`** · `RuleID: aws-access-token` · `Line: 2` · **`leaks found: 1`** · code retour **1** |
+| 4 | `git restore --staged` puis suppression | **Nettoyer** : retirer de l'index, effacer du disque | Fichier absent (`False`) |
+| 5 | `git status --short` | Vérifier qu'il ne reste **aucune trace** | Aucune trace de `fuite_demo.txt` |
+
+- **Ce que ça prouve** : gitleaks a reconnu le **format** d'une clé AWS (`aws-access-token`) et **refusé**. Dans un vrai `git commit`, le commit n'aurait **pas été créé** : la clé ne serait jamais entrée dans l'historique Git.
+- **Pourquoi c'est vital** : un secret commité reste dans l'**historique**, même si on supprime le fichier ensuite. Poussé sur GitHub, il peut être récupéré par n'importe qui. La seule vraie parade est de **ne jamais le commiter**, d'où le blocage **avant** le commit.
+- gitleaks affiche `REDACTED` au lieu du secret : même son **rapport** ne recopie pas la clé.
+- **Règle de sécurité respectée** : jamais une vraie clé, même révoquée, et aucun commit tenté.
+- **Incident corrigé en cours de route** : ma première version de la preuve **citait la clé d'exemple** dans un commentaire. Le hook que je venais d'installer aurait (à juste titre) bloqué ce commit. J'ai **masqué la clé** dans la preuve et retiré les codes couleur du terminal. Leçon : **un fichier de preuve peut lui aussi contenir un secret**.
+- *Hypothèse (non vérifiée)* : le hook analyse les **changements préparés**, pas tout l'historique. C'est pourquoi les clés d'exemple déjà présentes dans `docs/` (guide multiplateforme) ne font pas échouer `run --all-files`.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : …
 - Ma preuve : … (CI verte · `gitleaks` bloque · `dvc status`)
 - Compétence(s) : C6
