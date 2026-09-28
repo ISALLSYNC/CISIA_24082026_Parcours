@@ -735,6 +735,8 @@ outs:
 
 - **9 / 9 verts**, code retour 0 partout : conforme à la « preuve finale visée » du pas-à-pas.
 - **2ᵉ CI réelle sur l'état final** 📎 [preuves/24_ci_github_run2.txt](preuves/24_ci_github_run2.txt) : `git push fork ismael-sall` → `c24bfef..23b18e4` (7 commits ; hook **pre-push** gitleaks *Passed* avant l'envoi) → run [36460158718](https://github.com/ISALLSYNC/CISIA_24082026_Parcours/actions/runs/36460158718) : **`quality` success · `build` success** · artefact `indusense-wheel` publié. Un push sur la branche d'une PR ouverte relance la CI (`pull_request` / *synchronize*). Sortir le Gold et le modèle de Git n'a rien cassé : aucun test ne dépend d'un fichier local.
+- **3ᵉ run** : [36462873682](https://github.com/ISALLSYNC/CISIA_24082026_Parcours/actions/runs/36462873682) sur `7ff3dbb` (20:06, Paris) → ✅ **success**. Déclenché par un push fait depuis VS Code (bouton « Synchroniser les modifications »), pas par Claude. Branche locale et fork alignés ensuite (`git status -sb` sans `[ahead]`).
+- *Lire la page Actions* : **un seul workflow** (`CI`, fichier `ci.yml`), mais **un run par événement** (ouverture de la PR, puis chaque push). Chaque run contient **2 jobs** (`quality` puis `build`). Bilan : **3 runs, 3 verts**.
 - `-p no:warnings` masque les 4 `DeprecationWarning` déjà connus (pandas 2.3.3), sans changer le verdict.
 
 **Bilan M24**
