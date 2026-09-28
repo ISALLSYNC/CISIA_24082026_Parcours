@@ -1,22 +1,42 @@
-﻿# Preuve : M23 preuve finale
+# Preuve : M23 preuve finale
 # Date : 2026-09-28 15:14
 # Branche : ismael-sall @ 0e765dc
+#
+# 💬 A QUOI SERT CE FICHIER
+# 💬 Bilan de sortie du module 23. Les TP ont verifie chaque brique separement ;
+# 💬 ici on verifie EN UNE FOIS, sur l'etat final de la branche, que tout le projet
+# 💬 est sain : tests, qualite du code, commande installee, version de Python.
+# 💬 Lignes "PS>" = commande tapee. Lignes suivantes = sortie EXACTE, non retouchee.
+# 💬 Lignes "# 💬" = commentaires ajoutes apres coup pour expliquer (pas une sortie).
+# 💬 "code retour : 0" = la commande a reussi (tout autre nombre = echec).
 
+# 💬 ---- 1/4 TESTS ------------------------------------------------------------
+# 💬 Lance TOUS les tests du dossier tests/ (package, loaders, anti-fuite, normalisation).
+# 💬 -q = mode silencieux : un point "." par test reussi (un "F" signalerait un echec).
 PS> uv run pytest -q
 ............                                                             [100%]
 12 passed in 1.47s
 # code retour : 0
+# 💬 12 points = 12 tests reussis, 0 echec. Meme total qu'au debut (verifier_jalon) :
+# 💬 aucune regression. Normal : le M23 n'a modifie aucun fichier de code.
 
+# 💬 ---- 2/4 QUALITE DU CODE --------------------------------------------------
+# 💬 ruff = linter : cherche erreurs, imports inutiles ou mal ordonnes, pieges courants,
+# 💬 selon les regles de [tool.ruff] dans pyproject.toml (E, F, I, UP, B).
 PS> uv run ruff check .
 All checks passed!
 # code retour : 0
+# 💬 Aucun probleme detecte dans tout le projet ("." = dossier courant).
 
+# 💬 ---- 3/4 COMMANDE INDUSENSE -----------------------------------------------
+# 💬 Verifie que la commande "indusense" existe et repond. Elle est creee par
+# 💬 [project.scripts] indusense = "indusense.cli:main" (ligne 85 de pyproject.toml, vu au TP 1).
 PS> uv run indusense --help
-                                                                               
- Usage: indusense [OPTIONS] COMMAND [ARGS]...                                  
-                                                                               
- InduSense Sprint 3 starter CLI                                                
-                                                                               
+
+ Usage: indusense [OPTIONS] COMMAND [ARGS]...
+
+ InduSense Sprint 3 starter CLI
+
 ┌─ Options ───────────────────────────────────────────────────────────────────┐
 │ --install-completion          Install completion for the current shell.     │
 │ --show-completion             Show completion for the current shell, to     │
@@ -30,8 +50,21 @@ PS> uv run indusense --help
 │ predict     Score the latest observation per machine.                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 # code retour : 0
+# 💬 Les 4 commandes du fichier src/indusense/cli.py sont bien exposees :
+# 💬   check-data : charger les sources d'exemple et afficher un resume de sante
+# 💬   build-gold : construire le Gold dataset a partir des donnees brutes
+# 💬   train      : entrainer le modele Random Forest de reference
+# 💬   predict    : calculer un score pour la derniere mesure de chaque machine
+# 💬 Le pas-a-pas attend "train / predict" : presents.
+# 💬 Options = generees automatiquement par Typer (la bibliotheque de la CLI).
 
+# 💬 ---- 4/4 VERSION DE PYTHON ------------------------------------------------
+# 💬 "uv run python" = le Python du .venv du projet (pas celui de Windows).
 PS> uv run python --version
 Python 3.13.15
 # code retour : 0
+# 💬 Conforme a requires-python = ">=3.13,<3.14" (ligne 35 de pyproject.toml).
 
+# 💬 ---- BILAN ----------------------------------------------------------------
+# 💬 4/4 commandes reussies (code retour 0 partout), conforme au resultat attendu du
+# 💬 pas-a-pas R2 : tests a 0 echec, ruff propre, CLI qui repond, Python 3.13.x.
