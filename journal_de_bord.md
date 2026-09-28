@@ -1,31 +1,17 @@
 # Journal de bord — Sprint 3 CISIA · InduSense 4.0
 
-> **Pourquoi ce document ?** Le **journal de bord** est un **livrable certifiant** : c'est lui qui prouve, module après module, **ce que tu as fait, avec quelle preuve, pour quelle compétence**. Bien tenu, il devient ton **antisèche de soutenance** (l'oral porte sur **C1→C9**, tout le projet).
-> **Le rituel, à la fin de CHAQUE module.** Remplis l'entrée du module : *date · ce que j'ai fait · ma preuve · compétence(s) visée(s) · une difficulté ou question*. Une preuve = une **capture**, une **commande qui répond**, un **résultat chiffré** ou un **fichier produit**. Range tes captures dans un dossier `preuves/` numéroté.
-> **Format conseillé.** Un Notebook (ou ce document) que tu complètes en direct. À l'oral, tu raconteras chaque preuve avec la structure **contexte → problème → choix → preuve → limite**.
-> **Calendrier 2026.** J1 24/08 · J2 25/08 · J3 26/08 · J4 01/09 · J5 02/09 · J6 03/09. Le formateur annonce le rythme et les transitions selon l'avancement réel du groupe.
+> **Livrable certifiant** : prouve, module par module, *ce que j'ai fait · ma preuve · la compétence visée · une difficulté*. Sert d'antisèche pour l'oral (C1→C9), à raconter en **contexte → problème → choix → preuve → limite**.
+
+**Règles de remplissage**
+- **Une preuve** = une commande qui répond, un résultat chiffré, un fichier produit ou une capture (rangée dans `preuves/`, numérotée par module).
+- **Aide IA** : noter l'aide reçue, séparer *fait observé · hypothèse · correctif · preuve*, et savoir réexpliquer chaque commande sans aide.
+- **Jamais** de secret ni de donnée nominative.
+- **Dates** : les dates du modèle (cohorte précédente, J1 = 24/08) sont remplacées par mes dates réelles au fil des modules.
+- À relire : [notice de préparation](docs/notice_preparation_et_controles_sprint3.md) · [mémo métriques](docs/memo_metriques_sans_confusion.md).
 
 ---
 
-## Comment remplir une entrée
-
-**Aide IA et autonomie :** pour chaque code assisté, noter l'aide reçue, reformuler les entrées/sorties, prédire un résultat sur un petit exemple, modifier un paramètre puis prouver un cas normal et un cas d'échec. Séparer fait observé, hypothèse, correctif et preuve. Ne pas enregistrer de secret ou de données nominatives.
-
-**Prochaine session :** les dates 2026 ci-dessous sont historiques ; renseigner les dates annoncées pour votre cohorte. Lire aussi `notice_preparation_et_controles_sprint3.md` et `memo_metriques_sans_confusion.md`.
-
-Pour chaque module, complète les 5 champs. Exemple (module 24) :
-
-| Champ | Exemple rempli |
-|---|---|
-| **Date** | mar. 25/08 — après-midi |
-| **Ce que j'ai fait** | Activé pre-commit (ruff/black/gitleaks) + ajouté un job `build` en CI ; versionné le gold avec DVC |
-| **Ma preuve** | capture `preuves/24_ci_verte.png` (pipeline vert) + sortie `gitleaks: leaks found: 1` (commit bloqué) |
-| **Compétence(s)** | C6 (implémenter / intégrer les briques) |
-| **Difficulté / question** | `dvc add` refusait le fichier déjà suivi par git → réflexe `git rm --cached` |
-
----
-
-## Mes entrées (à compléter)
+## Mes entrées
 
 ### Préparation — §0.1 à 0.4 (avant module 23)
 
@@ -54,9 +40,9 @@ Pour chaque module, complète les 5 champs. Exemple (module 24) :
 - Résultat : 13 fichiers renommés, contenu identique (`0 insertions, 0 deletions`), arbre de travail propre.
 - Aide IA reçue : Claude Code a exécuté le commit, la recherche de références et le `git mv`.
 
-### J1 — lun. 24/08
+### J1 — lun. 28/09/2026 *(date prévue dans le modèle : 24/08)*
 
-**Module 23 — Refactoring & structure projet** · *C6* · *(en cours — 28/09/2026)*
+**Module 23 — Refactoring & structure projet** · *C6* · *(en cours)*
 
 > **Objectif du module** : sortir la logique du notebook vers un **package Python** (`src/indusense`) importable, testé et **sans fuite temporelle**.
 > **Sources suivies** : [fiche jalon 01](FORMATION/JALONS/01-j1-matin-m23.md) · [pas-à-pas R2, §23](docs/pas_a_pas_apprenant_sprint3_AELION_20260928_R2.md) · [guide multiplateforme §5](FORMATION/GUIDE_MULTIPLATEFORME_APPRENANT.md).
