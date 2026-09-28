@@ -340,9 +340,10 @@
 - **Incohérence entre supports** : la fiche jalon 01 demande d'extraire `clean_sensor_data`, alors que le pas-à-pas R2 la classe en extension facultative. → **Tranché par la fiche TD 23** (« Definition of done ») : « `test_cleaning.py` n'est exigé que si l'extension est jouée ». L'extension est donc bien **facultative**.
 - La fiche TD 23, citée par le pas-à-pas pour le code de `cleaning.py`, **n'est pas dans le dépôt**. → **Retrouvée** hors dépôt : `OneDrive\Documents\FORMATION\Docs\Sprint3\fiches_TD_apprenant_sprint3_AELION_20260928_R2.pdf` (section « Fiche TD 23 »).
 - **QCM J1 (questions 1-3)** : le pas-à-pas R2 (ligne 661 dans VS Code) donne les thèmes (package `src/`, rôle de `pyproject.toml`, fuite par split non temporel) et la correction attendue (1-B · 2-C · 3-A), mais **pas le texte des questions**. Les fichiers cités (`QCM_fin_de_journee_sprint3`, `kahoot_J1.xlsx`) sont introuvables dans le dépôt et sur mon poste ; la fiche TD précise que les QCM sont « fournis séparément par le formateur ». → À demander au formateur. Je ne réponds pas sans l'énoncé.
+- **Jalon 02 lancé sur ma décision** (« On peut le lancer ») après la pré-vérification sans conflit ; signal formateur à confirmer. Branche de secours : `sauvegarde/ismael-sall/20260928-154713`.
 - **Prérequis Sprint 2 (scénario B)** : un contrat I/O **d'exemple** est disponible ([docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json](docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json)), mais ses valeurs sont illustratives. → À confirmer avec le formateur : le scénario B me concerne-t-il ? Quel est le **seuil réel** du modèle du dépôt ? Où sont la model card v1 et le contrat validé ?
 
-**Module 24 — CI/CD, tests & versioning** · *C6* · *(en attente du signal formateur pour le jalon 02)*
+**Module 24 — CI/CD, tests & versioning** · *C6* · *(en cours — 28/09/2026)*
 
 **Étape 0 — Pré-vérification de la fusion du jalon 02** *(avant le signal, sans rien modifier)*
 
@@ -362,6 +363,21 @@
 - **`pyproject.toml` et `uv.lock` vont changer**, mais **par le jalon** (ajout de l'extra `mlops` pour DVC / MLflow), pas par moi. La règle « ne jamais modifier le lock » reste respectée : je ne ferai que `uv sync --frozen`.
 - *Constat* : jalon/02 ne contient pas le commit du jalon 01 (ancêtre commun = `5e77d57`, le point de départ). Sans conséquence ici, puisque le seul fichier commun (`JALON_ACTUEL.md`) se fusionne proprement.
 - *Limite* : la simulation porte sur le jalon **tel qu'il est aujourd'hui**. Si le formateur le met à jour avant le signal, il faudra refaire ce contrôle.
+
+**Étape 1 — Récupérer et vérifier le jalon 02**
+
+📎 **Preuve brute** : [preuves/24_p1_jalon02.txt](preuves/24_p1_jalon02.txt)
+
+| Commande | Rôle | Résultat |
+|---|---|---|
+| `mettre_a_niveau.ps1 -Jalon 02` | Sauvegarder mon état, puis fusionner `jalon/02` dans `ismael-sall` | Branche de secours `sauvegarde/ismael-sall/20260928-154713` · fusion `ort` **sans conflit** (commit `1194193`) · les 5 fichiers prévus par l'étape 0 sont arrivés |
+| `verifier_jalon.ps1 -Jalon 02` | Synchroniser l'environnement sur le nouveau lock, lancer tests + ruff, contrôler le marqueur | **81 paquets** installés (dont `dvc` 3.67.1) · **`13 passed, 4 warnings`** · ruff **`All checks passed!`** · **`Jalon verifie : jalon/02`** |
+| `git status --short` | Vérifier qu'il ne reste rien de non enregistré | Aucune sortie : arbre propre |
+
+- **La simulation de l'étape 0 était juste** : même résultat, aucun conflit.
+- **13 tests** = les 12 du socle + mon `test_cleaning` : mon extension M23 survit à la fusion.
+- **Changement de version imposé par le lock : pandas 3.0.4 → 2.3.3.** Ce n'est pas moi qui l'ai choisi : c'est le `uv.lock` du jalon 02. *Hypothèse (non vérifiée)* : compatibilité avec les dépendances DVC / MLflow.
+- **4 avertissements `DeprecationWarning`** dans [loaders.py:152](src/indusense/data/loaders.py#L152) et [loaders.py:169](src/indusense/data/loaders.py#L169) (`pd.Timedelta(minutes=...)` / `pd.Timedelta(hours=...)`), déclenchés par 2 tests de `test_loaders.py`. Un *warning* n'est **pas un échec** : il annonce qu'une écriture sera refusée par une **future** version de NumPy. Absents avec pandas 3.0.4, ils sont *probablement* liés au passage à pandas 2.3.3 (hypothèse). **Je ne corrige pas** : ce code vient du socle, et le M24 interdit de toucher au lock. → À signaler au formateur.
 
 - Ce que j'ai fait : …
 - Ma preuve : … (CI verte · `gitleaks` bloque · `dvc status`)
