@@ -632,6 +632,60 @@ outs:
 - *Limite 1* : l'**historique Git garde les anciennes versions** de `rf.joblib` et du Gold (commits précédents). Seules les versions **futures** passent par DVC.
 - *Limite 2* : le remote est **sur ce PC seulement**. Le fork GitHub aura les pointeurs, pas les fichiers. Un collègue ne pourrait pas faire `dvc pull` sans un remote partagé (S3, disque réseau…).
 - *Ma reformulation :* …
+
+**Versioning modèle — metadata / MLflow** *(pas-à-pas R2, « Versioning modèle — metadata / MLflow » · fiche TD 24, étape 5)*
+
+📎 **Preuve brute** : [preuves/24_mlflow.txt](preuves/24_mlflow.txt) · 📎 [metrics.json](metrics.json) · [params.yaml](params.yaml) · [model_metadata.json](artifacts/models/model_metadata.json)
+
+*Le pourquoi :* DVC dit **quelle version** du fichier modèle. MLflow dit **comment** il a été obtenu (données, réglages, scores). Sans ça, face à deux `rf.joblib`, impossible de savoir lequel est le meilleur ni pourquoi.
+
+| Terme MLflow | Explication | Chez moi |
+|---|---|---|
+| **Expérience** | Regroupe des essais sur un même sujet | `indusense-maintenance` |
+| **Run** | **Un** entraînement, identifié par un **`run_id`** unique | 2 runs |
+| **Paramètres** | Réglages d'entrée | split, 200 arbres, graine 42, 20 % de test |
+| **Métriques** | Résultats | PR-AUC, ROC-AUC, précision, rappel, F1, seuil |
+| **Tags / artefacts** | Contexte et fichiers joints | `gold_md5` (empreinte du Gold), `model_metadata.json`, le modèle |
+| **Registre** | Catalogue des modèles, **versions numérotées**, puis étapes Candidate → Staging → Production → Archived | `indusense-rf` |
+
+*Pourquoi ces 2 runs :* comparer **deux façons de découper** les données (= question 3 du QCM J1, « fuite par split non temporel » ; prolongement du `shift(1)` du M23 : là on protégeait les **features**, ici le **découpage**).
+
+| Run | Split | Principe | Attendu |
+|---|---|---|---|
+| 1 | `stratified` | Lignes de test tirées **au hasard** | ⚠️ **Fuite** : même machine à cheval train/test, le modèle voit des instants voisins de ceux qu'il doit prédire |
+| 2 | `temporal` | Par machine : **dernières 20 %** des mesures (le futur) en test | ✅ **Honnête** : passé en train, futur en test, comme en production |
+
+*Le comment :*
+
+| # | Commande | Rôle | Résultat |
+|---|---|---|---|
+| 0 | `mlflow server --backend-store-uri sqlite:///mlflow.db --host 127.0.0.1 --port 5000` (lancé **en arrière-plan** par Claude) | Serveur MLflow ; le **registre exige SQLite** ; `127.0.0.1` = accessible **depuis ce PC seulement** | `/health` → **200 OK** |
+| 0b | Ajout de `mlflow.db`, `mlruns/`, `mlartifacts/` au `.gitignore` (+ commentaire `[PÉDAGOGIE]`) | La base locale ne doit pas entrer dans Git (seul `mlruns/` était couvert, de façon ambiguë) | `git check-ignore` → lignes 65-67 |
+| 1 | `demo_versioning.py --no-dvc --tracking-uri http://127.0.0.1:5000 --split stratified` | Run 1 | `run_id` **`dc83b65fafd0484eb87efa7587b67590`** · `Successfully registered model 'indusense-rf'` · **version 1** |
+| 2 | `… --split temporal` | Run 2 (artefact final) | `run_id` **`ac4544af25d14f50bb5edd7e518cca3a`** · **version 2** |
+| 3 | `dvc status` · `dvc add artifacts/models/rf.joblib` · `dvc push` · `dvc status -c` | Resynchroniser le modèle, comme demandé | `up to date` · `Everything is up to date` · `in sync` |
+| 4 | API du serveur (`runs/search`, `model-versions/search`) | Relever les preuves | 2 runs `FINISHED` · 2 versions `READY` · `stage=None` |
+
+*Résultats (mêmes données `gold_md5 637be8d38250`, mêmes 200 arbres, même graine 42, même taille 1516 / 380) :*
+
+| Run | PR-AUC | ROC-AUC | Précision / Rappel / F1 | Taux de panne du test |
+|---|---|---|---|---|
+| `stratified` (fuite) | **0.4336** | **0.8531** | 0 / 0 / 0 | 0.1053 |
+| `temporal` (honnête) | **0.1036** | **0.2475** | 0 / 0 / 0 | 0.1316 |
+
+- ✅ **Prédiction confirmée** : le split stratifié donne un score **bien plus beau** (ROC-AUC 0.85 contre 0.25). **Un score trop beau doit inquiéter.**
+- **Le split temporel dit la vérité** : sur le **futur**, le modèle fait **moins bien que le hasard**. ROC-AUC 0.25 < 0.5 (un classement aléatoire vaut 0.5) ; PR-AUC 0.10 < 0.13 (le taux de panne, score d'un classement aléatoire). Le 0.85 du stratifié venait donc **de la fuite**.
+- **Pour la soutenance** : c'est une **limite assumée** du modèle Sprint 2 : il ne généralise pas au futur. La bonne suite n'est pas de choisir le split qui arrange, mais d'**investiguer** (features, dérive dans le temps, données par machine).
+
+*Trois constats inattendus, vérifiés :*
+1. **Précision = rappel = F1 = 0 dans les deux runs.** Le seuil de décision (0.975) est calibré **sur le train** ([demo_versioning.py:280](scripts/demo_versioning.py#L280)). *Hypothèse* : la forêt aléatoire sur-apprend son train (probabilités proches de 1), d'où un seuil que **aucune** prédiction du test n'atteint → aucune alerte. Je compare donc les runs sur **PR-AUC / ROC-AUC**, qui ne dépendent pas du seuil. Je ne modifie pas le script fourni. → À signaler au formateur.
+2. **Le modèle livré n'a pas changé.** `rf.joblib` a été **réécrit** (17:38:34) mais son md5 est **identique** (`2779890061870d6a08d6efdf733da094`, vérifié avec `Get-FileHash`). Le script sauvegarde `model_full`, entraîné sur **tout** le Gold avec la graine 42 ([ligne 307](scripts/demo_versioning.py#L307)) : le split ne change que **l'évaluation**, pas le modèle. Le « second `dvc add` obligatoire » de la fiche est fait, mais il n'y avait rien à resynchroniser.
+3. **`dvc add` a dupliqué la ligne `/rf.joblib`** dans `artifacts/models/.gitignore`. Sans effet, mais inutile : annulé par `git restore`.
+
+*Deux erreurs de ma preuve, corrigées :* mon script affichait `System.Object[]` au lieu de l'empreinte (2 lignes du pointeur contiennent « md5 »). J'ai remplacé ces 2 lignes à la main par la bonne valeur, avec une note qui le signale.
+
+- *Bonus possible* : une **capture** de l'interface **http://127.0.0.1:5000** (les 2 runs côte à côte), tant que le serveur tourne.
+- *Ma reformulation :* …
 - *Ma reformulation :* …
 
 - Ce que j'ai fait : …
