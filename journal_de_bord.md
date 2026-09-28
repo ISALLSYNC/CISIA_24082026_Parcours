@@ -53,7 +53,7 @@
 - [x] Étape 0b — vérification du jalon 01
 - [x] Point 1 — contrôle du squelette
 - [x] TP 1 — structure & `pyproject.toml` (lecture, sans modification)
-- [ ] TP 2 — anti-fuite : `shift(1)` avant `rolling` dans `features/temporal.py`
+- [x] TP 2 — anti-fuite : `shift(1)` avant `rolling` dans `features/temporal.py`
 - [ ] TP 3 — normalisation des IDs machine (`normalize_machine_id`)
 - [ ] Extension (facultative d'après le pas-à-pas R2) : extraire `clean_sensor_data` dans `features/cleaning.py`
 - [ ] Preuve finale + commit M23 + QCM J1 (questions 1-3)
@@ -136,9 +136,53 @@
 - `Select-String -Path .\pyproject.toml -Pattern 'requires-python','optional-dependencies','indusense\s*='` → lignes **35** (`requires-python = ">=3.13,<3.14"`), **64** (`[project.optional-dependencies]`), **85** (`indusense = "indusense.cli:main"`) : les trois éléments du contrat sont présents.
 - `git diff -- pyproject.toml uv.lock` → **aucune sortie** (code retour 0) : ni le manifeste ni le verrou n'ont été modifiés. L'environnement reste reproductible.
 
+**TP 2 — Anti-fuite : `shift(1)` avant `rolling`** *(pas-à-pas R2, lignes 567-575 dans VS Code · lien C3)*
+
+📎 **Preuve brute** : [preuves/23_tp2_pytest_temporal.txt](preuves/23_tp2_pytest_temporal.txt) (test en mode verbeux + démonstration avec / sans `shift(1)` + code de la démo)
+
+*Rappel — fuite de données :* une information du **futur** (ou du **présent** qu'on cherche à prédire) entre dans les features d'entraînement. Le modèle « triche » : excellent score en test, mauvais en production, où cette information n'existe pas encore. **Un score trop beau doit inquiéter.**
+
+*Lecture de [temporal.py](src/indusense/features/temporal.py), fonction `add_temporal_features` :*
+
+| Ligne | Code | Rôle | Pourquoi c'est important |
+|---|---|---|---|
+| [44](src/indusense/features/temporal.py#L44) | `raise ValueError("Colonnes manquantes : …")` | Refuser un DataFrame incomplet | Échec **explicite** plutôt qu'un calcul silencieusement faux |
+| [46](src/indusense/features/temporal.py#L46) | `df.sort_values([group_col, timestamp_col])` | Trier par **machine**, puis par **date** | `shift` et `rolling` travaillent sur l'**ordre des lignes**, pas sur les dates. Sans tri, « la ligne précédente » peut être une mesure future ou celle d'une autre machine |
+| [54](src/indusense/features/temporal.py#L54) | `grouped.shift(lag)` | Lags 1, 3, 6 : valeur d'il y a 1, 3, 6 mesures | `groupby(machine)` évite qu'un lag « déborde » d'une machine sur la suivante |
+| [59](src/indusense/features/temporal.py#L59) | `series.shift(1).rolling(window).mean()` | Moyenne glissante sur 3 ou 6 mesures | Le `shift(1)` **exclut la mesure courante** de la fenêtre : on ne moyenne que le passé strict |
+
+*Pourquoi `shift(1)` **avant** `rolling` — démonstration (température 10, 20, 30, 40 ; fenêtre 2) :*
+
+| Heure | Température | `lag1` | `roll2_mean` **avec** `shift(1)` (code du projet) | `rolling(2)` **sans** `shift(1)` |
+|---|---|---|---|---|
+| 00:00 | 10 | NaN | NaN | NaN |
+| 01:00 | 20 | 10 | NaN | 15 |
+| 02:00 | 30 | 20 | **15** = moyenne(10, 20) | **25** = moyenne(20, **30**) ← fuite |
+| 03:00 | 40 | 30 | 25 | 35 |
+
+- Sans `shift(1)`, la feature de 02:00 **contient la température de 02:00 elle-même**. Si on prédit une panne à partir de cette mesure, le modèle voit déjà une partie de la réponse.
+- Avec `shift(1)`, la feature de 02:00 n'utilise que 00:00 et 01:00 : exactement ce qu'on connaîtra en production au moment de prédire.
+- Contrepartie : les premières lignes de chaque machine valent `NaN` (pas assez d'historique). C'est normal et **honnête** ; il faudra les gérer (suppression ou imputation) avant l'entraînement.
+- Démo faite avec un script **jetable hors dépôt** : aucun fichier du projet modifié.
+
+*Les 3 tests de [test_temporal.py](tests/test_temporal.py) :*
+
+| Test | Ce qu'il vérifie | Assertion clé |
+|---|---|---|
+| [`test_temporal_features_do_not_use_current_value`](tests/test_temporal.py#L29) | **Anti-fuite** : la moyenne glissante n'utilise pas la valeur courante | `roll2_mean` à la 3ᵉ ligne `== 15.0` (et non 25.0) · `lag1` de la 1ʳᵉ ligne est `NaN` |
+| [`test_temporal_features_sort_by_machine_and_time`](tests/test_temporal.py#L50) | **Tri** : lignes fournies en désordre, 2 machines mélangées | Pour MACH-01, le `lag1` de 01:00 `== 10.0` (sa propre mesure de 00:00, pas celle de MACH-02) |
+| [`test_temporal_features_missing_column_raises`](tests/test_temporal.py#L72) | **Robustesse** : colonne `temperature` absente | Lève bien `ValueError` |
+
+- Commande : `uv run pytest tests/test_temporal.py -v` (`-v` au lieu de `-q` pour voir le nom de chaque test dans la preuve)
+- Résultat : **`3 passed in 1.58s`**, 0 échec, conforme au résultat attendu du pas-à-pas.
+- Ce que ça prouve : la valeur 15.0 attendue par le test est **exactement** celle de la démo avec `shift(1)`. Si quelqu'un retirait le `shift(1)`, la valeur passerait à 25.0 et le test échouerait : le test **protège** contre la régression.
+- « Compléter » le test : non nécessaire, les 3 cas demandés par le pas-à-pas (anti-fuite, tri temporel, colonne manquante) sont déjà couverts.
+- Hors périmètre : le **split train/test temporel** (entraîner sur le passé, tester sur le futur) est un autre mécanisme anti-fuite, traité dans l'exercice avancé.
+- *Ma reformulation :* …
+
 **Compétence(s)** : C6 (implémenter / intégrer les briques) · lien C3 (features sans fuite, au TP 2)
 
-**Aide IA reçue** : Claude Code a lancé la mise à niveau, la vérification du jalon et les commandes de contrôle du squelette. Il a ensuite expliqué le rôle de chaque commande, le sens de `--frozen` et l'intérêt de l'import de `indusense`. **Je dois savoir réexpliquer chaque ligne du tableau ci-dessus sans aide.**
+**Aide IA reçue** : Claude Code a lancé la mise à niveau, la vérification du jalon et les commandes de contrôle du squelette. Il a ensuite expliqué le rôle de chaque commande, le sens de `--frozen` et l'intérêt de l'import de `indusense`. Au TP 2, il a lu `temporal.py` et ses tests, écrit et lancé le script de démonstration avec / sans `shift(1)`, et produit la preuve. **Je dois savoir réexpliquer chaque ligne du tableau ci-dessus sans aide.**
 
 **Difficultés / questions**
 - Le jalon 01 a été lancé **sans attendre le signal du formateur**. C'est réversible via la branche `sauvegarde/ismael-sall/20260928-112927`, et sans impact ici puisque le jalon ne change que le marqueur.
