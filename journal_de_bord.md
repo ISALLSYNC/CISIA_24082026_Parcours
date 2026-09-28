@@ -638,7 +638,7 @@ outs:
 
 **Versioning modèle — metadata / MLflow** *(pas-à-pas R2, « Versioning modèle — metadata / MLflow » · fiche TD 24, étape 5)*
 
-📎 **Preuve brute** : [preuves/24_mlflow.txt](preuves/24_mlflow.txt) · 📎 [metrics.json](metrics.json) · [params.yaml](params.yaml) · [model_metadata.json](artifacts/models/model_metadata.json)
+📎 **Preuve brute** : [preuves/24_mlflow_v2.txt](preuves/24_mlflow_v2.txt) (**fait foi**) · [preuves/24_mlflow.txt](preuves/24_mlflow.txt) (1ʳᵉ tentative, remplacée — voir « Incident » ci-dessous) · 📎 [metrics.json](metrics.json) · [params.yaml](params.yaml) · [model_metadata.json](artifacts/models/model_metadata.json)
 
 *Le pourquoi :* DVC dit **quelle version** du fichier modèle. MLflow dit **comment** il a été obtenu (données, réglages, scores). Sans ça, face à deux `rf.joblib`, impossible de savoir lequel est le meilleur ni pourquoi.
 
@@ -662,10 +662,10 @@ outs:
 
 | # | Commande | Rôle | Résultat |
 |---|---|---|---|
-| 0 | `mlflow server --backend-store-uri sqlite:///mlflow.db --host 127.0.0.1 --port 5000` (lancé **en arrière-plan** par Claude) | Serveur MLflow ; le **registre exige SQLite** ; `127.0.0.1` = accessible **depuis ce PC seulement** | `/health` → **200 OK** |
+| 0 | `mlflow server --backend-store-uri sqlite:///mlflow.db --host 127.0.0.1 --port 5001` (lancé **en arrière-plan** par Claude ; **port 5001**, voir « Incident ») | Serveur MLflow ; le **registre exige SQLite** ; `127.0.0.1` = accessible **depuis ce PC seulement** | `/health` → **200 OK** · port servi par le `.venv` **de ce dépôt** (vérifié) |
 | 0b | Ajout de `mlflow.db`, `mlruns/`, `mlartifacts/` au `.gitignore` (+ commentaire `[PÉDAGOGIE]`) | La base locale ne doit pas entrer dans Git (seul `mlruns/` était couvert, de façon ambiguë) | `git check-ignore` → lignes 65-67 |
-| 1 | `demo_versioning.py --no-dvc --tracking-uri http://127.0.0.1:5000 --split stratified` | Run 1 | `run_id` **`dc83b65fafd0484eb87efa7587b67590`** · `Successfully registered model 'indusense-rf'` · **version 1** |
-| 2 | `… --split temporal` | Run 2 (artefact final) | `run_id` **`ac4544af25d14f50bb5edd7e518cca3a`** · **version 2** |
+| 1 | `demo_versioning.py --no-dvc --tracking-uri http://127.0.0.1:5001 --split stratified` | Run 1 | `run_id` **`e1b57d92b2e04725a2032f6998f71045`** · `Successfully registered model 'indusense-rf'` · **version 1** |
+| 2 | `… --split temporal` | Run 2 (artefact final) | `run_id` **`ff9c521c7e2c4afbbfd841bb900eb0d7`** · **version 2** |
 | 3 | `dvc status` · `dvc add artifacts/models/rf.joblib` · `dvc push` · `dvc status -c` | Resynchroniser le modèle, comme demandé | `up to date` · `Everything is up to date` · `in sync` |
 | 4 | API du serveur (`runs/search`, `model-versions/search`) | Relever les preuves | 2 runs `FINISHED` · 2 versions `READY` · `stage=None` |
 
@@ -687,7 +687,21 @@ outs:
 
 *Deux erreurs de ma preuve, corrigées :* mon script affichait `System.Object[]` au lieu de l'empreinte (2 lignes du pointeur contiennent « md5 »). J'ai remplacé ces 2 lignes à la main par la bonne valeur, avec une note qui le signale.
 
-- *Bonus possible* : une **capture** de l'interface **http://127.0.0.1:5000** (les 2 runs côte à côte), tant que le serveur tourne.
+*⚠️ Incident — runs enregistrés dans le mauvais projet (détecté, corrigé) :*
+
+| Quoi | Détail |
+|---|---|
+| **Constat** | En voulant arrêter mon serveur, le port 5000 répondait **encore**. Le processus à l'écoute était un `mlflow ui` d'un **autre projet** (`C:\Users\issal\Indusense\.venv`, Python 3.14), lancé avant la session |
+| **Cause** | Mon serveur a démarré **sans erreur** sur le même port : Windows a laissé les deux serveurs **partager** le port 5000, et c'est l'**autre** qui a reçu les requêtes |
+| **Preuve de la cause** | `mlflow.db` de l'autre projet modifié à **17:38** (pendant mes runs) ; celui de CISIA seulement à 17:36 (création). Artefacts dans `Indusense\mlartifacts`. D'où aussi l'expérience **n°3** (celles de l'autre projet existaient déjà) |
+| **Impact** | Les **métriques** étaient justes ; mais les runs, les versions v1 / v2 et leurs `run_id` (`dc83b65f…`, `ac4544af…`) sont dans la base **de l'autre projet** : preuve non rejouable depuis CISIA |
+| **Correction (option B, choisie par moi)** | Serveur relancé sur le **port 5001** (vérifié libre), **contrôle du processus à l'écoute** (bien le `.venv` de CISIA, base neuve = expérience `Default` seule), puis 2 runs refaits |
+| **Vérification** | `mlflow.db` de CISIA modifié à **20:27:25** ; celui de l'autre projet **inchangé** (17:38:27). Nouveaux `run_id` `e1b57d92…` (v1) et `ff9c521c…` (v2), expérience **n°1**, tag `git.commit = 74fe3a5…` |
+| **Reproductibilité** | Métriques **strictement identiques** aux premiers runs, et `model_metadata.json` ne diffère que par `created_at` : même Gold + même graine = même résultat |
+| **Laissé tel quel** | Les 2 runs et le modèle `indusense-rf` ajoutés par erreur dans la base de l'autre projet : **non supprimés** (projet hors périmètre ; à nettoyer éventuellement moi-même). Son serveur tourne toujours, je n'y ai pas touché |
+| **Leçon** | Avant de lancer un serveur, vérifier que le port est **libre** (`Get-NetTCPConnection -LocalPort …`) et, après, **qui** écoute réellement. « Démarré sans erreur » ne prouve pas que c'est **mon** serveur qui répond |
+
+- *Bonus possible* : une **capture** de l'interface **http://127.0.0.1:5001** (les 2 runs côte à côte), tant que le serveur tourne.
 - *Ma reformulation :* …
 
 **Livrable — `versioning_strategy.md` à la racine** *(pas-à-pas R2 : « Complète `versioning_strategy.md` à la racine » · fiche TD 24, étape 6)*
@@ -712,7 +726,7 @@ outs:
 | Questions à trancher | Les 4 réponses : commit ↔ modèle, empreinte du Gold, rejouer sans toucher au lock, restaurer code + données + modèle |
 | Contrat vision | Tableau de la fiche, statut `NOT_READY` |
 
-*Erreur évitée en vérifiant :* j'avais d'abord écrit que les runs MLflow « n'enregistrent pas le hash de commit Git ». En lisant les tags via l'API (`runs/get`), j'ai trouvé que MLflow l'enregistre **automatiquement** : `mlflow.source.git.commit = 193be25fb9347e981c3d708d220c60a0e8097069`, `mlflow.source.git.branch = ismael-sall`. Corrigé : le lien **commit ↔ données (`gold_md5`) ↔ run ↔ version du registre** est complet. Leçon : **vérifier avant d'écrire une limite**, pas seulement avant d'écrire un succès.
+*Erreur évitée en vérifiant :* j'avais d'abord écrit que les runs MLflow « n'enregistrent pas le hash de commit Git ». En lisant les tags via l'API (`runs/get`), j'ai trouvé que MLflow l'enregistre **automatiquement** : `mlflow.source.git.commit = 193be25fb9347e981c3d708d220c60a0e8097069` pour la 1ʳᵉ tentative, **`74fe3a5b6cc29649e26fa4f91b11b7ee92b561ce`** pour les runs refaits, `mlflow.source.git.branch = ismael-sall`. Corrigé : le lien **commit ↔ données (`gold_md5`) ↔ run ↔ version du registre** est complet. Leçon : **vérifier avant d'écrire une limite**, pas seulement avant d'écrire un succès.
 - *Ma reformulation :* …
 
 **Preuve finale M24** *(pas-à-pas R2, « ✓ Preuve finale visée »)*
@@ -742,7 +756,7 @@ outs:
 **Bilan M24**
 
 - **Ce que j'ai fait** : récupéré et vérifié le jalon 02 (fusion simulée d'abord) · activé **pre-commit** (ruff, black, gitleaks) et prouvé le blocage d'un faux secret · lu la CI et corrigé ses commandes (`--frozen`) · ajouté le job **`build`** (`needs: quality`) · prouvé le cycle **rouge → vert** · fait tourner la **CI réelle** sur une PR brouillon de mon fork · versionné le Gold et le modèle avec **DVC** · tracé **2 runs MLflow** (stratifié vs temporel) et **2 versions** au registre · rédigé **`versioning_strategy.md`**.
-- **Mes preuves** : [PR #1](https://github.com/ISALLSYNC/CISIA_24082026_Parcours/pull/1) avec `quality` + `build` verts ([capture](preuves/24_ci_github_quality.png)) · `gitleaks … leaks found: 1` · `dvc status` *up to date* / *in sync* · `run_id` `dc83b65f…` (v1) et `ac4544af…` (v2) · [versioning_strategy.md](versioning_strategy.md) · 13 tests verts, lock inchangé.
+- **Mes preuves** : [PR #1](https://github.com/ISALLSYNC/CISIA_24082026_Parcours/pull/1) avec `quality` + `build` verts ([capture](preuves/24_ci_github_quality.png)) · `gitleaks … leaks found: 1` · `dvc status` *up to date* / *in sync* · `run_id` `e1b57d92…` (v1) et `ff9c521c…` (v2) · [versioning_strategy.md](versioning_strategy.md) · 13 tests verts, lock inchangé.
 - **Compétence(s)** : C6 (implémenter / intégrer les briques) · lien C8 (traçabilité, mesures reproductibles)
 - **Aide IA reçue** : Claude Code a exécuté les commandes (sauf le fork, la PR et la capture, faits par moi sur GitHub), écrit le job `build` et `versioning_strategy.md` d'après la fiche TD 24, produit et commenté les preuves, et expliqué chaque notion. Il a aussi corrigé ses propres erreurs (numérotation des TP, encodage, affirmation fausse sur MLflow). **Je dois savoir réexpliquer : pre-commit vs CI, `needs:`, pointeur DVC, run vs version, pourquoi le split temporel.**
 - **Difficultés / questions** : voir la liste « Difficultés / questions » de la section M23 (seuil calibré sur le train, `DeprecationWarning`, preuve CI sur le fork, jalons lancés sur ma décision).

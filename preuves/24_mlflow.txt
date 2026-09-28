@@ -1,3 +1,8 @@
+# ⚠️ PREUVE REMPLACEE PAR preuves/24_mlflow_v2.txt - conservee pour la tracabilite de l'incident.
+# ⚠️ Ces 2 runs (dc83b65f..., ac4544af...) ont ete enregistres dans le MLflow d'un AUTRE projet (C:\Users\issal\Indusense) :
+# ⚠️ son serveur ecoutait deja sur le port 5000, et Windows a laisse les deux serveurs partager ce port.
+# ⚠️ Les metriques restent justes (identiques en v2) ; seuls l'emplacement des runs et leurs run_id sont a lire dans la v2.
+
 # Preuve : M24 - Versioning modele : 2 runs MLflow comparables + resynchronisation DVC
 # Date : 2026-09-28 17:37
 # Branche : ismael-sall @ 193be25

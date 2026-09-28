@@ -10,7 +10,7 @@
 |---|---|---|---|---|
 | **Code** | Branche Git `ismael-sall` → PR vers `main` | Hash de commit (ex. `caeb24e`) · `uv.lock` pour les dépendances | Git (fork `ISALLSYNC/CISIA_24082026_Parcours`) | `git switch --detach <commit>` puis `uv sync --frozen --extra dev --extra mlops` · CI verte sur une machine neuve : [PR #1](https://github.com/ISALLSYNC/CISIA_24082026_Parcours/pull/1), [run 36441665863](https://github.com/ISALLSYNC/CISIA_24082026_Parcours/actions/runs/36441665863) |
 | **Données** | Pointeur `data/gold/gold_dataset.csv.dvc` versionné par Git | md5 **`637be8d3825023160de0980761c9a9e8`** · 287 704 octets | DVC, remote `localstore` = `..\dvc-store` (hors dépôt) | `dvc status` → *up to date* · `dvc status -c` → *in sync* ([preuves/24_dvc.txt](preuves/24_dvc.txt)). Aller-retour `dvc pull` après vidage du cache : **non rejoué** (TD avancé) |
-| **Modèle** | Pointeur `artifacts/models/rf.joblib.dvc` + `model_metadata.json` + registre MLflow | md5 **`2779890061870d6a08d6efdf733da094`** · registre `indusense-rf` **v1** et **v2** | DVC (fichier) + MLflow (runs, métriques, versions) | `dvc status -c` → *in sync* · 2 runs `FINISHED`, 2 versions `READY` ([preuves/24_mlflow.txt](preuves/24_mlflow.txt)) |
+| **Modèle** | Pointeur `artifacts/models/rf.joblib.dvc` + `model_metadata.json` + registre MLflow | md5 **`2779890061870d6a08d6efdf733da094`** · registre `indusense-rf` **v1** et **v2** | DVC (fichier) + MLflow (runs, métriques, versions) | `dvc status -c` → *in sync* · 2 runs `FINISHED`, 2 versions `READY` ([preuves/24_mlflow_v2.txt](preuves/24_mlflow_v2.txt)) |
 | **Secrets** | Aucun dans le dépôt | Jamais dans Git | `.env` local (ignoré par `.gitignore`, ligne 40) · secrets GitHub Actions pour la CI (aucun utilisé à ce jour) | Hook **gitleaks** : bloque une clé d'exemple AWS (`leaks found: 1`), passe à chaque commit ([preuves/24_tp1_gitleaks_demo.txt](preuves/24_tp1_gitleaks_demo.txt)) |
 
 ## Code
@@ -33,13 +33,13 @@ Les datasets volumineux sont suivis avec **DVC**. Git conserve les **pointeurs**
 
 Les artefacts modèle sont accompagnés de `model_metadata.json`. Promotion : **Candidate → Staging → Production → Archived**.
 
-- Serveur MLflow local : `mlflow server --backend-store-uri sqlite:///mlflow.db --host 127.0.0.1 --port 5000` (`mlflow.db` ignoré par Git).
+- Serveur MLflow local : `mlflow server --backend-store-uri sqlite:///mlflow.db --host 127.0.0.1 --port 5001` (`mlflow.db` et `mlartifacts/` ignorés par Git). Port 5001 car le 5000 était déjà occupé par le MLflow d'un autre projet : une 1ʳᵉ tentative y avait enregistré les runs par erreur (voir « Incident » dans le journal).
 - Expérience `indusense-maintenance`, modèle enregistré `indusense-rf`. Aucune promotion de stage faite (`stage=None`) : non exigée.
 
 | Version registre | `run_id` | Split | PR-AUC | ROC-AUC | Précision / Rappel / F1 |
 |---|---|---|---|---|---|
-| **v1** | `dc83b65fafd0484eb87efa7587b67590` | stratifié (**fuite**) | 0.4336 | 0.8531 | 0 / 0 / 0 |
-| **v2** | `ac4544af25d14f50bb5edd7e518cca3a` | temporel par machine (**honnête**) | 0.1036 | 0.2475 | 0 / 0 / 0 |
+| **v1** | `e1b57d92b2e04725a2032f6998f71045` | stratifié (**fuite**) | 0.4336 | 0.8531 | 0 / 0 / 0 |
+| **v2** | `ff9c521c7e2c4afbbfd841bb900eb0d7` | temporel par machine (**honnête**) | 0.1036 | 0.2475 | 0 / 0 / 0 |
 
 Paramètres communs ([params.yaml](params.yaml)) : 200 arbres, graine 42, 20 % de test (1516 / 380 lignes), seuil 0.975, Gold `637be8d38250`.
 
@@ -58,9 +58,9 @@ Aucun secret dans Git. Secrets locaux dans `.env`, secrets CI dans **GitHub Acti
 
 ## Questions à trancher
 
-1. **Quel commit produit quel modèle ?** Le pointeur `artifacts/models/rf.joblib.dvc` du commit `96ba527` (et inchangé depuis) référence le md5 `2779890061870d6a08d6efdf733da094`. Les deux runs MLflow ont été lancés depuis le commit `193be25` : MLflow l'enregistre **automatiquement** dans le tag `mlflow.source.git.commit = 193be25fb9347e981c3d708d220c60a0e8097069` (avec `mlflow.source.git.branch = ismael-sall`), et le script ajoute le tag `gold_md5 = 637be8d38250`. Le lien **commit ↔ données ↔ run ↔ version du registre** est donc complet.
+1. **Quel commit produit quel modèle ?** Le pointeur `artifacts/models/rf.joblib.dvc` du commit `96ba527` (et inchangé depuis) référence le md5 `2779890061870d6a08d6efdf733da094`. Les deux runs MLflow ont été lancés depuis le commit `74fe3a5` : MLflow l'enregistre **automatiquement** dans le tag `mlflow.source.git.commit = 74fe3a5b6cc29649e26fa4f91b11b7ee92b561ce` (avec `mlflow.source.git.branch = ismael-sall`), et le script ajoute le tag `gold_md5 = 637be8d38250`. Le lien **commit ↔ données ↔ run ↔ version du registre** est donc complet.
 2. **Quelle empreinte identifie le Gold utilisé ?** md5 `637be8d3825023160de0980761c9a9e8` (pointeur `data/gold/gold_dataset.csv.dvc`), repris en abrégé `637be8d38250` dans `model_metadata.json` et dans les tags MLflow.
-3. **Comment rejouer un run sans modifier `uv.lock` ?** `uv sync --frozen --extra dev --extra mlops`, puis `uv run --frozen python scripts/demo_versioning.py --no-dvc --tracking-uri http://127.0.0.1:5000 --split temporal` ; vérifier ensuite `git diff --exit-code -- uv.lock`.
+3. **Comment rejouer un run sans modifier `uv.lock` ?** `uv sync --frozen --extra dev --extra mlops`, puis `uv run --frozen python scripts/demo_versioning.py --no-dvc --tracking-uri http://127.0.0.1:5001 --split temporal` ; vérifier ensuite `git diff --exit-code -- uv.lock`.
 4. **Comment restaurer code, données et modèle ensemble ?** `git switch --detach <commit>` (code + pointeurs), `uv sync --frozen …` (dépendances), `dvc checkout` ou `dvc pull` (fichiers correspondant aux pointeurs). *Procédure non rejouée de bout en bout à ce jour* (aller-retour prévu au TD avancé).
 
 ## Contrat d'expérience vision — rappel cohorte de juin
