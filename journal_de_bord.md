@@ -342,7 +342,27 @@
 - **QCM J1 (questions 1-3)** : le pas-à-pas R2 (ligne 661 dans VS Code) donne les thèmes (package `src/`, rôle de `pyproject.toml`, fuite par split non temporel) et la correction attendue (1-B · 2-C · 3-A), mais **pas le texte des questions**. Les fichiers cités (`QCM_fin_de_journee_sprint3`, `kahoot_J1.xlsx`) sont introuvables dans le dépôt et sur mon poste ; la fiche TD précise que les QCM sont « fournis séparément par le formateur ». → À demander au formateur. Je ne réponds pas sans l'énoncé.
 - **Prérequis Sprint 2 (scénario B)** : un contrat I/O **d'exemple** est disponible ([docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json](docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json)), mais ses valeurs sont illustratives. → À confirmer avec le formateur : le scénario B me concerne-t-il ? Quel est le **seuil réel** du modèle du dépôt ? Où sont la model card v1 et le contrat validé ?
 
-**Module 24 — CI/CD, tests & versioning** · *C6*
+**Module 24 — CI/CD, tests & versioning** · *C6* · *(en attente du signal formateur pour le jalon 02)*
+
+**Étape 0 — Pré-vérification de la fusion du jalon 02** *(avant le signal, sans rien modifier)*
+
+📎 **Preuve brute** : [preuves/24_p0_precheck_fusion_jalon02.txt](preuves/24_p0_precheck_fusion_jalon02.txt)
+
+*Pourquoi :* ma branche a divergé des jalons officiels (dossier `docs/` déplacé, `cleaning.py`, journal, preuves). Je veux savoir **à l'avance** si `mettre_a_niveau.ps1 -Jalon 02` entrera en conflit, pour ne pas être surpris en séance.
+
+| Commande | Rôle | Résultat |
+|---|---|---|
+| `git fetch origin jalon/02` | Télécharger le jalon **sans fusionner** (dans `FETCH_HEAD`) | Commit officiel `3498b20` récupéré ; ma branche ne bouge pas |
+| `git diff --stat 5e77d57 FETCH_HEAD` | Lister ce que le jalon change depuis l'ancêtre commun | **5 fichiers** : `FORMATION/JALON_ACTUEL.md`, `docs/versioning_strategy.md` (nouveau), `pyproject.toml` (+72 lignes), `scripts/demo_versioning.py` (nouveau), `uv.lock` |
+| `git merge-tree --write-tree HEAD FETCH_HEAD` | **Simuler** la fusion en mémoire | Code retour **0**, un seul arbre produit → **aucun conflit** |
+| `git show <arbre simulé>:FORMATION/JALON_ACTUEL.md` | Vérifier le seul fichier modifié des deux côtés | `# Jalon actuel : 02-j1-apres-midi-m24` → git garde la version du jalon 02, comme attendu |
+
+- **Mes fichiers M23 sont tous conservés** dans la fusion simulée : `cleaning.py`, `test_cleaning.py`, journal, 7 preuves, contrat I/O.
+- **`docs/`** : `versioning_strategy.md` arrive dans le même dossier que mes supports déplacés, sans collision de nom.
+- **`pyproject.toml` et `uv.lock` vont changer**, mais **par le jalon** (ajout de l'extra `mlops` pour DVC / MLflow), pas par moi. La règle « ne jamais modifier le lock » reste respectée : je ne ferai que `uv sync --frozen`.
+- *Constat* : jalon/02 ne contient pas le commit du jalon 01 (ancêtre commun = `5e77d57`, le point de départ). Sans conséquence ici, puisque le seul fichier commun (`JALON_ACTUEL.md`) se fusionne proprement.
+- *Limite* : la simulation porte sur le jalon **tel qu'il est aujourd'hui**. Si le formateur le met à jour avant le signal, il faudra refaire ce contrôle.
+
 - Ce que j'ai fait : …
 - Ma preuve : … (CI verte · `gitleaks` bloque · `dvc status`)
 - Compétence(s) : C6
