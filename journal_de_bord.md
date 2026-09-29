@@ -1297,6 +1297,32 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **Honnêteté du registre** : chaque « Implémenté » pointe vers un **test rejouable** ; l'audit logging reste « Planifié v0 », avec la **preuve future** attendue (événement structuré **sans** clé, payload ni PII + test dédié).
 - *Ma reformulation :* …
 
+**TP 2 — Durcir sans casser** *(pas-à-pas R2, « TP 2 — Durcir sans casser »)*
+
+📎 **Preuve brute** : [preuves/26_tp2_durcir.txt](preuves/26_tp2_durcir.txt) (tests déjà verts au TP 1 : `10 passed` → [preuves/26_tp1_registre.txt](preuves/26_tp1_registre.txt))
+
+*« Durcir sans casser »* = ajouter des protections **sans** empêcher l'usage normal. Deux choses à prouver : les garde-fous **bloquent** ce qu'il faut, et `/health` reste **libre** (sinon l'orchestrateur croirait le service mort et le redémarrerait en boucle).
+
+*Attendu du pas-à-pas :* 0 échec ; `/health` **200 sans clé** ; `/predict-tabular` prouve 401, 422, 429, 413 ; « le test direct accepte 60 appels puis bloque le 61ᵉ ; une rafale API de 70 appels doit seulement contenir **au moins un 429** ».
+
+*Sur le vrai serveur* (lancé par Claude **sans `--reload`**, port vérifié libre, processus vérifié = `.venv` de CISIA) :
+
+| # | Requête | Attendu | Obtenu |
+|---|---|---|---|
+| 1 | `GET /health` **sans clé** | 200 | **200** ✅ |
+| 2 | `POST /predict-tabular` sans clé | 401 | **401** ✅ |
+| 3 | Corps de **68,4 Ko** (> 64 Ko), avec clé | 413 | **413** ✅ |
+| 4 | En-tête `Content-Length: abc` (illisible) | 400 (pas 500) | **400** ✅ |
+| 5 | **Rafale de 70 appels valides** avec clé, en 6,3 s | au moins un 429 | **200 × 60 puis 429 × 10**, 1ᵉʳ 429 à l'appel **n° 61** ✅ |
+| 6 | `GET /health` **pendant le blocage** | 200 | **200** ✅ |
+| 7 | Message du 429 | — | `{"detail":"Trop de requêtes"}` |
+
+- **Exactement 60 acceptés, puis blocage** : la politique « 60 requêtes / 60 s / IP » fonctionne sur la vraie API, pas seulement dans le test direct.
+- **Observation** : les appels 401, 413 et 400 faits **avant** la rafale **n'ont pas consommé** le quota (sinon le 1ᵉʳ 429 serait arrivé avant le 61ᵉ). Cohérent avec l'**ordre du code** : taille du corps (middleware) → clé → **puis** rate limit.
+- **Pourquoi `/health` n'est pas protégé** : c'est la sonde de **liveness**. La protéger par clé ou quota casserait le monitoring et la reprise automatique (M28).
+- **Serveur arrêté** ensuite (`taskkill /PID 19860 /T /F`, 3 processus du `.venv` de CISIA) ; port 8000 libre. La notification « failed » de la tâche de lancement vient de cet arrêt **volontaire**.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : …
 - Ma preuve : … (401 sans clé · 429 rate limit · 413 payload)
 - Compétence(s) : C2 (risques) · C6
