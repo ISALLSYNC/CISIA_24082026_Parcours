@@ -1,0 +1,74 @@
+﻿# Preuve : M26 TP 1 - Attack tree & controles testables (threat_model.md + security_controls.md)
+# Date : 2026-09-29 12:48
+# Branche : ismael-sall @ 5c951f9 (+ 2 fichiers crees, pas encore commites)
+
+# 💬 DECISION D'EMPLACEMENT : fichiers crees A LA RACINE (pas-a-pas : 'A la racine de CISIA_24082026_Parcours' ; la preuve finale lit
+# 💬 .\security_controls.md), a partir des modeles du jalon dans docs/ (laisses intacts). Libelles et statuts = ceux de la preuve finale.
+
+# 💬 1) Environnement et Python (commandes du TP 1).
+PS> uv sync --frozen --extra dev --extra mlops
+Checked 252 packages in 114ms
+# code retour : 0
+
+# 💬 1b)
+PS> uv run --frozen python --version
+Python 3.13.15
+# code retour : 0
+
+# 💬 2) Les fichiers n'ecrasent rien : ils n'existaient pas a la racine avant (git ne les connait pas).
+PS> git status --short -- threat_model.md security_controls.md docs/threat_model.md docs/security_controls.md
+?? security_controls.md
+?? threat_model.md
+# code retour : 0
+
+# 💬 3) Verification des affirmations du registre : les tests cites existent-ils ?
+  test_missing_api_key_returns_401                             -> test_api.py:159
+  test_insufficient_readings_returns_422                       -> test_api.py:180
+  test_predict_invalid_machine_id_returns_422                  -> test_api.py:323
+  test_rate_limit_blocks_after_limit                           -> test_security.py:132
+  test_rate_limit_policy_is_not_exposed_as_query_parameters    -> test_security.py:117
+  test_payload_too_large_returns_413                           -> test_security.py:71
+  test_invalid_content_length_returns_400                      -> test_security.py:99
+
+# 💬 3b) '60 acceptees, 61e bloquee' : lecture du test test_rate_limit_blocks_after_limit.
+  test_security.py:25: #     plus volumineux que la limite autorisée, l'API refuse avec un code 413
+  test_security.py:28: #   - La protection "RATE LIMIT" (limitation de débit) : un même client ne peut
+  test_security.py:29: #     pas envoyer un nombre illimité de requêtes dans une fenêtre de temps donnée.
+  test_security.py:30: #     Une fois la limite atteinte, la requête suivante est rejetée avec un code 429
+  test_security.py:47: # renvoyer une erreur HTTP (ex : 429), il lève une HTTPException portant le code.
+  test_security.py:54: # security : le module qui contient les garde-fous (limite de taille du corps,
+  test_security.py:55: # limitation de débit, et leurs constantes/états internes).
+  test_security.py:75: stockée dans ``security.MAX_BODY_BYTES``. Si le corps dépasse cette limite,
+
+# 💬 4) Les 2 suites de securite (TP 2 : 0 echec attendu).
+PS> uv run --frozen pytest -q -p no:warnings tests/test_api.py tests/test_security.py
+..........                                                               [100%]
+10 passed in 6.03s
+# code retour : 0
+
+# 💬 5) CONTROLE OFFICIEL DU REGISTRE (commande de la preuve finale du pas-a-pas, recopiee).
+  lignes du registre reconnues : 5 (attendu 5)
+  Implémenté : 4 (attendu 4) | Planifié v0 : 1 (attendu 1)
+  verdict : OK - Registre attendu : 4 Implémenté + 1 Planifié v0
+
+# 💬 6) Aucune cle ni valeur de .env dans les 2 documents ? (gitleaks sur ces fichiers)
+PS>
+PS> uv run --frozen pre-commit run gitleaks --files threat_model.md security_controls.md
+Detect hardcoded secrets.................................................Passed
+# code retour : 0
+
+
+# 💬 3c) Verification directe du corps du test (l'etape 3b n'avait affiche que des commentaires) :
+  test_security.py:175:    for _ in range(60):
+  test_security.py:176:        security.rate_limit(req, limit=60, window=60.0)        -> 60 appels acceptes
+  test_security.py:177:    with pytest.raises(HTTPException) as e:
+  test_security.py:178:        security.rate_limit(req, limit=60, window=60.0)        -> le 61e leve une exception
+  test_security.py:179:    assert e.value.status_code == 429                          -> ... de code 429
+# 💬    Le test appelle DIRECTEMENT la fonction interne rate_limit (faux objet requete, IP 9.9.9.9), pas l'API.
+# 💬    L'affirmation '60 acceptees, 61e bloquee' du registre est donc exacte.
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 - threat_model.md et security_controls.md crees a la racine, sans ecraser (inconnus de Git avant) ; modeles de docs/ intacts.
+# 💬 - Les 7 tests cites dans le registre existent (fichier:ligne ci-dessus) ; 10 passed sur test_api.py + test_security.py.
+# 💬 - Controle officiel du registre : 5 lignes, 4 Implemente, 1 Planifie v0 -> OK.
+# 💬 - gitleaks sur les 2 documents : Passed (aucun secret).

@@ -1247,6 +1247,56 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
   - le rate limit est **en mémoire, par processus et par IP** (`_hits`) : avec plusieurs processus, chacun a son propre compteur ; derrière un proxy, tous les clients peuvent partager **la même IP** *(déduit de la lecture du code, non testé)*.
 - *Ma reformulation :* …
 
+**TP 1 — Attack tree & contrôles testables** *(pas-à-pas R2, « TP 1 — Attack tree & contrôles testables »)*
+
+📎 **Livrables** : [threat_model.md](threat_model.md) · [security_controls.md](security_controls.md) · 📎 **Preuve brute** : [preuves/26_tp1_registre.txt](preuves/26_tp1_registre.txt)
+
+*Décision préalable : où et sous quel format ?* Trois sources, croisées avant d'écrire :
+
+| Point | Pas-à-pas R2 | Fiche TD 26 | Modèles du jalon (`docs/`) | Décision |
+|---|---|---|---|---|
+| Emplacement | « À la racine » ; la preuve finale lit `.\security_controls.md` | `threat_model.md` + `security_controls.md` | dans `docs/` | **À la racine**, en partant des modèles (comme `versioning_strategy.md` au M24) ; `docs/` laissé intact |
+| Libellés des lignes | la preuve cherche `\| Auth \|`, `\| Validation \|`, `\| Rate limit \|`, `\| Taille payload \|`, `\| Audit logging \|` | clé API, validation, rate limit, payload, audit | « Cle API / 401 », « Taille du corps / 413 »… | **Ceux du pas-à-pas** (sinon la preuve finale ne trouve pas les lignes) |
+| Statuts | `Implémenté` / `Planifié v0` (avec accents) | idem | « Planifie v0 » (sans accent) | **Avec accents** |
+| Colonnes | statut, preuve actuelle, risque résiduel, action suivante | idem | preuve testée, état, limite connue, action | **Celles du pas-à-pas** |
+
+*`threat_model.md` — ce qu'il contient :*
+
+| Section | Contenu |
+|---|---|
+| Actifs à protéger | Le service `/predict-tabular`, le modèle `rf.joblib`, la clé d'API, les données (dont la source brute des incidents avec des **données personnelles**), la chaîne de livraison (Git, CI, DVC) |
+| Frontières de confiance | Client → API (tout est **non fiable**) · API → disque (modèle) · données brutes → pipeline · poste → Git / CI |
+| STRIDE sur `/predict-tabular` | Les 6 menaces avec **scénario concret**, impact, contrôle existant, **risque résiduel**, action (clé de dev publique · valeur fausse dans les bornes · **aucune traçabilité** · fuite par les logs · limite de corps **déclarative** et compteur **par processus** · `?limit=100000` bloqué) |
+| Menaces propres au ML | Entrée **adversariale** (non couverte) · **extraction** du modèle (freinée par clé + quota) |
+| STRIDE sur le pipeline | **Empoisonnement** des données (détecté par DVC, pas empêché) · **altération** du modèle (l'API ne vérifie pas le md5) · fuite de secrets par Git (gitleaks, contournable) · **données personnelles** (non utilisées, mais présentes à la source) |
+| Priorisation des 5 contrôles | Auth → Validation → Rate limit → Taille payload → Audit logging (Planifié v0) |
+| Hors périmètre | `/health` volontairement libre (liveness) · pas de HTTPS en local · Docker au M27 |
+
+*`security_controls.md` — le registre des 5 contrôles :*
+
+| Contrôle | Statut | Code | Preuve actuelle (tests **vérifiés existants**) |
+|---|---|---|---|
+| Auth | Implémenté | 401 | `test_missing_api_key_returns_401` (test_api.py:159) |
+| Validation | Implémenté | 422 | `test_insufficient_readings_returns_422` (:180), `test_predict_invalid_machine_id_returns_422` (:323) |
+| Rate limit | Implémenté | 429 | `test_rate_limit_blocks_after_limit` (test_security.py:132), `test_rate_limit_policy_is_not_exposed_as_query_parameters` (:117) |
+| Taille payload | Implémenté | 413 | `test_payload_too_large_returns_413` (:71), `test_invalid_content_length_returns_400` (:99) |
+| Audit logging | Planifié v0 | — | **Aucune** : aucune occurrence d'« audit » dans le code ni les tests |
+
+*Vérifications :*
+
+| Contrôle | Résultat |
+|---|---|
+| `uv sync --frozen` · `python --version` | 252 paquets · **3.13.15** |
+| Rien écrasé | `git status` : `?? threat_model.md`, `?? security_controls.md` (nouveaux) ; `docs/` inchangé |
+| Les 7 tests cités existent | oui, avec fichier et ligne |
+| « 60 acceptées, 61ᵉ bloquée » | **vérifié dans le corps du test** : `for _ in range(60): rate_limit(...)` puis le 61ᵉ lève `HTTPException` → `status_code == 429`. Le test appelle **directement** la fonction interne (fausse requête, IP 9.9.9.9), pas l'API |
+| `pytest tests/test_api.py tests/test_security.py` | **`10 passed`** |
+| **Contrôle officiel du registre** (commande de la preuve finale, recopiée) | **5 lignes · 4 Implémenté · 1 Planifié v0 → OK** |
+| gitleaks sur les 2 documents | **Passed** (aucune clé, aucune valeur de `.env`) |
+
+- **Honnêteté du registre** : chaque « Implémenté » pointe vers un **test rejouable** ; l'audit logging reste « Planifié v0 », avec la **preuve future** attendue (événement structuré **sans** clé, payload ni PII + test dédié).
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : …
 - Ma preuve : … (401 sans clé · 429 rate limit · 413 payload)
 - Compétence(s) : C2 (risques) · C6
