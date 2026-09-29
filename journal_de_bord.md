@@ -1380,6 +1380,7 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 
 - **Conforme au « résultat attendu »** : tests à 0 échec ; codes 401 / 422 / 429 / 413 ; cinq lignes de registre correctement classées. **Preuve C2** (risques et contrôles) : `threat_model.md` + `security_controls.md` · **preuve C8** (tests et risques résiduels) : 31 tests + colonne « risque résiduel ».
 - *Incident* : le 1ᵉʳ lancement de cette preuve a été **interrompu à ma demande** ; relancé ensuite à l'identique.
+- **CI GitHub sur l'état final du M26** : push `d13339c..952c23d` (15 commits, dont la fusion du jalon 04) → run [36564196922](https://github.com/ISALLSYNC/CISIA_24082026_Parcours/actions/runs/36564196922) → **`quality` success** (Install, Lint, Format, Tests : les 31 tests, sécurité et non-divulgation compris) · **`build` success**.
 
 **Bilan M26**
 
