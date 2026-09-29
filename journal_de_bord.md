@@ -340,6 +340,8 @@
 - **Incohérence entre supports** : la fiche jalon 01 demande d'extraire `clean_sensor_data`, alors que le pas-à-pas R2 la classe en extension facultative. → **Tranché par la fiche TD 23** (« Definition of done ») : « `test_cleaning.py` n'est exigé que si l'extension est jouée ». L'extension est donc bien **facultative**.
 - La fiche TD 23, citée par le pas-à-pas pour le code de `cleaning.py`, **n'est pas dans le dépôt**. → **Retrouvée** hors dépôt : `OneDrive\Documents\FORMATION\Docs\Sprint3\fiches_TD_apprenant_sprint3_AELION_20260928_R2.pdf` (section « Fiche TD 23 »).
 - **QCM J1 (questions 1-3)** : le pas-à-pas R2 (ligne 661 dans VS Code) donne les thèmes (package `src/`, rôle de `pyproject.toml`, fuite par split non temporel) et la correction attendue (1-B · 2-C · 3-A), mais **pas le texte des questions**. Les fichiers cités (`QCM_fin_de_journee_sprint3`, `kahoot_J1.xlsx`) sont introuvables dans le dépôt et sur mon poste ; la fiche TD précise que les QCM sont « fournis séparément par le formateur ». → À demander au formateur. Je ne réponds pas sans l'énoncé.
+- **M26 — emplacement des livrables sécurité** : le jalon 04 fournit les modèles dans `docs/`, la preuve finale lit `.\security_controls.md` à la racine ; j'ai créé les fichiers à la racine (modèles laissés intacts). → À confirmer.
+- **QCM J2** : comme pour le J1, le texte des questions n'est pas dans le dépôt. → À demander au formateur.
 - **M25 — titres de la Model Card** : le validateur (`Niveau métier`…) et la commande de preuve finale du pas-à-pas (`^## Métier`…) sont **incompatibles** ; j'ai suivi le validateur. → Quelle référence fait foi ?
 - **M25 — seuil** : l'API applique `decision_threshold = 0.5` (`config.py`) et non le seuil calculé au M24 (0.975). → Quel seuil doit porter le contrat ?
 - **M24 — seuil de décision** : `demo_versioning.py` calibre le seuil sur le **train** (0.975) → précision / rappel / F1 à 0 dans les 2 runs. *Hypothèse* : sur-apprentissage. → À signaler au formateur (je n'ai pas modifié le script fourni).
@@ -1164,7 +1166,7 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **Aide IA reçue** : Claude Code a résolu la fusion (après analyse que j'ai validée), lancé et vérifié le serveur, écrit les scripts de preuve, rempli le niveau technique de la Model Card avec des chiffres revérifiés, et m'a posé des questions pour les niveaux métier et conformité (mes réponses, dont une corrigée par la vérification des données). J'ai moi-même appelé l'API depuis `/docs` et pris les captures. **Je dois savoir réexpliquer : API / REST, `/health` vs `/ready`, 401 vs 422 vs 503, pourquoi l'ordre auth → validation → modèle, ce qu'est une Model Card et ses statuts.**
 - **Difficultés / questions** : conflit de titres de la Model Card · seuil 0.5 (API) vs 0.975 (M24) · clé de dev par défaut (`INDUSENSE_API_KEY` absente de `.env.example`) · `/predict-image` absent du code — voir la liste « Difficultés / questions » (section M23).
 
-**Module 26 — Sécurité & menaces** · *C2* · *(en cours — 29/09/2026)*
+**Module 26 — Sécurité & menaces** · *C2* · *(terminé — 29/09/2026)*
 
 **Charge le jalon 04 — AVANT M26** *(pas-à-pas R2, « Charge le jalon 04 — AVANT M26 »)*
 
@@ -1359,10 +1361,33 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - *Note* : `dev-key` apparaît dans la preuve (sortie du test rouge) : c'est la clé de **développement** par défaut, publique dans `config.py`, pas un secret.
 - *Ma reformulation :* …
 
-- Ce que j'ai fait : …
-- Ma preuve : … (401 sans clé · 429 rate limit · 413 payload)
-- Compétence(s) : C2 (risques) · C6
-- Difficulté / question : …
+**Preuve finale M26** *(pas-à-pas R2, « Preuve finale »)*
+
+📎 **Preuve brute** : [preuves/26_preuve_finale.txt](preuves/26_preuve_finale.txt)
+
+*À quoi elle sert :* le **bilan de sortie** du M26 — rejouer en une fois, sur l'état final, la commande du pas-à-pas (tests **et** contrôle du registre) puis les contrôles qualité.
+
+| # | Contrôle | Résultat |
+|---|---|---|
+| 1 | `pytest tests/test_api.py tests/test_security.py` (commande **exacte**) | **`10 passed`** : 200, **401**, **422** ×2, normalisation, **413**, **400**, politique non exposée, **429** ✅ |
+| 2 | Contrôle du registre (**bloc exact** du pas-à-pas, qui lève une exception s'il échoue) | **Aucune exception** : 5 lignes · **4 Implémenté** (Auth 401, Validation 422, Rate limit 429, Taille payload 413) · **1 Planifié v0** (Audit logging) ✅ |
+| 3 | `signature(rate_limit_dependency)` (fiche jalon 04) | `(request: 'Request') -> 'None'` : quota non surchargeable ✅ |
+| 4 | `tests/test_logs_no_leak.py` (TP 3) | **`2 passed`** ✅ |
+| 5-8 | Suite complète · ruff · black · pre-commit | **`31 passed`** · propres · `30 files would be left unchanged` · ruff / black / gitleaks **Passed** ✅ |
+| 9 | `uv.lock` · `git ls-files .env` | lock inchangé · **`.env` jamais suivi** ✅ |
+| 10 | Livrables présents | `threat_model.md`, `security_controls.md`, `tests/test_logs_no_leak.py`, `tests/test_security.py` ✅ |
+| 11 | Codes en vrai (TP 2) | `/health` 200 sans clé · 401 · 413 · 400 · rafale 60 × 200 puis 429 ✅ |
+
+- **Conforme au « résultat attendu »** : tests à 0 échec ; codes 401 / 422 / 429 / 413 ; cinq lignes de registre correctement classées. **Preuve C2** (risques et contrôles) : `threat_model.md` + `security_controls.md` · **preuve C8** (tests et risques résiduels) : 31 tests + colonne « risque résiduel ».
+- *Incident* : le 1ᵉʳ lancement de cette preuve a été **interrompu à ma demande** ; relancé ensuite à l'identique.
+
+**Bilan M26**
+
+- **Ce que j'ai fait** : fusionné le jalon 04 à la main (3 conflits, M24 conservé) et corrigé ma copie périmée d'un test 503 en réappliquant la surcouche officielle · classé les 5 contrôles (4 prouvés + 1 planifié) · appliqué **STRIDE** à mon API et à mon pipeline · lu le code de sécurité (limite de corps, rate limit **fermé**, leurs limites connues) · rédigé `threat_model.md` et le registre `security_controls.md` · prouvé en conditions réelles 401 / 413 / 400 / **60 × 200 puis 429** et `/health` libre · écrit un test de **non-divulgation dans les logs**, vérifié par mutation.
+- **Mes preuves** : `10 passed` (API + sécurité) · registre conforme au contrôle officiel · rafale 60 / 10 sur le vrai serveur · test rouge qui **nomme** la clé qui fuit, puis vert · 31 tests au total · lock inchangé · `.env` jamais commité.
+- **Compétence(s)** : C2 (risques) · C8 (robustesse mesurée) · C6
+- **Aide IA reçue** : Claude Code a résolu la fusion (après analyse que j'ai validée), écrit les deux documents de sécurité à partir du code lu et des tests **vérifiés existants**, écrit le test de non-divulgation (option choisie par moi sur sa recommandation argumentée), lancé et arrêté le serveur, produit et commenté les preuves. **Je dois savoir réexpliquer : les 6 lettres de STRIDE avec un exemple chacune, pourquoi 4 Implémenté + 1 Planifié v0, pourquoi `/health` reste libre, pourquoi une dépendance « fermée », ce que le test de non-divulgation prouve et ne prouve pas.**
+- **Difficultés / questions** : emplacement des deux documents (racine vs `docs/`) · limite de corps **déclarative** et compteur de quota **par processus** (déduit du code) · clé de dev par défaut · audit logging à concevoir — voir la liste « Difficultés / questions » (section M23).
 
 ### J3 — mer. 26/08
 
