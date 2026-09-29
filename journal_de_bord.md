@@ -922,6 +922,47 @@ outs:
 - 📸 **Capture de `/docs`** (prise par moi, http://127.0.0.1:8000/docs) : [preuves/25_docs.png](preuves/25_docs.png). On y voit « InduSense API » **0.1.0**, **OAS 3.1** (version de la norme OpenAPI), le lien `/openapi.json`, les **3 routes** (`GET /health`, `GET /ready`, `POST /predict-tabular`) et les **5 schémas**. Exactement ce que liste `/openapi.json` : la doc est bien **générée depuis le code**. Vérifiée : aucune donnée sensible.
 
 ![Page /docs de l'API InduSense](preuves/25_docs.png)
+
+**TP 1 — Endpoints & schémas** *(pas-à-pas R2, « TP 1 — Endpoints & schémas »)*
+
+📎 **Preuve brute (ligne de commande)** : [preuves/25_tp1_predict.txt](preuves/25_tp1_predict.txt)
+
+*Pourquoi :* jusqu'ici on a prouvé que le serveur **tourne** (`/health`) et que le modèle est **chargé** (`/ready`), mais **jamais fait de prédiction**. Le TP 1 vérifie **toute la chaîne** en une requête :
+```
+payload.json ─► clé X-API-Key vérifiée ─► contrat Pydantic validé ─► features temporelles ─► modèle RF ─► réponse
+```
+C'est un élément de la preuve finale visée : « `/predict-tabular` 200 (avec clé) ».
+
+*Deux façons, même route :* **(A)** en ligne de commande par Claude (preuve **texte**, exacte, rejouable) · **(B)** depuis `/docs` par **moi** (la consigne du pas-à-pas ; preuve **visuelle**).
+
+*Prédiction avant exécution :* HTTP **200**, `decision = "ok"` (seuil de l'API 0.5 + modèle faible sur le futur → alerte peu probable).
+
+*(A) Ligne de commande :*
+
+| # | Étape | Commande / contenu | Résultat |
+|---|---|---|---|
+| 1 | Serveur prêt ? | `GET /ready` | **200** `{"status":"ready","model_version":"0.1.0"}` |
+| 2 | Le corps envoyé | `payload.json` | machine **`MACH-07`**, **8 relevés** horaires (01/02/2025, 00:00 → 07:00), température 50 → 57, pression 195,0 → 198,5 · ≥ 7 relevés ✅ |
+| 3 | La clé | `config.py:60` : `api_key: str = "dev-key"` (aucune `INDUSENSE_API_KEY` dans `.env`) | clé de **développement** publique, pas un secret |
+| 4 | **L'appel** | `Invoke-WebRequest -Method Post -Uri http://127.0.0.1:8000/predict-tabular -Headers @{'X-API-Key'='dev-key'} -ContentType 'application/json' -Body (Get-Content -Raw payload.json)` | **HTTP 200** en ~127 ms · `X-Request-ID: 2677ec75-…` |
+| 5 | Contrat de sortie respecté ? | champs de `PredictionResponse` | 5 champs · `proba_panne` ∈ [0 ; 1] ✅ · `decision` ∈ {ok, alerte} ✅ · règle `0.075 ≥ 0.5 ?` non → `ok` ✅ |
+
+*La réponse, champ par champ :*
+```json
+{"machine_id":"MACH-07","proba_panne":0.075,"decision":"ok","model_version":"0.1.0","threshold":0.5}
+```
+
+| Champ | Valeur | Signification |
+|---|---|---|
+| `machine_id` | `MACH-07` | La machine concernée (renvoyée pour savoir **à quoi** correspond la réponse) |
+| `proba_panne` | **0.075** | Le modèle estime **7,5 %** de risque de panne |
+| `decision` | **`ok`** | Car 0.075 < seuil 0.5 → pas d'alerte |
+| `model_version` | `0.1.0` | Version du **package** (`package_version` de `model_metadata.json`), pas la version MLflow |
+| `threshold` | **0.5** | Seuil utilisé, venant de `config.py` (**pas** le 0.975 du M24) : renvoyé pour pouvoir **revérifier** la décision |
+
+- ✅ **Prédiction confirmée** : 200 + `ok`.
+- **Les en-têtes HTTP** : `X-API-Key` = la clé, envoyée **dans l'en-tête** (pas dans le corps) ; `Content-Type: application/json` = « le corps est du JSON » ; `X-Request-ID` = identifiant de la requête, ajouté par l'API.
+- *Limite* : **l'API marche techniquement**, mais **0.075 n'est pas une probabilité fiable** : le modèle fait moins bien que le hasard sur le futur (M24, ROC-AUC 0.25 en split temporel). La **qualité** du modèle se traite dans la Model Card, pas dans l'API.
 - *Ma reformulation :* …
 
 - Ce que j'ai fait : …
