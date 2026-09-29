@@ -1323,6 +1323,42 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **Serveur arrêté** ensuite (`taskkill /PID 19860 /T /F`, 3 processus du `.venv` de CISIA) ; port 8000 libre. La notification « failed » de la tâche de lancement vient de cet arrêt **volontaire**.
 - *Ma reformulation :* …
 
+**TP 3 — preuve complémentaire** *(pas-à-pas R2, « TP 3 — preuve complémentaire », lignes 1503-1509 dans VS Code)*
+
+📎 **Test** : [tests/test_logs_no_leak.py](tests/test_logs_no_leak.py) · 📎 **Preuve brute** : [preuves/26_tp3_logs_no_leak.txt](preuves/26_tp3_logs_no_leak.txt)
+
+*La consigne :* « Au choix : test de l'OpenAPI prouvant que `limit` et `window` ne sont pas exposés, **ou** test de non-divulgation dans les logs. » Résultat attendu : « preuve verte et **intitulé exact**. Le test de non-divulgation **ne prouve pas** que l'audit logging existe : il reste Planifié v0. »
+
+*Mon choix : la non-divulgation dans les logs*, après vérification :
+- l'option **OpenAPI** est **déjà couverte** par `test_rate_limit_policy_is_not_exposed_as_query_parameters` (livré par le jalon 04) → la refaire = doublon ;
+- la **non-divulgation** comble le trou noté dans mon threat model (menace **I** : « aucun test ne prouve l'absence de fuite dans les logs ») ; et l'API **journalise** bien (`loguru`, avec le `request_id` ajouté à chaque ligne par `logger.contextualize`, main.py:212).
+
+*Ce que fait le test* (2 fonctions, **intitulés exacts**) :
+
+| Test | Ce qu'il prouve | Comment |
+|---|---|---|
+| `test_logs_do_not_leak_api_key_or_payload` | **Aucun log** ne contient la clé d'API ni les valeurs envoyées, sur 3 chemins : **200**, **401**, **422** | Valeurs **marquées** faciles à repérer (vraie clé, fausse clé `cle-a-ne-pas-logger-123`, machine `MACH-4242`, température `123.456`) · capture de **tous** les logs (loguru + logging standard) · 3 oracles : les codes 200 / 401 / 422, une capture **non vide**, **aucun** secret retrouvé |
+| `test_leak_detector_catches_a_logged_secret` | Le **détecteur** sait trouver une fuite (« test du test ») | Journalise volontairement la fausse clé et vérifie qu'elle est retrouvée. Sans ça, « rien trouvé » ne prouverait rien |
+
+- *Même méthode que les tests existants* : faux modèle jouet (recette de `_bundle` de `test_api.py`, **recopiée** car aucun test du projet n'en importe un autre) injecté via `app.dependency_overrides`, puis retiré ; quota remis à zéro avant / après.
+- *Incident* : mon 1ᵉʳ essai importait `_bundle` depuis `tests.test_api` → `ModuleNotFoundError` (`tests/` n'est pas un package). Corrigé en recopiant la fonction.
+
+*Prouver que le test attrape une VRAIE fuite — cycle rouge → vert (comme au M24) :*
+
+| # | Étape | Résultat |
+|---|---|---|
+| 1 | Test sur le code actuel | ✅ **2 passed** |
+| 2 | Ce que l'API journalise réellement pendant un appel | **3 lignes** : `Modèle chargé`, une ligne technique `asyncio`, une ligne `httpx` (`POST …/predict-tabular HTTP/1.1 200 OK`) → capture non vide, **aucun secret** |
+| 3 | **Mutation temporaire** : dans `require_api_key`, ajouter `logger.info(f"FUITE VOLONTAIRE cle recue = {x_api_key}")` | ❌ **1 failed** : le test **nomme les fuites** `['dev-key', 'cle-a-ne-pas-logger-123']` |
+| 4 | `git restore -- src/indusense/api/main.py` | aucune différence restante |
+| 5 | Test à nouveau | ✅ **2 passed** · suite complète **31 passed** · ruff et black propres |
+
+- **Ce que ça prouve** : le test détecte une fuite **dans l'API elle-même** (pas seulement dans le test du détecteur). Aucun code cassé n'a été commité.
+- **Mises à jour cohérentes** : [threat_model.md](threat_model.md) (ligne **I** : le risque résiduel devient « couvert sur les chemins testés ») et [security_controls.md](security_controls.md) (note : garde-fou complémentaire, **ne prouve pas** l'audit). Contrôle officiel du registre **toujours OK** : 5 lignes, 4 Implémenté, 1 Planifié v0.
+- **Limite (écrite comme le demande le pas-à-pas)** : ce test **ne prouve pas** que l'audit logging existe : il reste **Planifié v0**. Il ne couvre que les chemins testés et le code actuel.
+- *Note* : `dev-key` apparaît dans la preuve (sortie du test rouge) : c'est la clé de **développement** par défaut, publique dans `config.py`, pas un secret.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : …
 - Ma preuve : … (401 sans clé · 429 rate limit · 413 payload)
 - Compétence(s) : C2 (risques) · C6

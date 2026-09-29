@@ -14,4 +14,5 @@
 
 - **4 × Implémenté** (401, 422, 429, 413) et **1 × Planifié v0** (audit logging). L'audit logging n'a pas de code HTTP propre.
 - Le `X-Request-ID` **n'est pas** un audit log : il corrèle les requêtes, sans constituer un événement d'audit ni sa preuve.
+- Garde-fou complémentaire (TP 3) : `tests/test_logs_no_leak.py` prouve qu'**aucun log ne contient la clé ni le payload** (chemins 200, 401, 422). Il **ne prouve pas** l'audit logging, qui reste **Planifié v0**.
 - `/health` reste libre (liveness) ; `/predict-tabular` et `/predict-image` exigent la clé et le quota.
