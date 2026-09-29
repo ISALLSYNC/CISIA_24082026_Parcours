@@ -820,6 +820,72 @@ outs:
 - **Signal formateur** : jalon 03 lancé au J2 de ma cohorte (29/09), sur ma décision.
 - *Ma reformulation :* …
 
+**Reprise, ouverture du poste et préflight** *(pas-à-pas R2, « Reprise, ouverture du poste et préflight »)*
+
+📎 **Preuve brute** : [preuves/25_p1_preflight.txt](preuves/25_p1_preflight.txt)
+
+*Pourquoi :* avant de lancer un **serveur**, vérifier le poste, les outils et que le **port** est libre (leçon de l'incident MLflow du M24).
+
+| # | Commande | Ce qu'elle vérifie | Résultat |
+|---|---|---|---|
+| 1 | `uv run --frozen python --version` | Python du `.venv` | **3.13.15** ✅ |
+| 2 | `Test-Path .\uv.lock` | Verrou des dépendances présent | **True** ✅ |
+| 3 | `git status --short` | Arbre de travail propre | aucune sortie ✅ |
+| 4 | `git branch --show-current` | Branche personnelle | **ismael-sall** ✅ |
+| 5 | `findstr "# Jalon actuel" FORMATION\JALON_ACTUEL.md` | Bon jalon | **03-j2-matin-m25** ✅ |
+| 6 | `uv run --frozen uvicorn --version` | **Uvicorn** = le serveur qui fera tourner l'API | **0.49.0** ✅ |
+| 7 | `import fastapi` | **FastAPI** = la bibliothèque avec laquelle l'API est écrite | **0.138.1** ✅ |
+| 8 | `Get-NetTCPConnection -LocalPort 8000 -State Listen` | Port d'Uvicorn libre | **libre** ✅ |
+| 9 | `Test-Path .\.env` · `git check-ignore -v .env` | Fichier de config locale | absent pour l'instant · **ignoré par Git** (`.gitignore:40`) ✅ |
+
+- **Uvicorn et FastAPI** : ajoutés par le **jalon 03** dans `pyproject.toml` (lignes 97 et 100), installés par `verifier_jalon.ps1`. Rien à installer à la main. *Image* : FastAPI = la **recette**, Uvicorn = le **cuisinier** qui la prépare à chaque commande (requête).
+
+**Théorie — l'API comme contrat** *(pas-à-pas R2, « Théorie — l'API comme contrat »)*
+
+*Qu'est-ce qu'une API ?* Une **API** (*Application Programming Interface*) permet à un **programme** d'en appeler un autre. Ici, un logiciel d'atelier envoie des relevés capteurs et reçoit une probabilité de panne, **sans connaître** le modèle Random Forest derrière.
+
+*REST* = une façon standard de l'organiser, comme le web :
+- des **ressources** identifiées par une adresse (`/health`, `/predict-tabular`) ;
+- des **verbes HTTP** : `GET` (lire), `POST` (envoyer des données) ;
+- des **codes de réponse** standard : **200** OK · **401** non authentifié · **422** données invalides · **503** service indisponible.
+
+*Les 3 routes de mon API* ([src/indusense/api/main.py](src/indusense/api/main.py), lu dans le code) :
+
+| Route | Verbe | Rôle | Réponse |
+|---|---|---|---|
+| `/health` | GET | **Liveness** : le processus tourne-t-il ? | **200** dès le démarrage |
+| `/ready` | GET | **Readiness** : le modèle est-il chargé, prêt à prédire ? | 200 si oui, **503** sinon |
+| `/predict-tabular` | POST | Prédire une panne à partir des relevés | 200 avec `proba_panne`, `decision`, `model_version`, `threshold` |
+
+- **Pourquoi séparer `/health` et `/ready`** : un serveur peut **tourner** sans être **prêt** (fichier modèle absent). Un orchestrateur (Docker, M28) les utilise différemment : `/health` KO → **redémarrer** ; `/ready` KO → **ne pas envoyer de trafic**, sans redémarrer.
+
+*Le contrat écrit en code : les schémas Pydantic* ([src/indusense/api/schemas.py](src/indusense/api/schemas.py)). C'est **le contrat I/O analysé au M23**, devenu du code :
+
+| Règle du contrat I/O (M23) | Dans `schemas.py` |
+|---|---|
+| au moins **7 relevés** | `readings: list[SensorReading] = Field(..., min_length=7)` |
+| température entre **-20 et 200** | `temperature: float = Field(..., ge=-20, le=200)` |
+| pression **> 0 et ≤ 400** | `pressure_bar: float = Field(..., gt=0, le=400)` |
+| probabilité entre **0 et 1** | `proba_panne: float = Field(..., ge=0.0, le=1.0)` |
+
+- Requête hors contrat → FastAPI répond **422 automatiquement**, **avant** d'appeler le modèle.
+- `/docs` est **généré à partir de ces schémas** : « la documentation ne peut pas mentir », elle **est** le code.
+- `ge` = *greater or equal* (≥), `le` = *less or equal* (≤), `gt` = *greater than* (>).
+
+*Autres points lus dans le code :*
+
+| Élément | Ligne de `main.py` | Rôle |
+|---|---|---|
+| `require_api_key` | 44 | Lit l'en-tête `X-API-Key` ; absente ou fausse → **401** |
+| `lifespan` | 25 | Charge le modèle **une seule fois au démarrage** (pas à chaque requête : sinon la latence exploserait) |
+| middleware `add_request_id` | 36 | Ajoute un `X-Request-ID` unique à chaque réponse, pour retrouver une requête dans les logs (TP 3) |
+| `HTTPException(status_code=503, …)` | 60, 74 | « Modèle non chargé » |
+| `HTTPException(status_code=422, …)` | 80, 84 | Données inexploitables / « Historique insuffisant » |
+
+- **Écart avec le pas-à-pas** : il décrit un **rate limit** (quota, réponse **429**) après l'authentification. Dans le code actuel, `/predict-tabular` n'a que `dependencies=[Depends(require_api_key)]` (ligne 67) : **pas encore de rate limit**. Cohérent avec « le 429 est détaillé au module 26 ».
+- **`payload.json`** (exemple de requête) : machine `MACH-07`, **8 relevés** horaires → respecte le minimum de 7.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : …
 - Ma preuve : … (`/health` 200 · `/predict-tabular` 200 · `/docs`)
 - Compétence(s) : C7 (architecture / intégration) · C6
