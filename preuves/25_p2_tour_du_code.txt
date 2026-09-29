@@ -1,0 +1,44 @@
+﻿# Preuve : M25 - Tour du code : .env, lancement d'Uvicorn, /health, /ready, /docs
+# Date : 2026-09-29 10:50
+# Branche : ismael-sall @ ab3d618
+
+# 💬 Serveur lance en arriere-plan : uv run --frozen uvicorn indusense.api.main:app --reload --host 127.0.0.1 --port 8000
+# 💬   indusense.api.main:app = 'dans le module indusense/api/main.py, l'objet app' ; --reload = redemarre si le code change.
+
+# 💬 1) .env cree par copie de .env.example (contenu NON affiche, consigne du pas-a-pas) et ignore par Git.
+PS> git check-ignore .env
+.env
+
+# 💬 1b) Noms des variables presentes dans .env (valeurs masquees). INDUSENSE_API_KEY n'y figure pas -> valeur par defaut de config.py.
+INDUSENSE_DATA_DIR = ***
+INDUSENSE_GOLD_DIR = ***
+INDUSENSE_MODEL_DIR = ***
+INDUSENSE_RANDOM_SEED = ***
+INDUSENSE_TARGET_COL = ***
+INDUSENSE_INCIDENT_WINDOW_HOURS = ***
+
+# 💬 2) QUI ecoute sur le port 8000 ? (lecon M24 : verifier que c'est bien NOTRE serveur)
+port 8000 -> PID 25268 : "C:\Users\issal\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\python.exe"  "C:\Users\issal\CISIA_24082026_Parcours\.venv\Scripts\uvicorn.exe" indusense.api.m
+
+# 💬 3) LIVENESS : le processus tourne-t-il ? (attendu 200)
+PS> GET /health
+HTTP 200 | X-Request-ID: b6b1f23e-a442-4655-98fd-120582878bd8
+{"status":"ok"}
+
+# 💬 4) READINESS : le modele est-il charge ? (attendu 200 si rf.joblib est la, 503 sinon)
+PS> GET /ready
+HTTP 200 | X-Request-ID: 89a6e21a-7392-433b-9da0-12c1436b611b
+{"status":"ready","model_version":"0.1.0"}
+
+# 💬 5) /docs : la documentation interactive (Swagger UI) generee depuis le code.
+PS> GET /docs
+HTTP 200 | titre de page : InduSense API - Swagger UI
+
+# 💬 6) /openapi.json : le CONTRAT machine-lisible dont /docs est l'affichage. Routes et schemas declares :
+PS> GET /openapi.json
+titre=InduSense API version=0.1.0
+  GET /health
+  GET /ready
+  POST /predict-tabular
+  schemas : HTTPValidationError, PredictionResponse, SensorReading, TabularPredictionRequest, ValidationError
+

@@ -473,7 +473,7 @@
 - Toutes les étapes sont **vertes** : si la CI tournait sur ce commit, le job `quality` passerait (sous réserve de la limite ci-dessous).
 - **Effet de bord appris** : `uv sync` **aligne** l'environnement **exactement** sur ce qu'on demande. Sans `--extra mlops`, il a **désinstallé** DVC / MLflow (48 paquets). C'est voulu : c'est le périmètre exact de la CI. Il faudra relancer `uv sync --frozen --extra dev --extra mlops` avant l'étape DVC.
 - *Limite* : ce n'est pas une vraie CI (mon `.venv` existait déjà, Windows au lieu d'Ubuntu). Le dépôt `origin` est celui du formateur : **je ne pousse pas** sans accord, donc pas de CI GitHub observée pour l'instant.
-- *Ma reformulation :* …
+Tu peux consigner tout ça quelque part? et me dir- *Ma reformulation :* …
 
 **TP 2 — Workflow GitHub Actions (+ job build) : `--frozen` + job `build`** *(pas-à-pas R2, « TP 2 — Workflow GitHub Actions (+ job build) » · fiche TD 24, étapes 2 et 3)*
 
@@ -884,6 +884,42 @@ outs:
 
 - **Écart avec le pas-à-pas** : il décrit un **rate limit** (quota, réponse **429**) après l'authentification. Dans le code actuel, `/predict-tabular` n'a que `dependencies=[Depends(require_api_key)]` (ligne 67) : **pas encore de rate limit**. Cohérent avec « le 429 est détaillé au module 26 ».
 - **`payload.json`** (exemple de requête) : machine `MACH-07`, **8 relevés** horaires → respecte le minimum de 7.
+- *Ma reformulation :* …
+
+**Tour du code (l'API du squelette)** *(pas-à-pas R2, « Tour du code (l'API du squelette) »)*
+
+📎 **Preuve brute** : [preuves/25_p2_tour_du_code.txt](preuves/25_p2_tour_du_code.txt)
+
+*Les 3 fichiers de `src/indusense/api/` :*
+
+| Fichier | Rôle | À retenir |
+|---|---|---|
+| [schemas.py](src/indusense/api/schemas.py) | Le **contrat** : formes des requêtes et réponses (Pydantic) | `SensorReading`, `TabularPredictionRequest` (≥ 7 relevés), `PredictionResponse` |
+| [main.py](src/indusense/api/main.py) | Les **routes** et la logique HTTP | `/health`, `/ready`, `/predict-tabular`, clé d'API, middleware `X-Request-ID`, `lifespan` |
+| [model_store.py](src/indusense/api/model_store.py) | **Charger** le modèle depuis le disque | `load_bundle()` lit `rf.joblib` + `model_metadata.json` → `ModelBundle` (modèle, version, seuil, cible) |
+
+*Deux constats en lisant le code (utiles pour la Model Card) :*
+- **Le seuil de l'API n'est pas celui du modèle** : `lifespan` appelle `load_bundle(settings.model_dir, settings.decision_threshold)`. Le seuil vient donc de `config.py` (**0.5**), **pas** de `model_metadata.json` (0.975 calculé au M24).
+- **`model_version` = `package_version`** de `model_metadata.json` (« 0.1.0 ») : c'est la version du **package**, pas la version MLflow (v1 / v2) ni le `run_id`.
+
+*Lancer l'API :*
+
+| # | Commande | Rôle | Résultat |
+|---|---|---|---|
+| 1 | `if (-not (Test-Path .\.env)) { Copy-Item .\.env.example .\.env }` | Créer la config locale **sans écraser** | `.env` créé · **contenu non affiché** (consigne) |
+| 1b | `git check-ignore .env` | Vérifier qu'il ne sera jamais commité | `.env` ✅ |
+| 1c | Noms des variables du `.env` (valeurs masquées) | Que contient la config ? | 6 variables `INDUSENSE_…` (chemins, graine, cible, fenêtre) · **pas d'`INDUSENSE_API_KEY`** → c'est la valeur par défaut de `config.py` qui s'applique (`"dev-key"`, clé de **développement**, publique dans le code, pas un secret) |
+| 2 | Port 8000 vérifié **libre** (préflight), puis `uv run --frozen uvicorn indusense.api.main:app --reload --host 127.0.0.1 --port 8000` (**en arrière-plan** par Claude) | Démarrer le serveur | — |
+| 3 | Qui écoute sur le port 8000 ? | **Leçon M24** : vérifier que c'est bien **notre** serveur | PID 25268 : `…\CISIA_24082026_Parcours\.venv\Scripts\uvicorn.exe` ✅ |
+| 4 | `GET /health` | **Liveness** | **200** `{"status":"ok"}` |
+| 5 | `GET /ready` | **Readiness** | **200** `{"status":"ready","model_version":"0.1.0"}` → le modèle est chargé |
+| 6 | `GET /docs` | Documentation interactive | **200** · page « InduSense API - Swagger UI » |
+| 7 | `GET /openapi.json` | Le **contrat** machine-lisible dont `/docs` est l'affichage | 3 routes (`GET /health`, `GET /ready`, `POST /predict-tabular`) · 5 schémas (`SensorReading`, `TabularPredictionRequest`, `PredictionResponse`, `HTTPValidationError`, `ValidationError`) |
+
+- `indusense.api.main:app` = « dans le module `indusense/api/main.py`, l'objet `app` ». `--reload` = Uvicorn redémarre tout seul si le code change (pratique en développement, **jamais en production**).
+- **`X-Request-ID`** présent dans chaque réponse (ex. `b6b1f23e-a442-4655-98fd-120582878bd8`) : le middleware fonctionne (TP 3).
+- **OpenAPI** : la norme qui décrit une API REST en JSON. FastAPI la **génère depuis le code** ; `/docs` (Swagger UI) n'en est que l'affichage.
+- *Capture à faire (moi)* : `/docs` dans le navigateur (http://127.0.0.1:8000/docs), les 3 routes visibles → `preuves/25_docs.png`.
 - *Ma reformulation :* …
 
 - Ce que j'ai fait : …
