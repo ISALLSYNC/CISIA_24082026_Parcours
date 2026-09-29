@@ -762,9 +762,64 @@ outs:
 - **Aide IA reçue** : Claude Code a exécuté les commandes (sauf le fork, la PR et la capture, faits par moi sur GitHub), écrit le job `build` et `versioning_strategy.md` d'après la fiche TD 24, produit et commenté les preuves, et expliqué chaque notion. Il a aussi corrigé ses propres erreurs (numérotation des TP, encodage, affirmation fausse sur MLflow). **Je dois savoir réexpliquer : pre-commit vs CI, `needs:`, pointeur DVC, run vs version, pourquoi le split temporel.**
 - **Difficultés / questions** : voir la liste « Difficultés / questions » de la section M23 (seuil calibré sur le train, `DeprecationWarning`, preuve CI sur le fork, jalons lancés sur ma décision).
 
-### J2 — mar. 25/08
+### J2 — mar. 29/09/2026 *(date prévue dans le modèle : 25/08)*
 
-**Module 25 — API REST (FastAPI)** · *C7*
+**Module 25 — API REST (FastAPI)** · *C7* · *(en cours — 29/09/2026)*
+
+**Charge le jalon 03 — AVANT M25** *(pas-à-pas R2, « Charge le jalon 03 — AVANT M25 »)*
+
+📎 **Preuve brute** : [preuves/25_p0_fusion_jalon03.txt](preuves/25_p0_fusion_jalon03.txt) (simulation, fusion, résolution des conflits, 10 vérifications)
+
+*Étape A — Simuler avant de fusionner (comme pour le jalon 02) :*
+
+| Commande | Rôle | Résultat |
+|---|---|---|
+| `git fetch origin jalon/03` | Télécharger le jalon **sans fusionner** | `jalon/03` = `0babe3e` |
+| `git diff --stat <ancêtre> FETCH_HEAD` | Ce que le jalon apporte | **46 fichiers**, +4 794 lignes : l'**API** (`src/indusense/api/`), `tests/test_api.py`, `payload.json`, le TP `FORMATION/EXERCICES/tp_api_m25_v1_20260823/`, `pyproject.toml`, `uv.lock`… |
+| `git merge-tree --write-tree HEAD FETCH_HEAD` | **Simuler** la fusion | ⚠️ **2 conflits** : `.github/workflows/ci.yml` et `src/indusense/config.py` (code retour 1) |
+
+*Étape B — Comprendre les 2 conflits avant de décider :*
+
+| Fichier | Mon côté | Côté jalon 03 | Décision | Pourquoi |
+|---|---|---|---|---|
+| `.github/workflows/ci.yml` | **Mon M24** : `--frozen` + job `build` (commit `d46b8a0`) | Aucun changement **fonctionnel**, seulement des commentaires `[PÉDAGOGIE]` ; ni `--frozen` ni `build` | **Garder ma version** (`ours`) | Prendre la leur effacerait le M24. Conforme au pas-à-pas : « le jalon 03 conservera tes commits par fusion ; il ne livre pas le corrigé M24 » |
+| `src/indusense/config.py` | **Jamais modifié par moi** : conflit entre deux versions des commentaires (socle `5e77d57` / jalon 03 `c785832`) | **Vrais ajouts M25** : `api_key` (clé attendue dans `X-API-Key`) et `decision_threshold` (0.5) | **Prendre leur version** (`theirs`) | Rien à préserver de mon côté ; l'API du M25 en a besoin |
+
+- **Pourquoi une fusion manuelle** : le script `mettre_a_niveau.ps1` **annule** la fusion en cas de conflit, et son option `-Rattrapage` ferait repartir la branche du jalon officiel : mon M24 ne resterait que dans une sauvegarde, et la PR le perdrait. Option choisie par moi après comparaison des 3 options (fusion manuelle / rattrapage / attendre le formateur).
+
+*Étape C — Fusion et résolution :*
+
+| # | Commande | Rôle | Résultat |
+|---|---|---|---|
+| 1 | `git branch sauvegarde/ismael-sall/20260929-102328` | **Sauvegarde** avant toute chose | Branche créée |
+| 2 | `git merge --no-ff FETCH_HEAD` | Fusionner | `CONFLICT` ×2, le reste fusionné automatiquement (`.gitignore`, `pyproject.toml`, `demo_versioning.py`…) |
+| 3 | `git checkout --ours -- .github/workflows/ci.yml` | Garder **ma** version | — |
+| 4 | `git checkout --theirs -- src/indusense/config.py` | Prendre la version du **jalon** | — |
+| 5 | `git add` des 2 fichiers | Marquer les conflits comme **résolus** | Plus aucun fichier `U` (unmerged) |
+| 6 | `findstr "<<<<<<<" ">>>>>>>"` | Aucun **marqueur de conflit** oublié | Rien trouvé ✅ |
+| 7 | `findstr "--frozen" "build:" "needs: quality"` dans `ci.yml` | Le M24 est-il conservé ? | Lignes 60-78 (`--frozen`) et 82-85 (`build`, `needs`) ✅ |
+| 8 | `findstr "api_key" "decision_threshold"` dans `config.py` | Les ajouts du jalon sont-ils là ? | Lignes 60-61 ✅ |
+
+- `ours` / `theirs` : pendant une fusion, **`ours`** = la branche **sur laquelle je suis** (`ismael-sall`), **`theirs`** = celle **que je fusionne** (`jalon/03`).
+
+*Étape D — Tout vérifier AVANT de valider la fusion :*
+
+| Vérification | Résultat |
+|---|---|
+| Marqueur `FORMATION/JALON_ACTUEL.md` | `# Jalon actuel : 03-j2-matin-m25` ✅ |
+| `verifier_jalon.ps1 -Jalon 03` | 78 paquets installés (dont `prefect`, `evidently` pour la suite) · **`19 passed`** · ruff OK · **`Jalon verifie : jalon/03`** ✅ |
+| `uv sync --frozen --extra dev --extra mlops` | Extra `mlops` réinstallé (verifier n'installe que `dev`) ✅ |
+| `pytest -q` | **`19 passed`** = 13 d'avant + **6 nouveaux tests d'API** ✅ |
+| `ruff check .` · `black --check .` | propres · `24 files would be left unchanged` ✅ |
+| Extension M23 (`cleaning.py`, `test_cleaning.py`) | toujours là ✅ |
+| Livrables M24 (`versioning_strategy.md`, `metrics.json`, `params.yaml`, 2 pointeurs `.dvc`) + `dvc status` | toujours là · *up to date* ✅ |
+
+*Étape E — Valider :* `git commit --no-edit` → commit de fusion **`48485a5`**, parents `7e80b02` (ma branche) et `0babe3e` (jalon 03). Hooks pre-commit sur les nouveaux fichiers Python : ruff, black, gitleaks **Passed**.
+
+- **Nouvel avertissement** : `StarletteDeprecationWarning` (« Using `httpx` with `starlette.testclient` is deprecated »), venant de la bibliothèque de tests d'API. Annonce de dépréciation, pas une erreur.
+- **Signal formateur** : jalon 03 lancé au J2 de ma cohorte (29/09), sur ma décision.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : …
 - Ma preuve : … (`/health` 200 · `/predict-tabular` 200 · `/docs`)
 - Compétence(s) : C7 (architecture / intégration) · C6
