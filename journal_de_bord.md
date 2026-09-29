@@ -962,6 +962,23 @@ C'est un élément de la preuve finale visée : « `/predict-tabular` 200 (avec 
 
 - ✅ **Prédiction confirmée** : 200 + `ok`.
 - **Les en-têtes HTTP** : `X-API-Key` = la clé, envoyée **dans l'en-tête** (pas dans le corps) ; `Content-Type: application/json` = « le corps est du JSON » ; `X-Request-ID` = identifiant de la requête, ajouté par l'API.
+*(B) Depuis `/docs`, par moi :*
+
+| # | Action dans le navigateur | Pourquoi |
+|---|---|---|
+| 1 | http://127.0.0.1:8000/docs → déplier **POST `/predict-tabular`** | Ouvrir la route à tester |
+| 2 | **Try it out** | Rendre les champs modifiables |
+| 3 | **Parameters** → champ `x-api-key` (*header*) = `dev-key` | La clé est un **en-tête** ; pas de bouton « Authorize », car elle n'est pas déclarée comme schéma de sécurité |
+| 4 | **Request body** → coller le contenu de `payload.json` | Le corps de la requête |
+| 5 | **Execute** | Envoyer la requête |
+
+📸 **Capture** : [preuves/25_tp1_docs.png](preuves/25_tp1_docs.png)
+
+![Réponse 200 de /predict-tabular dans /docs](preuves/25_tp1_docs.png)
+
+- **Server response : Code 200** · *Response body* **identique** à la ligne de commande (`MACH-07`, `proba_panne 0.075`, `decision "ok"`, `model_version "0.1.0"`, `threshold 0.5`) → même entrée, même modèle, **même résultat** : la prédiction est **déterministe**.
+- *Response headers* : `content-type: application/json` · `server: uvicorn` (le serveur qui répond) · `x-request-id: af8b5793-cd2d-4a1b-970d-f926d7aeb61b` (**différent** de celui de la ligne de commande : un identifiant **par requête**) · `date: 29 Sep 2026 09:15:39 GMT` (heure **UTC** = 11:15 à Paris).
+- **Journal du serveur Uvicorn** (lu par Claude) : `"POST /predict-tabular HTTP/1.1" 200 OK` pour chacun des 2 appels (ligne de commande + `/docs`). Le bonus « sans clé → 401 » **n'a pas été joué** (aucune requête 401 dans le journal) : il le sera au TP 2.
 - *Limite* : **l'API marche techniquement**, mais **0.075 n'est pas une probabilité fiable** : le modèle fait moins bien que le hasard sur le futur (M24, ROC-AUC 0.25 en split temporel). La **qualité** du modèle se traite dans la Model Card, pas dans l'API.
 - *Ma reformulation :* …
 
