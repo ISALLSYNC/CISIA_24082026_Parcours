@@ -1153,6 +1153,7 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 
 - **Conforme au « résultat attendu » du pas-à-pas**, sauf le contrôle des 3 titres (conflit avec le validateur, déjà signalé).
 - *Correction de ma preuve* : au 1ᵉʳ passage, les motifs de l'étape 2 s'affichaient mal encodés (`MÃ©tier`, script lu en ANSI par PowerShell 5.1). Étape rejouée avec le bon encodage ; résultat identique (les titres réels sont `## 1. Niveau métier`…).
+- **CI GitHub sur l'état final du M25** : push `5bf6436..bb00293` → run [36551394848](https://github.com/ISALLSYNC/CISIA_24082026_Parcours/actions/runs/36551394848) → **`quality` success** (Install, Lint, Format, Tests) · **`build` success**. Les tests d'API passent **sans** `rf.joblib` (absent de Git depuis le M24, suivi par DVC) : ils utilisent un modèle simulé (override `get_model_bundle`), donc aucun fichier local n'est requis.
 - **Serveur arrêté proprement** : `taskkill /PID 23480 /T /F` arrête toute l'**arborescence** (4 processus : 23480 → 11704 → 25268 → 9780, tous vérifiés comme venant du `.venv` de CISIA avant l'arrêt). Port 8000 libre. Le serveur MLflow de l'autre projet (port 5000) n'a **pas** été touché.
 
 **Bilan M25**
