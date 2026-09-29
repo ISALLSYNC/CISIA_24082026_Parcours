@@ -1035,6 +1035,47 @@ C'est un élément de la preuve finale visée : « `/predict-tabular` 200 (avec 
 - *Détail technique* : PowerShell 5.1 ne relit pas le corps d'une réponse en erreur ; les messages ont été récupérés avec **`curl.exe`**.
 - *Ma reformulation :* …
 
+**TP 3 — request-id & normalisation au bord** *(pas-à-pas R2, « TP 3 — request-id & normalisation au bord »)*
+
+📎 **Preuve brute** : [preuves/25_tp3_request_id.txt](preuves/25_tp3_request_id.txt)
+
+*Partie 1 — Le request-id.* Chaque requête reçoit un **identifiant unique**, renvoyé dans l'en-tête `X-Request-ID`. Quand un utilisateur signale « ça a planté », il donne cet identifiant et on retrouve **sa** requête parmi des milliers.
+
+Le code ([main.py](src/indusense/api/main.py), middleware `add_request_id`) :
+```python
+request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))  # reprend celui du client, sinon en génère un
+response = await call_next(request)                                   # laisse passer la requête vers la route
+response.headers["X-Request-ID"] = request_id                         # l'ajoute à la réponse
+```
+- *Middleware* = code qui s'exécute **autour de chaque requête**, quelle que soit la route. *UUID* = identifiant aléatoire quasi impossible à dupliquer.
+
+*Prédiction :* sans en-tête → un UUID **différent** à chaque appel ; avec un en-tête fourni → renvoyé **à l'identique**.
+
+| # | Requête (`curl.exe -i`) | Réponse | Ce que ça prouve |
+|---|---|---|---|
+| 1 | `GET /health` sans en-tête, **2 fois** | `x-request-id: 50adcc51-…` puis `3e8678e4-…` | Un identifiant **généré** et **différent** par requête ✅ |
+| 2 | `GET /health` avec `X-Request-ID: demo-m25-001` | `x-request-id: demo-m25-001` | L'identifiant du client est **repris tel quel** ✅ (utile quand plusieurs services se passent la même requête) |
+| 3 | `POST /predict-tabular` **sans clé**, avec `X-Request-ID: demo-m25-401` | **401** · `x-request-id: demo-m25-401` | L'identifiant est présent **même sur une erreur** : c'est justement là qu'on en a besoin ✅ |
+
+- *Limite* : l'identifiant **n'est pas écrit** dans le journal du serveur Uvicorn (qui ne note que méthode, route et code). Pour relier « ce que le client a vu » à « ce que le serveur a fait », il faudrait le **journaliser** (observabilité, M33).
+
+*Partie 2 — La normalisation « au bord ».* « Au bord » = **à l'entrée** de l'API, avant tout calcul : on accepte des écritures variées de l'ID machine, et on les **ramène au format unique** avant de calculer les features. C'est la fonction `normalize_machine_id` du **M23 TP 3**, appelée ici par l'API ([main.py:144](src/indusense/api/main.py#L144)).
+
+*Prédiction, corrigée **avant** d'exécuter* : je pensais que la réponse renverrait l'ID normalisé. En lisant [main.py:163](src/indusense/api/main.py#L163) (`machine_id=payload.machine_id`) et le commentaire de `schemas.py`, j'ai vu que la réponse renvoie l'ID **tel que le client l'a envoyé**. Nouvelle prédiction : même probabilité pour les 3 écritures, ID renvoyé tel quel, `MACHINE-X` → 422.
+
+| ID envoyé | Code | `machine_id` renvoyé | `proba_panne` | Lecture |
+|---|---|---|---|---|
+| `MACH-07` (canonique) | **200** | `MACH-07` | 0.075 | Référence |
+| `MACH_07` (tiret bas) | **200** | `MACH_07` | **0.075** | Même machine → même résultat ✅ |
+| `M-7` (court, sans zéro) | **200** | `M-7` | **0.075** | Même machine → même résultat ✅ |
+| `MACHINE-X` (sans chiffre) | **422** | — | — | `{"detail":"machine_id sans numero : 'MACHINE-X'"}` : le *fail fast* du M23 remonte jusqu'à l'API ✅ |
+
+- ✅ **Prédiction (corrigée) confirmée** : les 3 écritures désignent la **même machine** (même proba), et l'ID revient **tel qu'envoyé**. Choix de conception : le client retrouve **son** identifiant dans la réponse ; la normalisation reste **interne**.
+- **Leçon** : lire le code **avant** de prédire m'a évité une fausse conclusion.
+- *Option « si le groupe avance » — `/predict-image`* : **absente du code** (aucune route dans `/openapi.json`). Non traitée : il faudrait l'écrire de zéro.
+- *Incident de script* : j'avais nommé une fonction `Curl`, or dans Windows PowerShell `curl` est un **alias** d'`Invoke-WebRequest`, prioritaire sur une fonction. Renommée `Appel`, relancée ; aucune donnée modifiée (lectures seules).
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : …
 - Ma preuve : … (`/health` 200 · `/predict-tabular` 200 · `/docs`)
 - Compétence(s) : C7 (architecture / intégration) · C6
