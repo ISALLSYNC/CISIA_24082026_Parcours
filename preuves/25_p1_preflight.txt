@@ -1,0 +1,53 @@
+﻿# Preuve : M25 - Reprise, ouverture du poste et preflight
+# Date : 2026-09-29 10:38
+# Branche : ismael-sall @ a99ab04
+
+# 💬 BUT : avant de lancer l'API, verifier le poste (commandes du pas-a-pas R2, 'Reprise, ouverture du poste et preflight')
+# 💬 + les outils de l'API (FastAPI, Uvicorn) et un port libre pour le serveur.
+
+# 💬 1) Python du .venv du projet (attendu 3.13.x).
+PS> uv run --frozen python --version
+Python 3.13.15
+# code retour : 0
+
+# 💬 2) Le verrou des dependances existe (attendu True).
+PS> Test-Path .\uv.lock
+True
+
+# 💬 3) Arbre de travail propre (aucune sortie attendue).
+PS> git status --short
+
+# code retour : 0
+
+# 💬 4) Branche personnelle (attendu ismael-sall).
+PS> git branch --show-current
+ismael-sall
+# code retour : 0
+
+# 💬 5) Marqueur de jalon (attendu 03-j2-matin-m25).
+PS> findstr /b /c:"# Jalon actuel" FORMATION\JALON_ACTUEL.md
+# Jalon actuel : 03-j2-matin-m25
+# code retour : 0
+
+# 💬 6) Uvicorn = le SERVEUR qui fera tourner l'API.
+PS> uv run --frozen uvicorn --version
+Running uvicorn 0.49.0 with CPython 3.13.15 on Windows
+# code retour : 0
+
+# 💬 7) FastAPI = la bibliotheque avec laquelle l'API est ecrite.
+PS> uv run --frozen python -c "import fastapi; print('fastapi', fastapi.__version__)"
+fastapi 0.138.1
+# code retour : 0
+
+# 💬 8) Port 8000 (celui d'Uvicorn) libre ? Lecon de l'incident MLflow du M24 : verifier AVANT de lancer un serveur.
+PS> Get-NetTCPConnection -LocalPort 8000 -State Listen
+aucun processus a l'ecoute -> libre
+
+# 💬 9) Fichier .env (config locale, jamais versionnee) : existe-t-il deja ? Est-il ignore par Git ?
+PS> Test-Path .\.env
+False
+PS> (regle .gitignore qui l'ignore)
+PS> git check-ignore -v .env
+.gitignore:40:.env	.env
+# code retour : 0
+

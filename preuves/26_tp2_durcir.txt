@@ -1,0 +1,46 @@
+﻿# Preuve : M26 TP 2 - Durcir sans casser (sur le VRAI serveur Uvicorn, port 8000)
+# Date : 2026-09-29 13:22
+# Branche : ismael-sall @ ed60a31
+
+# 💬 BUT : verifier en conditions reelles que les garde-fous marchent SANS casser l'usage normal :
+# 💬   /health reste 200 SANS cle . 401 / 413 / 400 / 429 sur /predict-tabular . une rafale de 70 appels contient au moins un 429.
+# 💬 Serveur lance SANS --reload (evite le redemarrage inattendu du M25).
+
+# 💬 0) Qui ecoute sur le port 8000 ? (doit etre le .venv de CISIA)
+port 8000 -> PID 15824 : "C:\Users\issal\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\python.exe"  "C:\Users\issal\CISIA_24082026_Parcours\.venv\Scripts\uvicorn.
+
+# 💬 1) /health SANS cle : la liveness doit rester LIBRE (sinon l'orchestrateur croirait le service mort).
+PS> curl.exe http://127.0.0.1:8000/health (sans cle) -> HTTP 200
+
+# 💬 2) /predict-tabular SANS cle -> 401 attendu.
+PS> POST /predict-tabular sans cle -> HTTP 401
+
+# 💬 3) Corps de ~70 Ko (> 64 Ko) AVEC cle -> 413 attendu, AVANT meme la validation.
+PS> POST /predict-tabular, corps de 68.4 Ko -> HTTP 413
+
+# 💬 4) En-tete Content-Length illisible ('abc') -> 400 attendu (et PAS 500).
+PS> POST /predict-tabular -H 'Content-Length: abc' -> HTTP 400
+
+# 💬 5) RAFALE de 70 appels valides AVEC cle, le plus vite possible (politique : 60 requetes / 60 s / IP).
+PS> 70 x POST /predict-tabular (avec cle, payload.json) en 6.3 s
+  repartition : 200 x 60 | 429 x 10
+  premier 429 a l'appel n° 61
+  sequence : 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 200 429 429 429 429 429 429 429 429 429 429
+
+# 💬 6) Pendant le blocage, /health reste-t-il libre ? (le quota ne s'applique pas a la liveness)
+PS> curl.exe http://127.0.0.1:8000/health -> HTTP 200
+
+# 💬 7) Message renvoye par le 429.
+PS> POST /predict-tabular (61e+ appel) -> {"detail":"Trop de requêtes"} | HTTP 429
+
+# 💬 8) Serveur arrete apres le test : taskkill /PID 19860 /T /F (arbre 19860 -> 17128 -> 15824, tous du .venv de CISIA) ; port 8000 libre.
+# 💬    (La notification 'failed' de la tache de lancement est attendue : elle vient de cet arret volontaire.)
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 - /health : 200 SANS cle, avant ET pendant le blocage -> la liveness reste libre (durcir sans casser).
+# 💬 - Sans cle -> 401 ; corps 68,4 Ko -> 413 ; Content-Length 'abc' -> 400 (et non 500 : pas de plantage).
+# 💬 - Rafale de 70 appels valides en 6,3 s : 200 x 60 puis 429 x 10, premier 429 a l'appel n°61 -> politique 60/60 s/IP respectee.
+# 💬   Le pas-a-pas n'exige qu'AU MOINS un 429 dans une rafale de 70 : largement atteint.
+# 💬 - Les appels 401 / 413 / 400 faits AVANT la rafale n'ont PAS consomme le quota (sinon le 1er 429 serait arrive plus tot) :
+# 💬   coherent avec l'ordre du code (taille du corps = middleware, puis cle, PUIS rate limit).
+# 💬 - Message du 429 : {"detail":"Trop de requetes"}.

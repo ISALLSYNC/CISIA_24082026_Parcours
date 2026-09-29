@@ -1,0 +1,144 @@
+﻿# Preuve : M24 etape 1 - recuperation et verification du jalon 02
+# Date : 2026-09-28 15:47
+# Branche : ismael-sall @ cc90512 (avant mise a niveau)
+
+# 💬 mettre_a_niveau.ps1 : cree une branche de sauvegarde sur l'etat actuel, puis fusionne jalon/02 dans ma branche.
+PS> powershell -ExecutionPolicy Bypass -File .\scripts\formation\mettre_a_niveau.ps1 -Jalon 02
+Sauvegarde creee : sauvegarde/ismael-sall/20260928-154713
+From https://github.com/thomasfesq/CISIA_24082026_Parcours
+ * branch            jalon/02   -> FETCH_HEAD
+Merge made by the 'ort' strategy.
+ FORMATION/JALON_ACTUEL.md   |    4 +-
+ docs/versioning_strategy.md |   15 +
+ pyproject.toml              |   72 ++
+ scripts/demo_versioning.py  |  503 ++++++++++
+ uv.lock                     | 2217 ++++++++++++++++++++++++++++++++++++++++---
+ 5 files changed, 2675 insertions(+), 136 deletions(-)
+ create mode 100644 docs/versioning_strategy.md
+ create mode 100644 scripts/demo_versioning.py
+Jalon integre sur ismael-sall : jalon/02
+## ismael-sall
+# code retour : 0
+
+# 💬 verifier_jalon.ps1 : synchronise l'environnement, lance les tests et ruff, controle le marqueur du jalon.
+PS> powershell -ExecutionPolicy Bypass -File .\scripts\formation\verifier_jalon.ps1 -Jalon 02
+   Building indusense-sprint3-starter @ file:///C:/Users/issal/CISIA_24082026_Parcours
+Downloading pygit2 (1.2MiB)
+Downloading cryptography (3.6MiB)
+Downloading pandas (10.5MiB)
+   Building antlr4-python3-runtime==4.9.3
+ Downloaded pygit2
+ Downloaded cryptography
+      Built indusense-sprint3-starter @ file:///C:/Users/issal/CISIA_24082026_Parcours
+ Downloaded pandas
+      Built antlr4-python3-runtime==4.9.3
+Prepared 69 packages in 41.68s
+Uninstalled 2 packages in 2.57s
+Installed 81 packages in 9.96s
+ + aiohappyeyeballs==2.6.2
+ + aiohttp==3.14.1
+ + aiohttp-retry==2.9.1
+ + aiosignal==1.4.0
+ + amqp==5.3.1
+ + antlr4-python3-runtime==4.9.3
+ + appdirs==1.4.4
+ + asyncssh==2.24.0
+ + atpublic==7.0.0
+ + attrs==26.1.0
+ + billiard==4.2.4
+ + celery==5.6.3
+ + certifi==2026.6.17
+ + cffi==2.0.0
+ + charset-normalizer==3.4.7
+ + click-didyoumean==0.3.1
+ + click-plugins==1.1.1.2
+ + click-repl==0.3.0
+ + configobj==5.0.9
+ + cryptography==48.0.1
+ + dictdiffer==0.9.0
+ + diskcache==5.6.3
+ + distro==1.9.0
+ + dpath==2.2.0
+ + dulwich==1.2.6
+ + dvc==3.67.1
+ + dvc-data==3.18.3
+ + dvc-http==2.32.0
+ + dvc-objects==5.2.0
+ + dvc-render==1.0.2
+ + dvc-studio-client==0.23.0
+ + dvc-task==0.40.2
+ + entrypoints==0.4
+ + flatten-dict==0.5.0
+ + flufl-lock==9.1.0
+ + frozenlist==1.8.0
+ + fsspec==2026.6.0
+ + funcy==2.0
+ + gitdb==4.0.12
+ + gitpython==3.1.50
+ + grandalf==0.8
+ + gto==1.9.0
+ + hydra-core==1.3.3
+ + idna==3.18
+ ~ indusense-sprint3-starter==0.1.0 (from file:///C:/Users/issal/CISIA_24082026_Parcours)
+ + iterative-telemetry==0.0.10
+ + kombu==5.6.2
+ + multidict==6.7.1
+ + networkx==3.6.1
+ + omegaconf==2.3.1
+ + orjson==3.11.9
+ - pandas==3.0.4
+ + pandas==2.3.3
+ + prompt-toolkit==3.0.52
+ + propcache==0.5.2
+ + psutil==7.2.2
+ + pycparser==3.0
+ + pydot==4.0.1
+ + pygit2==1.19.3
+ + pygtrie==2.5.0
+ + pyparsing==3.3.2
+ + pytz==2026.2
+ + pywin32==312
+ + requests==2.34.2
+ + ruamel-yaml==0.19.1
+ + scmrepo==3.6.2
+ + semver==3.0.4
+ + setuptools==82.0.1
+ + shortuuid==1.0.13
+ + shtab==1.8.0
+ + smmap==5.0.3
+ + sqltrie==0.11.2
+ + tabulate==0.10.0
+ + tomlkit==0.15.0
+ + tqdm==4.68.3
+ + tzlocal==5.4.4
+ + urllib3==2.7.0
+ + vine==5.1.0
+ + voluptuous==0.16.0
+ + wcwidth==0.8.1
+ + yarl==1.24.2
+ + zc-lockfile==4.0
+.............                                                            [100%]
+============================== warnings summary ===============================
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:152: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    tolerance=pd.Timedelta(minutes=tolerance_minutes),
+
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:169: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    window = pd.Timedelta(hours=window_hours)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+13 passed, 4 warnings in 6.03s
+All checks passed!
+Jalon verifie : jalon/02
+# code retour : 0
+
+PS> git log --oneline -3
+1194193 Merge branch 'jalon/02' of https://github.com/thomasfesq/CISIA_24082026_Parcours into ismael-sall
+cc90512 docs(journal): pre-verifier la fusion du jalon 02 sans conflit
+7bf2b73 docs(journal): ajouter ma reformulation de l'extension clean_sensor_data
+
+PS> git status --short
+

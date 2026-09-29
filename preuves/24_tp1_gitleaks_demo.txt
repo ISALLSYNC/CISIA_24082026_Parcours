@@ -1,0 +1,55 @@
+# Preuve : M24 TP 1 - demo 'secret bloque' par gitleaks (reversible)
+# Date : 2026-09-28 15:59
+# Branche : ismael-sall @ f3675b4
+
+# 💬 BUT : prouver que gitleaks BLOQUE un secret avant qu'il n'entre dans Git.
+# 💬 SECURITE : les valeurs sont les cles d'EXEMPLE officielles de la documentation AWS (AKIA...EXAMPLE (masquee ici)),
+# 💬 publiques et invalides. Jamais une vraie cle, meme revoquee. On ne fait AUCUN commit : on lance seulement le hook.
+
+# 💬 1) Creer le fichier piege (sentinelle) avec la fausse cle.
+PS> Set-Content .\fuite_demo.txt (cle d'exemple AWS, 3 lignes)
+
+# 💬 2) L'ajouter a l'index (zone de preparation du commit) : gitleaks analyse ce qui est 'staged'. -f force l'ajout meme si ignore.
+PS> git add -f -- fuite_demo.txt
+warning: in the working copy of 'fuite_demo.txt', LF will be replaced by CRLF the next time Git touches it
+# code retour : 0
+
+# 💬 3) Lancer SEULEMENT le hook gitleaks sur ce fichier (pas de commit). Attendu : Failed + code retour 1.
+PS> uv run --frozen pre-commit run gitleaks --files fuite_demo.txt
+Detect hardcoded secrets.................................................Failed
+- hook id: gitleaks
+- exit code: 1
+
+○
+    │╲
+    │ ○
+    ○ ░
+    ░    gitleaks
+
+Finding:     AWS_ACCESS_KEY_ID=REDACTED
+Secret:      REDACTED
+RuleID:      aws-access-token
+Entropy:     3.684184
+File:        fuite_demo.txt
+Line:        2
+Fingerprint: fuite_demo.txt:aws-access-token:2
+
+3:59PM INF 1 commits scanned.
+3:59PM INF scan completed in 217ms
+3:59PM WRN leaks found: 1
+# code retour : 1
+
+# 💬 4) Nettoyer : retirer le fichier de l'index puis le supprimer du disque.
+PS> git restore --staged -- fuite_demo.txt
+
+# code retour : 0
+PS> (suppression de fuite_demo.txt)
+fichier present apres suppression : False
+
+# 💬 5) Verifier qu'il ne reste aucune trace du fichier piege.
+PS> git status --short
+?? preuves/24_tp1_precommit.txt
+# code retour : 0
+# 💬 (seule la preuve 24_tp1_precommit.txt, pas encore commitee, doit apparaitre : aucune trace de fuite_demo.txt)
+
+# 💬 NOTE : la cle d'exemple est masquee dans CE fichier de preuve (sinon gitleaks bloquerait son propre commit). Les codes couleur ANSI du terminal ont ete retires pour la lisibilite ; aucune autre ligne de sortie n'a ete modifiee.

@@ -1,0 +1,66 @@
+﻿# Preuve : M25 TP 3 - request-id & normalisation au bord
+# Date : 2026-09-29 11:33
+# Branche : ismael-sall @ dae95e3
+
+# 💬 PARTIE 1 - REQUEST-ID : main.py, middleware add_request_id :
+# 💬   request_id = request.headers.get('X-Request-ID', str(uuid.uuid4()))  -> reprend celui du client, sinon en genere un
+# 💬   response.headers['X-Request-ID'] = request_id                           -> le renvoie dans la reponse
+# 💬 PREDICTION : sans en-tete -> un UUID different a chaque appel ; avec 'X-Request-ID: demo-m25-001' -> renvoye a l'identique.
+
+# 💬 1) Deux appels /health SANS en-tete : 2 identifiants differents attendus.
+PS> curl.exe -i http://127.0.0.1:8000/health   (x2)
+HTTP/1.1 200 OK
+x-request-id: 50adcc51-11bb-43ea-bbaf-8db35392d991
+{"status":"ok"}
+HTTP/1.1 200 OK
+x-request-id: 3e8678e4-5834-44c9-a727-48479c39f536
+{"status":"ok"}
+
+# 💬 2) Appel AVEC un identifiant choisi par le client : il doit revenir tel quel.
+PS> curl.exe -i -H 'X-Request-ID: demo-m25-001' http://127.0.0.1:8000/health
+HTTP/1.1 200 OK
+x-request-id: demo-m25-001
+{"status":"ok"}
+
+# 💬 3) Meme chose sur une ERREUR (401) : le request-id est-il present aussi ? (utile pour enqueter sur un echec)
+PS> curl.exe -i -X POST -H 'X-Request-ID: demo-m25-401' --data-binary @payload.json http://127.0.0.1:8000/predict-tabular   (sans cle)
+HTTP/1.1 401 Unauthorized
+x-request-id: demo-m25-401
+{"detail":"Cle API absente ou invalide"}
+
+# 💬 4) Le request-id cote SERVEUR : il n'apparait PAS dans le journal Uvicorn (seulement methode, route, code) -> limite notee.
+
+# 💬 PARTIE 2 - NORMALISATION AU BORD : main.py:144 frame['machine'] = normalize_machine_id(payload.machine_id) (fonction du M23 TP 3)
+# 💬   mais main.py:163 renvoie machine_id=payload.machine_id (tel que fourni par le client).
+# 💬 PREDICTION (corrigee apres lecture du code) : MACH_07 et M-7 -> 200, meme proba que MACH-07, et la reponse RENVOIE
+# 💬   l'ID tel qu'envoye (MACH_07 / M-7). MACHINE-X (sans chiffre) -> 422 (fail fast du M23).
+PS> curl.exe -i -X POST -H 'X-API-Key: dev-key' --data-binary <payload avec machine_id = MACH-07 (canonique)> http://127.0.0.1:8000/predict-tabular
+HTTP/1.1 200 OK
+x-request-id: e0e96f20-caac-44a6-8f91-b46504323481
+{"machine_id":"MACH-07","proba_panne":0.075,"decision":"ok","model_version":"0.1.0","threshold":0.5}
+
+PS> curl.exe -i -X POST -H 'X-API-Key: dev-key' --data-binary <payload avec machine_id = MACH_07 (tiret bas)> http://127.0.0.1:8000/predict-tabular
+HTTP/1.1 200 OK
+x-request-id: b53af1f5-c970-447f-8d41-fed284e6643f
+{"machine_id":"MACH_07","proba_panne":0.075,"decision":"ok","model_version":"0.1.0","threshold":0.5}
+
+PS> curl.exe -i -X POST -H 'X-API-Key: dev-key' --data-binary <payload avec machine_id = M-7 (court, sans zero)> http://127.0.0.1:8000/predict-tabular
+HTTP/1.1 200 OK
+x-request-id: 9b1dc13f-eada-4eba-9536-a6da649cb82b
+{"machine_id":"M-7","proba_panne":0.075,"decision":"ok","model_version":"0.1.0","threshold":0.5}
+
+PS> curl.exe -i -X POST -H 'X-API-Key: dev-key' --data-binary <payload avec machine_id = MACHINE-X (sans chiffre)> http://127.0.0.1:8000/predict-tabular
+HTTP/1.1 422 Unprocessable Content
+x-request-id: a58cacd9-d00e-48aa-a1d3-40e385956b75
+{"detail":"machine_id sans numero : 'MACHINE-X'"}
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 REQUEST-ID : sans en-tete -> 2 UUID DIFFERENTS (50adcc51... / 3e8678e4...) ; avec 'demo-m25-001' -> renvoye TEL QUEL ;
+# 💬   present AUSSI sur une erreur 401 ('demo-m25-401') : on peut retrouver une requete qui a echoue. PREDICTION CONFIRMEE.
+# 💬 NORMALISATION AU BORD : MACH-07, MACH_07 et M-7 -> 200 avec la MEME proba 0.075 : les 3 ecritures designent la MEME
+# 💬   machine (normalize_machine_id du M23 TP 3, appliquee a l'entree de l'API). La reponse renvoie l'ID TEL QU'ENVOYE
+# 💬   (MACH_07, M-7) : ma 1re idee (reponse normalisee) etait fausse, corrigee en lisant main.py:163 AVANT l'execution.
+# 💬   MACHINE-X -> 422 'machine_id sans numero' : le fail fast du M23 remonte jusqu'a l'API. PREDICTION CONFIRMEE.
+# 💬 LIMITE : le request-id n'est pas ecrit dans le journal Uvicorn (seulement methode, route, code) ; pour correler
+# 💬   client <-> serveur il faudrait le journaliser (observabilite, M33).
+# 💬 /predict-image (option 'si le groupe avance') : ABSENT du code (aucune route dans /openapi.json) -> non traite.

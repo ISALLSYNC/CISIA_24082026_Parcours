@@ -1,0 +1,95 @@
+﻿# Preuve : M24 - CI rejouee en local (job 'quality' de .github/workflows/ci.yml)
+# Date : 2026-09-28 16:07
+# Branche : ismael-sall @ 4c9236c
+
+# 💬 BUT : executer sur mon poste, dans le meme ordre, les etapes du job 'quality' que GitHub lancerait.
+# 💬 J'ajoute --frozen (exige par le pas-a-pas R2) : on utilise exactement les versions de uv.lock, sans le reecrire.
+# 💬 LIMITE : ce n'est pas une vraie CI (pas de machine Ubuntu neuve) ; mon .venv existe deja.
+
+# 💬 Etape 'Install' (ligne 58 de ci.yml). Ici, sans --extra mlops, uv RETIRE les paquets mlops : c'est le perimetre exact de la CI.
+PS> uv sync --frozen --extra dev
+Uninstalled 48 packages in 5.60s
+ - alembic==1.18.5
+ - anyio==4.14.1
+ - blinker==1.9.0
+ - cachetools==7.1.4
+ - cloudpickle==3.1.2
+ - contourpy==1.3.3
+ - cycler==0.12.1
+ - databricks-sdk==0.119.0
+ - docker==7.1.0
+ - fastapi==0.138.1
+ - flask==3.1.3
+ - flask-cors==6.0.5
+ - fonttools==4.63.0
+ - google-auth==2.55.1
+ - graphene==3.4.3
+ - graphql-core==3.2.11
+ - graphql-relay==3.2.0
+ - greenlet==3.5.3
+ - h11==0.16.0
+ - huey==3.0.3
+ - importlib-metadata==9.0.0
+ - itsdangerous==2.2.0
+ - jinja2==3.1.6
+ - kiwisolver==1.5.0
+ - mako==1.3.12
+ - markupsafe==3.0.3
+ - matplotlib==3.11.0
+ - mlflow==3.14.0
+ - mlflow-skinny==3.14.0
+ - mlflow-tracing==3.14.0
+ - opentelemetry-api==1.43.0
+ - opentelemetry-proto==1.43.0
+ - opentelemetry-sdk==1.43.0
+ - opentelemetry-semantic-conventions==0.64b0
+ - pillow==12.2.0
+ - prettytable==3.18.0
+ - protobuf==6.33.6
+ - pyarrow==24.0.0
+ - pyasn1==0.6.3
+ - pyasn1-modules==0.4.2
+ - skops==0.14.0
+ - sqlalchemy==2.0.51
+ - sqlparse==0.5.5
+ - starlette==1.3.1
+ - uvicorn==0.49.0
+ - waitress==3.0.2
+ - werkzeug==3.1.8
+ - zipp==4.1.0
+# code retour : 0
+
+# 💬 Etape 'Lint' (ligne 64).
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+# 💬 Etape 'Format' (ligne 70) : --check verifie sans modifier ; echoue si un fichier est mal formate.
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+15 files would be left unchanged.
+# code retour : 0
+
+# 💬 Etape 'Tests' (ligne 76).
+PS> uv run --frozen pytest -q
+.............                                                            [100%]
+============================== warnings summary ===============================
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:152: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    tolerance=pd.Timedelta(minutes=tolerance_minutes),
+
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:169: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    window = pd.Timedelta(hours=window_hours)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+13 passed, 4 warnings in 1.46s
+# code retour : 0
+
+# 💬 Controle final : le lock n'a pas bouge (code retour 0 = aucune difference).
+PS> git diff --exit-code -- uv.lock
+
+# code retour : 0
+

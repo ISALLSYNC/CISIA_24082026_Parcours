@@ -1,0 +1,65 @@
+﻿# Preuve : M24 pre-verification - fusion de jalon/02 simulee SANS modifier la branche
+# Date : 2026-09-28 15:45
+# Branche : ismael-sall @ 7bf2b73
+
+# 💬 But : savoir AVANT le signal du formateur si 'mettre_a_niveau.ps1 -Jalon 02' entrera en conflit
+# 💬 avec mon travail M23 (docs/ deplace, cleaning.py, journal, preuves). Aucune commande ci-dessous ne modifie la branche.
+
+# 💬 Telecharge jalon/02 dans FETCH_HEAD, sans fusionner (ma branche ne bouge pas).
+PS> git fetch origin jalon/02
+From https://github.com/thomasfesq/CISIA_24082026_Parcours
+ * branch            jalon/02   -> FETCH_HEAD
+# code retour : 0
+
+# 💬 Commit officiel du jalon 02 recupere.
+PS> git rev-parse --short FETCH_HEAD
+3498b20
+# code retour : 0
+
+# 💬 Fichiers que jalon/02 change depuis l'ancetre commun 5e77d57 (git merge-base).
+PS> git diff --stat 5e77d57 FETCH_HEAD
+ FORMATION/JALON_ACTUEL.md   |    4 +-
+ docs/versioning_strategy.md |   15 +
+ pyproject.toml              |   72 ++
+ scripts/demo_versioning.py  |  503 ++++++++++
+ uv.lock                     | 2217 ++++++++++++++++++++++++++++++++++++++++---
+ 5 files changed, 2675 insertions(+), 136 deletions(-)
+# code retour : 0
+
+# 💬 SIMULE la fusion en memoire. Une seule ligne (un arbre) + code retour 0 = aucun conflit. En cas de conflit, la liste des fichiers en conflit s'afficherait.
+PS> git merge-tree --write-tree --name-only HEAD FETCH_HEAD
+de851621ae85471e99f33421004aed3bb4913ae1
+# code retour : 0
+
+# 💬 Fichier modifie des DEUX cotes (jalon 01 chez moi, jalon 02 officiel) : git garde la version du jalon 02, attendue.
+PS> git show de851621ae85471e99f33421004aed3bb4913ae1:FORMATION/JALON_ACTUEL.md
+# Jalon actuel : 02-j1-apres-midi-m24
+
+Etat revele pour J1 apres-midi : socle M23 et activite M24 CI/versioning.
+
+- Source locale de provenance : starter remis au precedent groupe au demarrage
+  du Sprint 3, commit historique `0d02af0`.
+- Ce n'est pas un snapshot « fin S2 pur » : le package, les tests, la CI et
+  pre-commit amorcent volontairement M23/M24 pour garantir un depart commun.
+- La reference data-science semantique de fin S2 (Marine) reste separee ; ses
+  chiffres et artefacts ne sont pas fusionnes avec le RF starter.
+- Donnees, modele RF, metadata, package minimal et tests sont presents.
+- Aucune API, image Docker, orchestration Prefect, mesure de drift ou solution de
+  Game Day n'est revelee dans ce jalon.
+
+Ce jalon n'est pas nomme `baseline_stagiaire_exacte`, car le dernier checkout
+reel de ce groupe en fin M22 n'est pas present dans les sources locales.
+
+Details et empreintes : [`PROVENANCE_SOCLE.md`](PROVENANCE_SOCLE.md).
+
+Preuve attendue :
+
+```powershell
+uv sync --frozen --extra dev
+uv run pytest -q
+uv run ruff check .
+uv run indusense --help
+```
+# code retour : 0
+
+# 💬 BILAN : fusion sans conflit. Tous mes fichiers M23 sont conserves ; docs/versioning_strategy.md s'ajoute a mon dossier docs/.
