@@ -979,7 +979,60 @@ C'est un élément de la preuve finale visée : « `/predict-tabular` 200 (avec 
 - **Server response : Code 200** · *Response body* **identique** à la ligne de commande (`MACH-07`, `proba_panne 0.075`, `decision "ok"`, `model_version "0.1.0"`, `threshold 0.5`) → même entrée, même modèle, **même résultat** : la prédiction est **déterministe**.
 - *Response headers* : `content-type: application/json` · `server: uvicorn` (le serveur qui répond) · `x-request-id: af8b5793-cd2d-4a1b-970d-f926d7aeb61b` (**différent** de celui de la ligne de commande : un identifiant **par requête**) · `date: 29 Sep 2026 09:15:39 GMT` (heure **UTC** = 11:15 à Paris).
 - **Journal du serveur Uvicorn** (lu par Claude) : `"POST /predict-tabular HTTP/1.1" 200 OK` pour chacun des 2 appels (ligne de commande + `/docs`). Le bonus « sans clé → 401 » **n'a pas été joué** (aucune requête 401 dans le journal) : il le sera au TP 2.
-- *Limite* : **l'API marche techniquement**, mais **0.075 n'est pas une probabilité fiable** : le modèle fait moins bien que le hasard sur le futur (M24, ROC-AUC 0.25 en split temporel). La **qualité** du modèle se traite dans la Model Card, pas dans l'API.
+- *Limite (TP 1)* : **l'API marche techniquement**, mais **0.075 n'est pas une probabilité fiable** : le modèle fait moins bien que le hasard sur le futur (M24, ROC-AUC 0.25 en split temporel). La **qualité** du modèle se traite dans la Model Card, pas dans l'API.
+- *Ma reformulation :* …
+
+**TP 2 — TestClient (les codes d'erreur)** *(pas-à-pas R2, « TP 2 — TestClient (les codes d'erreur) »)*
+
+📎 **Preuve brute** : [preuves/25_tp2_testclient.txt](preuves/25_tp2_testclient.txt)
+
+*Pourquoi :* le TP 1 a prouvé le cas **qui marche** (200). Une API sérieuse doit aussi **refuser proprement** ce qui ne va pas, avec le **bon code**. On le prouve **automatiquement**, par des tests rejouables à chaque commit et en CI.
+
+*TestClient* = un « faux navigateur » de FastAPI qui appelle l'API **en mémoire**, **sans lancer Uvicorn** (ni réseau, ni port). Idéal pour les tests : rapide, sans dépendance au serveur.
+
+*Étape A — La surcouche de preuves* ([README](FORMATION/EXERCICES/tp_api_m25_v1_20260823/README.md)) :
+- Le pas-à-pas demande de placer la ressource `tp_api_m25_v1_20260823` **à côté** du dépôt ; le **jalon 03 l'a livrée dans le dépôt** (`FORMATION/EXERCICES/tp_api_m25_v1_20260823/`). J'utilise donc la **voie Python**, désignée par le README comme « référence commune à la classe ».
+- Lecture du script **avant** de le lancer : il copie 4 fichiers, crée `docs/model_card.md` **s'il manque**, sauvegarde dans le dossier temporaire tout homonyme différent (pas de `.bak` dans le dépôt), et **s'arrête si `uv.lock` change**.
+
+| # | Commande | Résultat |
+|---|---|---|
+| 1 | `uv sync --frozen --extra dev --extra mlops` | `Checked 252 packages` |
+| 2 | `uv run --frozen python FORMATION/EXERCICES/tp_api_m25_v1_20260823/APPLIQUER_PREUVES_M25.py .` | `INSTALLE` ×4 (`tests/test_readiness_probe.py`, `tests/test_model_card_gate.py`, `tests/fixtures/model_card_template.md`, `scripts/validate_model_card.py`) · `INITIALISE docs/model_card.md` · `BACKUP_ROOT=NON_NECESSAIRE` (rien à écraser) · **`M25_OVERLAY=READY`** |
+| 3 | `git status --short` | 5 nouveaux éléments (`??`), rien d'autre |
+
+*Étape B — Les 12 tests* (`uv run --frozen pytest -v tests/test_api.py tests/test_readiness_probe.py tests/test_model_card_gate.py`) → **`12 passed`** :
+
+| Fichier | Test | Ce qu'il prouve |
+|---|---|---|
+| `test_api.py` | `test_health_ok` | `/health` → **200** |
+| | `test_missing_api_key_returns_401` | Sans clé → **401** |
+| | `test_insufficient_readings_returns_422` | Moins de 7 relevés → **422** |
+| | `test_predict_ok_with_bundle` | Requête correcte → **200** |
+| | `test_predict_normalizes_noncanonical_machine_id` | Un ID écrit autrement (ex. `MACH_07`) est **normalisé** → 200 (la fonction du **M23 TP 3** !) |
+| | `test_predict_invalid_machine_id_returns_422` | Un ID sans numéro → **422** (le *fail fast* du M23 TP 3, vu depuis l'API) |
+| `test_readiness_probe.py` | `test_ready_returns_exact_503_when_model_is_unavailable` | Sans modèle, `/ready` → **503** `{"detail": "Modele non charge"}` |
+| | `test_predict_tabular_returns_exact_503_after_auth_and_validation` | Sans modèle, `/predict-tabular` → **503**, **après** avoir passé l'authentification et la validation |
+| `test_model_card_gate.py` | 4 tests | Le **validateur** de Model Card : accepte la structure, refuse un C5 non mesuré, accepte des preuves locales réelles, refuse un chiffre « Marine » hors de sa section |
+
+- **Comment obtenir un 503 sans supprimer le modèle ?** `test_readiness_probe.py` remplace **le temps du test** la dépendance `get_model_bundle` par `lambda: None` (`app.dependency_overrides`), puis la **restaure**. C'est l'**injection de dépendances** de FastAPI : on peut simuler « modèle absent » sans toucher au disque.
+- **Validateur** (`scripts/validate_model_card.py docs/model_card.md`) sur la carte encore vierge : `STRUCTURE=PASS` · `C4_EVIDENCE=READY_FOR_REVIEW` · **`C5_EVIDENCE=NOT_READY`** (normal : rien n'est encore mesuré dans la carte). Conforme au README.
+- `git status --short -- uv.lock` : vide → lock inchangé ✅ · suite complète : **`25 passed`** (19 + 6 nouveaux).
+
+*Étape C — Les mêmes codes, en vrai, sur le serveur qui tourne* (complément ; c'est le « bonus 401 » du TP 1) :
+
+| Requête | Code | Message exact de l'API |
+|---|---|---|
+| Sans en-tête `X-API-Key` | **401** | `{"detail":"Cle API absente ou invalide"}` |
+| `X-API-Key: mauvaise-cle` | **401** | `{"detail":"Cle API absente ou invalide"}` |
+| Bonne clé, **6 relevés** | **422** | `"type":"too_short"`, `"msg":"List should have at least 7 items after validation, not 6"`, `"ctx":{"min_length":7,"actual_length":6}` |
+| Bonne clé, température **500** | **422** | `"type":"less_than_equal"`, `"loc":["body","readings",7,"temperature"]`, `"msg":"Input should be less than or equal to 200"` |
+| Requête correcte | **200** | `proba_panne 0.075`, `decision "ok"` |
+
+- **Pydantic dit précisément ce qui ne va pas** : le **type** d'erreur, l'**endroit** (`loc` : relevé n°7, champ `temperature`), la **règle** violée (`le: 200`) et la valeur reçue. C'est le **contrat I/O** du M23 appliqué en direct.
+- **Même message pour « sans clé » et « mauvaise clé »** : volontaire, pour ne pas renseigner un attaquant (il ne sait pas si la clé existe). Lien avec le **M26 Sécurité**.
+- **Ordre réel du code** : authentification (**401**) **avant** validation du corps (**422**) **avant** le modèle (**503** / **200**). Un appelant sans clé ne peut même pas savoir si son corps est valide.
+- **503 non rejoué en vrai** : il faudrait retirer `rf.joblib` du disque. Prouvé par les tests (override), ce qui est plus propre et réversible.
+- *Détail technique* : PowerShell 5.1 ne relit pas le corps d'une réponse en erreur ; les messages ont été récupérés avec **`curl.exe`**.
 - *Ma reformulation :* …
 
 - Ce que j'ai fait : …
