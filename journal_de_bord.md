@@ -340,6 +340,8 @@
 - **Incohérence entre supports** : la fiche jalon 01 demande d'extraire `clean_sensor_data`, alors que le pas-à-pas R2 la classe en extension facultative. → **Tranché par la fiche TD 23** (« Definition of done ») : « `test_cleaning.py` n'est exigé que si l'extension est jouée ». L'extension est donc bien **facultative**.
 - La fiche TD 23, citée par le pas-à-pas pour le code de `cleaning.py`, **n'est pas dans le dépôt**. → **Retrouvée** hors dépôt : `OneDrive\Documents\FORMATION\Docs\Sprint3\fiches_TD_apprenant_sprint3_AELION_20260928_R2.pdf` (section « Fiche TD 23 »).
 - **QCM J1 (questions 1-3)** : le pas-à-pas R2 (ligne 661 dans VS Code) donne les thèmes (package `src/`, rôle de `pyproject.toml`, fuite par split non temporel) et la correction attendue (1-B · 2-C · 3-A), mais **pas le texte des questions**. Les fichiers cités (`QCM_fin_de_journee_sprint3`, `kahoot_J1.xlsx`) sont introuvables dans le dépôt et sur mon poste ; la fiche TD précise que les QCM sont « fournis séparément par le formateur ». → À demander au formateur. Je ne réponds pas sans l'énoncé.
+- **M25 — titres de la Model Card** : le validateur (`Niveau métier`…) et la commande de preuve finale du pas-à-pas (`^## Métier`…) sont **incompatibles** ; j'ai suivi le validateur. → Quelle référence fait foi ?
+- **M25 — seuil** : l'API applique `decision_threshold = 0.5` (`config.py`) et non le seuil calculé au M24 (0.975). → Quel seuil doit porter le contrat ?
 - **M24 — seuil de décision** : `demo_versioning.py` calibre le seuil sur le **train** (0.975) → précision / rappel / F1 à 0 dans les 2 runs. *Hypothèse* : sur-apprentissage. → À signaler au formateur (je n'ai pas modifié le script fourni).
 - **M24 — modèle Sprint 2** : ROC-AUC 0.25 en split temporel (< hasard). Limite assumée ; investigation à mener avant toute promotion.
 - **M24 — `DeprecationWarning`** (4, `loaders.py:152` et `:169`) apparus avec pandas 2.3.3 imposé par le lock du jalon 02. → À signaler.
@@ -1074,6 +1076,63 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **Leçon** : lire le code **avant** de prédire m'a évité une fausse conclusion.
 - *Option « si le groupe avance » — `/predict-image`* : **absente du code** (aucune route dans `/openapi.json`). Non traitée : il faudrait l'écrire de zéro.
 - *Incident de script* : j'avais nommé une fonction `Curl`, or dans Windows PowerShell `curl` est un **alias** d'`Invoke-WebRequest`, prioritaire sur une fonction. Renommée `Appel`, relancée ; aucune donnée modifiée (lectures seules).
+- *Ma reformulation :* …
+
+**Model Card à trois niveaux (C4/C5)** *(pas-à-pas R2, « Model Card à trois niveaux (C4/C5) »)*
+
+📎 **Livrable** : [docs/model_card.md](docs/model_card.md) · 📎 **Preuve brute** : [preuves/25_model_card.txt](preuves/25_model_card.txt)
+
+*Qu'est-ce que c'est ?* Une **Model Card** est la **fiche d'identité** d'un modèle d'IA — comme la **notice d'un médicament** : à quoi il sert, comment il est fait, ce qu'il vaut, ses limites, ses risques. Bonne pratique standard (Google, Mitchell et al. 2019), utile pour l'**AI Act** européen. Demandée par le pas-à-pas (preuve finale visée : « `docs/model_card.md` à trois niveaux, sans preuve inventée ») ; compétences **C4 / C5**.
+
+*Trois niveaux = trois lecteurs :*
+
+| Niveau | Lecteur | Sa question |
+|---|---|---|
+| 1. Métier | Responsable d'atelier | À quoi ça sert, qui décide, que coûte une erreur ? |
+| 2. Technique / maintenance | Data scientist / ingénieur | Données, split, métriques, `run_id`, limites ? |
+| 3. Conformité AI Act | Référent conformité | Risques, supervision, traçabilité, classification ? |
+
+*La règle clé — chaque information porte un statut :* `[mesuré]` (**obligatoirement** avec `preuve=fichier` qui existe) · `[à produire]` · `[non mesuré]` · `[à confirmer]` (avis externe) · `[benchmark externe]` (autre étude, section 4 seulement).
+
+*Ce que vérifie le validateur* (`scripts/validate_model_card.py`, lu avant d'écrire) : les 3 sections ; les **4 champs C5** (artefact et version · données, split et empreinte · métriques et seuil · MLflow run_id) ; toute ligne `[mesuré]` a une preuve **existante** ; le `run_id` a le **format** d'un vrai identifiant **et figure dans sa preuve** (impossible d'en inventer un) ; la classification contient « à confirmer avec le référent conformité » ; aucun chiffre Marine hors section 4.
+
+*Comment je l'ai remplie :*
+1. **Niveau technique d'abord** : uniquement des **faits prouvés**, chaque chiffre **revérifié à la source** (`metrics.json`, `model_metadata.json`) avant d'écrire.
+2. **Niveaux métier et conformité** : c'est **mon jugement** (usage, qui décide, coût des erreurs). Claude m'a posé **4 questions** au lieu d'inventer ; mes réponses : **maintenance qui priorise les inspections** · **l'humain décide** (aucun arrêt automatique) · **la panne ratée coûte le plus cher** · « **capteurs seulement** ».
+3. **Ma 4ᵉ réponse était en partie inexacte, vérification faite** : le fichier brut `data/raw/releves_incidents.csv` contient des **données personnelles** (colonnes `operator_name`, `operator_badge`, `comment`, `shift` — contenu non affiché). Mais `load_incidents` n'en garde que `machine` et `incident_ts` : le Gold, les features, le modèle et l'API n'en contiennent **aucune**. Écrit tel quel dans la carte (ligne « Données personnelles », `[mesuré]`, preuve = `loaders.py`).
+
+*Contenu de la carte :*
+
+| Section | Ligne | Statut | Essentiel |
+|---|---|---|---|
+| 1. Métier | Finalité et utilisateurs | `[à confirmer]` | Prioriser les inspections (maintenance, techniciens) ; à valider avec le responsable maintenance |
+| | Décision et supervision | `[à confirmer]` | Le modèle **suggère**, le technicien **décide** ; aucun arrêt automatique ; **ne pas décider** avec ce modèle en l'état |
+| | Coût des erreurs | `[non mesuré]` | Qualitatif : panne ratée > fausse alerte → privilégier le **rappel**… qui vaut 0 |
+| 2. Technique | Artefact et version | `[mesuré]` | RF 200 arbres, md5 `2779890…`, 4,97 Mo, API 0.1.0, registre v2 — `rf.joblib.dvc` |
+| | Données, split, empreinte | `[mesuré]` | Gold md5 `637be8d…`, 1 896 lignes, 10,55 % de pannes, **split temporel** 1 516 / 380 — `model_metadata.json` |
+| | Métriques et seuil | `[mesuré]` | PR-AUC 0,1036 · ROC-AUC 0,2475 · seuil d'évaluation 0,975 **≠** seuil de l'API 0,5 — `metrics.json` |
+| | MLflow run_id | `[mesuré]` | `ff9c521c7e2c4afbbfd841bb900eb0d7` — `preuves/24_mlflow_v2.txt` |
+| | Signature I/O | `[mesuré]` | Contrat d'entrée / sortie, erreurs 401 / 422 / 503 — `schemas.py` |
+| | Coût | `[non mesuré]` | Aucune comparaison ; 2 relevés ponctuels présentés comme tels (4,97 Mo ; ~127 ms) |
+| | Limite sur le futur | `[mesuré]` | **Moins bien que le hasard** en split temporel — `preuves/24_mlflow_v2.txt` |
+| | Drift, réévaluation, responsable | `[à produire]` | M31-M32 ; responsable à désigner |
+| 3. Conformité | Finalité, personnes, données | `[à confirmer]` | Maintenance prédictive ; personnes affectées **indirectement** |
+| | Données personnelles | `[mesuré]` | Présentes dans la source brute, **non utilisées** — `loaders.py` |
+| | Risques, transparence, journalisation | `[à confirmer]` | Risque de **fausse confiance** ; `X-Request-ID` non journalisé ; clé de dev à remplacer (M26) |
+| | Classification réglementaire | `[à confirmer]` | « à confirmer avec le référent conformité » (inchangé : **jamais** inventer une classe AI Act) |
+| 4. Benchmark externe | Marine | `[benchmark externe]` | Inchangé : **ne décrit pas mon modèle** |
+
+*Résultats :*
+
+| Contrôle | Résultat |
+|---|---|
+| Validateur (normal) | `STRUCTURE=PASS` · `C4_EVIDENCE=READY_FOR_REVIEW` · `C5_EVIDENCE=READY_FOR_REVIEW` |
+| Validateur, **porte stricte** `--require-c5` | idem, code retour 0 |
+| `tests/test_model_card_gate.py` | `4 passed` |
+| Contrôle de titres de la **preuve finale du pas-à-pas** | `^## Métier` / `^## Technique / maintenance` / `^## Conformité AI Act` → **ABSENTS** ; `run_id` → trouvé |
+
+- **`READY_FOR_REVIEW` = « prêt pour revue »**, **pas** « compétence acquise » (README de la surcouche) : c'est le formateur qui juge.
+- ⚠️ **Conflit entre deux sources officielles** : le **validateur** exige « Niveau métier », « Niveau technique / maintenance », « Niveau conformité AI Act » ; la **commande du pas-à-pas** exige des lignes commençant par `## Métier`, `## Technique / maintenance`, `## Conformité AI Act`. **Aucun titre ne satisfait les deux.** Choix : le format du **validateur** (l'outil réel, livré avec le modèle de carte). → À signaler au formateur.
 - *Ma reformulation :* …
 
 - Ce que j'ai fait : …
