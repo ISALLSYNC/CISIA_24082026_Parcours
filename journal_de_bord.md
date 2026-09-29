@@ -473,7 +473,7 @@
 - Toutes les étapes sont **vertes** : si la CI tournait sur ce commit, le job `quality` passerait (sous réserve de la limite ci-dessous).
 - **Effet de bord appris** : `uv sync` **aligne** l'environnement **exactement** sur ce qu'on demande. Sans `--extra mlops`, il a **désinstallé** DVC / MLflow (48 paquets). C'est voulu : c'est le périmètre exact de la CI. Il faudra relancer `uv sync --frozen --extra dev --extra mlops` avant l'étape DVC.
 - *Limite* : ce n'est pas une vraie CI (mon `.venv` existait déjà, Windows au lieu d'Ubuntu). Le dépôt `origin` est celui du formateur : **je ne pousse pas** sans accord, donc pas de CI GitHub observée pour l'instant.
-Tu peux consigner tout ça quelque part? et me dir- *Ma reformulation :* …
+- *Ma reformulation :* …
 
 **TP 2 — Workflow GitHub Actions (+ job build) : `--frozen` + job `build`** *(pas-à-pas R2, « TP 2 — Workflow GitHub Actions (+ job build) » · fiche TD 24, étapes 2 et 3)*
 
