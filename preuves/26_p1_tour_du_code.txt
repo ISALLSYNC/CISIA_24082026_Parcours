@@ -1,0 +1,36 @@
+﻿# Preuve : M26 - Tour du code (la securite du squelette)
+# Date : 2026-09-29 12:34
+# Branche : ismael-sall @ 340b847
+
+# 💬 BUT : reperer dans le code les 5 controles de securite et verifier lesquels existent vraiment (commandes EXACTES du pas-a-pas).
+
+# 💬 1) security.py : limite de corps, rate limit et sa dependance fermee.
+PS> Select-String -Path .\src\indusense\api\security.py -Pattern 'MAX_BODY_BYTES|def rate_limit|def rate_limit_dependency'
+security.py:96: MAX_BODY_BYTES = 64 * 1024
+security.py:158: if declared > MAX_BODY_BYTES:
+security.py:190: def rate_limit(request: Request, limit: int = 60, window: float = 60.0) -> None:
+security.py:247: def rate_limit_dependency(request: Request) -> None:
+
+# 💬 2) main.py : ou ces controles sont branches.
+PS> Select-String -Path .\src\indusense\api\main.py -Pattern 'require_api_key|rate_limit_dependency|limit_body_size'
+main.py:109: from indusense.api.security import limit_body_size, rate_limit_dependency
+main.py:228: app.middleware("http")(limit_body_size)
+main.py:244: def require_api_key(x_api_key: str | None = Header(None, alias="X-API-Key")) -> None:
+main.py:328: dependencies=[Depends(require_api_key), Depends(rate_limit_dependency)],
+main.py:434: @app.post("/predict-image", dependencies=[Depends(require_api_key), Depends(rate_limit_dependency)])
+
+# 💬 3) Codes renvoyes par security.py (400 / 413 / 429).
+security.py:155: return JSONResponse(status_code=400, content={"detail": "Content-Length invalide"})
+security.py:164: return JSONResponse(status_code=413, content={"detail": "Payload trop volumineux"})
+security.py:230: status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Trop de requêtes"
+
+# 💬 4) Audit logging : existe-t-il un evenement d'audit ou un test dedie ? (attendu : NON -> Planifie v0)
+PS> Select-String -Path src\indusense\api\*.py, tests\*.py -Pattern 'audit' (hors commentaires)
+aucune occurrence dans le code ni dans les tests -> aucun audit logging implemente
+
+# 💬 5) Les noms des tests de securite (ce que chacun prouve).
+test_security.py:71: def test_payload_too_large_returns_413():
+test_security.py:99: def test_invalid_content_length_returns_400():
+test_security.py:117: def test_rate_limit_policy_is_not_exposed_as_query_parameters():
+test_security.py:132: def test_rate_limit_blocks_after_limit():
+

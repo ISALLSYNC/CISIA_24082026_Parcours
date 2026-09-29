@@ -1199,6 +1199,54 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - *Preuve corrigée* : un accent mal encodé (`ModÃ¨le`) dans mon commentaire, réparé.
 - *Ma reformulation :* …
 
+**Ouverture** *(pas-à-pas R2, « Ouverture »)* — classer les 5 contrôles de sécurité de l'API :
+
+| Contrôle | Contre quoi il protège | Code | État dans le code | Preuve |
+|---|---|---|---|---|
+| **Auth** (clé `X-API-Key`) | Accès non autorisé | **401** | Implémenté (`require_api_key`, main.py:244) | `test_missing_api_key_returns_401` (M25) |
+| **Validation** (Pydantic v2) | Données absurdes ou malformées | **422** | Implémenté (`schemas.py`) | `test_insufficient_readings_returns_422` (M25) |
+| **Rate limit** (60 requêtes / min / IP) | Saturation, déni de service, pillage du modèle | **429** | Implémenté (`rate_limit_dependency`, security.py:247) | `test_rate_limit_blocks_after_limit` |
+| **Taille du corps** (64 Ko max) | Requête géante qui épuise la mémoire | **413** | Implémenté (`limit_body_size`, security.py) | `test_payload_too_large_returns_413` |
+| **Audit logging** | Ne pas pouvoir savoir **qui a fait quoi, quand** | — | **Planifié v0** : **aucune** occurrence d'« audit » dans le code ni les tests | aucune (à produire) |
+
+- ✅ **À trouver (pas-à-pas)** : les **4 premiers sont implémentés et prouvables**, l'**audit logging est seulement Planifié v0**. Confirmé dans le code.
+- **« Priorisé ≠ implémenté »** : un contrôle écrit dans un document n'existe pas tant qu'aucun **test rejouable** ne le prouve.
+
+**Théorie — penser comme un attaquant** *(pas-à-pas R2, « Théorie — penser comme un attaquant »)*
+
+*STRIDE* = une méthode (Microsoft) pour **ne rien oublier** en listant les menaces par famille. Chaque lettre = un type d'attaque. Appliqué à mon API :
+
+| Lettre | Menace (en anglais) | Signification | Exemple sur InduSense | Contrôle en place |
+|---|---|---|---|---|
+| **S** | *Spoofing* | Usurpation d'identité | Appeler `/predict-tabular` en se faisant passer pour un client autorisé | Clé `X-API-Key` → **401** (mais clé de dev par défaut : risque résiduel) |
+| **T** | *Tampering* | Altération des données | Envoyer des relevés truqués (température 500) pour fausser la décision | Validation Pydantic → **422** (bornes du contrat) |
+| **R** | *Repudiation* | Nier avoir fait une action | Un client nie avoir demandé une prédiction qui a mené à une mauvaise décision | **Aucun** : audit logging **Planifié v0** (le `X-Request-ID` corrèle mais **n'est pas** un audit log) |
+| **I** | *Information disclosure* | Fuite d'information | Un message d'erreur ou un log qui révèle la clé, le payload ou des données personnelles | Message 401 identique « sans clé » / « mauvaise clé » ; **ne jamais journaliser** clé / payload / PII |
+| **D** | *Denial of service* | Déni de service | Inonder l'API de requêtes, ou envoyer un corps énorme | Rate limit → **429** · taille du corps → **413** |
+| **E** | *Elevation of privilege* | Obtenir plus de droits que prévu | Désactiver le quota en appelant `POST /predict-tabular?limit=100000` | `rate_limit_dependency` **fermée** : signature `(request)` seule → `limit` / `window` **non exposés** |
+
+*Menaces propres au ML :* entrée **adversariale** (valeurs choisies pour tromper le modèle tout en restant dans les bornes) · **extraction** du modèle (beaucoup de requêtes pour le recopier → le rate limit freine) · **empoisonnement** des données d'entraînement (hors API : pipeline de données).
+
+**Tour du code (la sécurité du squelette)** *(pas-à-pas R2, « Tour du code (la sécurité du squelette) »)*
+
+📎 **Preuve brute** : [preuves/26_p1_tour_du_code.txt](preuves/26_p1_tour_du_code.txt) (commandes **exactes** du pas-à-pas)
+
+| Élément | Où | Rôle | Réponse |
+|---|---|---|---|
+| `MAX_BODY_BYTES = 64 * 1024` | security.py:96 | Taille maximale d'un corps : **64 Ko** | — |
+| `limit_body_size` (middleware) | security.py ; branché main.py:228 | Lit l'en-tête `Content-Length` **avant** la route : illisible → refus ; trop gros → refus | **400** « Content-Length invalide » · **413** « Payload trop volumineux » |
+| `rate_limit(request, limit=60, window=60.0)` | security.py:190 | Compte les requêtes **par IP** sur une fenêtre glissante de 60 s | **429** « Trop de requêtes » |
+| `rate_limit_dependency(request)` | security.py:247 ; branché main.py:328 et :434 | **Enveloppe fermée** : applique la politique 60/60 **sans** exposer `limit` / `window` | — |
+| `dependencies=[Depends(require_api_key), Depends(rate_limit_dependency)]` | main.py:328 | **Ordre** : clé d'abord, quota ensuite, puis validation Pydantic, puis modèle | 401 → 429 → 422 → 503 / 200 |
+| Audit logging | — | **Absent** (aucune occurrence) | Planifié v0 |
+
+- **Pourquoi une « dépendance fermée » ?** Si on branchait directement `Depends(rate_limit)`, FastAPI transformerait ses paramètres `limit` et `window` en **paramètres d'URL** : un attaquant pourrait écrire `?limit=100000` et **désactiver** le quota (menace **E** de STRIDE). `rate_limit_dependency` n'accepte que `request` et fixe la politique en interne (preuve : `signature(rate_limit_dependency)` → `(request: 'Request') -> 'None'`).
+- **Pourquoi 400 pour un `Content-Length` illisible ?** Sans ce garde-fou, `int("abc")` ferait planter la conversion → **500** (erreur serveur). Un 400 refuse **proprement** une requête malformée.
+- **Limites connues, écrites dans le code lui-même** :
+  - la limite de corps est **déclarative** : elle ne lit que l'en-tête annoncé ; un client qui **omet** `Content-Length` (envoi *chunked*) ou qui **ment** peut faire passer un corps plus gros. Un contrôle **effectif** compterait les octets reçus, ou se ferait au reverse-proxy ;
+  - le rate limit est **en mémoire, par processus et par IP** (`_hits`) : avec plusieurs processus, chacun a son propre compteur ; derrière un proxy, tous les clients peuvent partager **la même IP** *(déduit de la lecture du code, non testé)*.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : …
 - Ma preuve : … (401 sans clé · 429 rate limit · 413 payload)
 - Compétence(s) : C2 (risques) · C6
