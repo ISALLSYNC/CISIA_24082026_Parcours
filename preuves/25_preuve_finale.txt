@@ -1,0 +1,85 @@
+# Preuve : M25 preuve finale
+# Date : 2026-09-29 11:44
+# Branche : ismael-sall @ 05c8273
+
+# 💬 BUT : rejouer la 'Preuve finale' du pas-a-pas R2 (M25) + les controles qualite du M24, sur l'etat final.
+# 💬 Attendu (pas-a-pas) : /docs lisible . /health 200 . 401 sans cle . 422 . 503 sans modele . 12 tests verts .
+# 💬   validateur Model Card sans erreur . uv.lock non modifie . trois niveaux presents . run_id reel ou 'a produire' . AI Act prudent.
+
+# 💬 1) Les 12 tests du M25 (6 API + 2 x 503 + 4 porte Model Card).
+PS> uv run --frozen pytest -q -p no:warnings tests/test_api.py tests/test_readiness_probe.py tests/test_model_card_gate.py
+............                                                             [100%]
+12 passed in 7.41s
+# code retour : 0
+
+# 💬 2) Controle des rubriques de la carte (commande EXACTE du pas-a-pas).
+PS> Select-String -LiteralPath docs\model_card.md -Pattern '^## Métier' -Quiet -> False
+PS> Select-String -LiteralPath docs\model_card.md -Pattern '^## Technique / maintenance' -Quiet -> False
+PS> Select-String -LiteralPath docs\model_card.md -Pattern '^## Conformité AI Act' -Quiet -> False
+PS> Select-String -LiteralPath docs\model_card.md -Pattern 'run_id' -Quiet -> True
+#    (lignes rejouees : le 1er passage affichait les motifs mal encodes 'MÃ©tier' ; resultat identique)
+# 💬    -> les 3 titres echouent : conflit connu avec le format exige par le validateur (voir preuves/25_model_card.txt).
+
+# 💬 3) Validateur de la Model Card (doit etre sans erreur).
+PS> uv run --frozen python scripts/validate_model_card.py docs/model_card.md --project-root .
+STRUCTURE=PASS
+C4_EVIDENCE=READY_FOR_REVIEW
+C5_EVIDENCE=READY_FOR_REVIEW
+# code retour : 0
+
+# 💬 3b) Porte stricte C5.
+PS> uv run --frozen python scripts/validate_model_card.py docs/model_card.md --project-root . --require-c5
+STRUCTURE=PASS
+C4_EVIDENCE=READY_FOR_REVIEW
+C5_EVIDENCE=READY_FOR_REVIEW
+# code retour : 0
+
+# 💬 4) uv.lock non modifie pendant le M25 (aucune sortie attendue).
+PS> git status --short -- uv.lock
+
+# code retour : 0
+
+# 💬 5) Qualite M24 : toute la suite de tests.
+PS> uv run --frozen pytest -q -p no:warnings
+.........................                                                [100%]
+25 passed in 7.02s
+# code retour : 0
+
+# 💬 6) ruff.
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+# 💬 7) black.
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+27 files would be left unchanged.
+# code retour : 0
+
+# 💬 8) Les 3 hooks pre-commit (dont gitleaks = 0 secret).
+PS> uv run --frozen pre-commit run --all-files
+ruff.....................................................................Passed
+black....................................................................Passed
+Detect hardcoded secrets.................................................Passed
+# code retour : 0
+
+# 💬 9) Codes HTTP en vrai sur le serveur (port 8000).
+PS> GET /health -> HTTP 200
+PS> GET /ready -> HTTP 200
+PS> GET /docs -> HTTP 200
+PS> POST /predict-tabular sans cle -> HTTP 401
+PS> POST /predict-tabular avec cle -> HTTP 200
+# 💬    422 (< 7 releves) : preuves/25_tp2_testclient.txt ; 503 sans modele : test_readiness_probe.py (etape 1).
+
+# 💬 10) Captures demandees : /docs + reponse 200.
+  25_docs.png (31903 octets)
+  25_tp1_docs.png (21746 octets)
+
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 Conforme au 'Resultat attendu' du pas-a-pas R2, SAUF le controle des 3 titres (conflit connu, a signaler) :
+# 💬  - 12 tests M25 verts ; 25 tests au total ; ruff, black, pre-commit (0 secret) verts ; uv.lock inchange.
+# 💬  - Validateur Model Card sans erreur : STRUCTURE=PASS, C4 et C5 READY_FOR_REVIEW (porte stricte incluse).
+# 💬  - Trois niveaux presents (format du validateur) ; run_id REEL ff9c521c... ; classification AI Act [a confirmer].
+# 💬  - En vrai : /health 200, /ready 200, /docs 200, sans cle 401, avec cle 200 ; 422 et 503 prouves (TP 2).
+# 💬  - Captures : 25_docs.png (/docs) et 25_tp1_docs.png (reponse 200).

@@ -766,7 +766,7 @@ outs:
 
 ### J2 — mar. 29/09/2026 *(date prévue dans le modèle : 25/08)*
 
-**Module 25 — API REST (FastAPI)** · *C7* · *(en cours — 29/09/2026)*
+**Module 25 — API REST (FastAPI)** · *C7* · *(terminé — 29/09/2026)*
 
 **Charge le jalon 03 — AVANT M25** *(pas-à-pas R2, « Charge le jalon 03 — AVANT M25 »)*
 
@@ -1135,10 +1135,33 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - ⚠️ **Conflit entre deux sources officielles** : le **validateur** exige « Niveau métier », « Niveau technique / maintenance », « Niveau conformité AI Act » ; la **commande du pas-à-pas** exige des lignes commençant par `## Métier`, `## Technique / maintenance`, `## Conformité AI Act`. **Aucun titre ne satisfait les deux.** Choix : le format du **validateur** (l'outil réel, livré avec le modèle de carte). → À signaler au formateur.
 - *Ma reformulation :* …
 
-- Ce que j'ai fait : …
-- Ma preuve : … (`/health` 200 · `/predict-tabular` 200 · `/docs`)
-- Compétence(s) : C7 (architecture / intégration) · C6
-- Difficulté / question : …
+**Preuve finale M25** *(pas-à-pas R2, « Preuve finale »)*
+
+📎 **Preuve brute** : [preuves/25_preuve_finale.txt](preuves/25_preuve_finale.txt)
+
+*À quoi elle sert :* le **bilan de sortie** du M25 — rejouer en une fois, sur l'état final, la commande de preuve du pas-à-pas **et** les contrôles qualité du M24.
+
+| # | Contrôle | Résultat |
+|---|---|---|
+| 1 | `pytest tests/test_api.py tests/test_readiness_probe.py tests/test_model_card_gate.py` | **`12 passed`** ✅ |
+| 2 | Rubriques de la carte (commande **exacte** du pas-à-pas) | `^## Métier` / `^## Technique / maintenance` / `^## Conformité AI Act` → **False** ❌ (conflit connu) · `run_id` → **True** ✅ |
+| 3 | `validate_model_card.py` (+ porte stricte `--require-c5`) | `STRUCTURE=PASS` · `C4` et `C5` **`READY_FOR_REVIEW`** ✅ |
+| 4 | `git status --short -- uv.lock` | vide : **lock inchangé** ✅ |
+| 5-8 | Suite complète · ruff · black · pre-commit | **`25 passed`** · `All checks passed!` · `27 files would be left unchanged` · ruff / black / gitleaks **Passed** ✅ |
+| 9 | Codes HTTP en vrai | `/health` **200** · `/ready` **200** · `/docs` **200** · sans clé **401** · avec clé **200** ✅ (422 et 503 : TP 2) |
+| 10 | Captures | `25_docs.png` (`/docs`) · `25_tp1_docs.png` (réponse 200) ✅ |
+
+- **Conforme au « résultat attendu » du pas-à-pas**, sauf le contrôle des 3 titres (conflit avec le validateur, déjà signalé).
+- *Correction de ma preuve* : au 1ᵉʳ passage, les motifs de l'étape 2 s'affichaient mal encodés (`MÃ©tier`, script lu en ANSI par PowerShell 5.1). Étape rejouée avec le bon encodage ; résultat identique (les titres réels sont `## 1. Niveau métier`…).
+- **Serveur arrêté proprement** : `taskkill /PID 23480 /T /F` arrête toute l'**arborescence** (4 processus : 23480 → 11704 → 25268 → 9780, tous vérifiés comme venant du `.venv` de CISIA avant l'arrêt). Port 8000 libre. Le serveur MLflow de l'autre projet (port 5000) n'a **pas** été touché.
+
+**Bilan M25**
+
+- **Ce que j'ai fait** : fusionné le jalon 03 à la main (2 conflits résolus, M24 conservé) · préflight · compris l'API comme **contrat** (REST, `/health` vs `/ready`, schémas Pydantic = contrat I/O du M23) · lancé l'API avec Uvicorn · **prédiction réelle** 200 en ligne de commande **et** depuis `/docs` · appliqué la surcouche de preuves et prouvé **401 / 422 / 503 / 200** (tests + serveur réel) · vérifié le **request-id** et la **normalisation au bord** · rédigé la **Model Card** à trois niveaux avec des preuves réelles.
+- **Mes preuves** : 12 tests M25 verts (25 au total) · [captures `/docs`](preuves/25_docs.png) et [réponse 200](preuves/25_tp1_docs.png) · messages d'erreur exacts (401 « Cle API absente ou invalide », 422 « at least 7 items ») · [docs/model_card.md](docs/model_card.md) avec `C5_EVIDENCE=READY_FOR_REVIEW` · lock inchangé.
+- **Compétence(s)** : C7 (architecture / intégration) · C6 · C4 / C5 (Model Card)
+- **Aide IA reçue** : Claude Code a résolu la fusion (après analyse que j'ai validée), lancé et vérifié le serveur, écrit les scripts de preuve, rempli le niveau technique de la Model Card avec des chiffres revérifiés, et m'a posé des questions pour les niveaux métier et conformité (mes réponses, dont une corrigée par la vérification des données). J'ai moi-même appelé l'API depuis `/docs` et pris les captures. **Je dois savoir réexpliquer : API / REST, `/health` vs `/ready`, 401 vs 422 vs 503, pourquoi l'ordre auth → validation → modèle, ce qu'est une Model Card et ses statuts.**
+- **Difficultés / questions** : conflit de titres de la Model Card · seuil 0.5 (API) vs 0.975 (M24) · clé de dev par défaut (`INDUSENSE_API_KEY` absente de `.env.example`) · `/predict-image` absent du code — voir la liste « Difficultés / questions » (section M23).
 
 **Module 26 — Sécurité & menaces** · *C2*
 - Ce que j'ai fait : …
