@@ -1164,7 +1164,41 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **Aide IA reçue** : Claude Code a résolu la fusion (après analyse que j'ai validée), lancé et vérifié le serveur, écrit les scripts de preuve, rempli le niveau technique de la Model Card avec des chiffres revérifiés, et m'a posé des questions pour les niveaux métier et conformité (mes réponses, dont une corrigée par la vérification des données). J'ai moi-même appelé l'API depuis `/docs` et pris les captures. **Je dois savoir réexpliquer : API / REST, `/health` vs `/ready`, 401 vs 422 vs 503, pourquoi l'ordre auth → validation → modèle, ce qu'est une Model Card et ses statuts.**
 - **Difficultés / questions** : conflit de titres de la Model Card · seuil 0.5 (API) vs 0.975 (M24) · clé de dev par défaut (`INDUSENSE_API_KEY` absente de `.env.example`) · `/predict-image` absent du code — voir la liste « Difficultés / questions » (section M23).
 
-**Module 26 — Sécurité & menaces** · *C2*
+**Module 26 — Sécurité & menaces** · *C2* · *(en cours — 29/09/2026)*
+
+**Charge le jalon 04 — AVANT M26** *(pas-à-pas R2, « Charge le jalon 04 — AVANT M26 »)*
+
+📎 **Preuve brute** : [preuves/26_p0_fusion_jalon04.txt](preuves/26_p0_fusion_jalon04.txt)
+
+*Préalables demandés par le pas-à-pas :* serveur Uvicorn arrêté (fait en fin de M25) · M25 commité · **`.env` jamais ajouté** (`git ls-files .env` → vide ✅).
+
+*Étape A — Simuler :* `git fetch origin jalon/04` (= `f9ef5a4`) puis `git merge-tree` → **3 conflits** ; le jalon apporte 45 fichiers (+2 964 lignes), dont **`src/indusense/api/security.py`** et **`tests/test_security.py`** (nouveaux).
+
+*Étape B — Comprendre les 3 conflits (même schéma qu'au jalon 03) :*
+
+| Fichier | Mon côté | Côté jalon 04 | Décision |
+|---|---|---|---|
+| `.github/workflows/ci.yml` | **Mon M24** (`--frozen` + `build`, commit `d46b8a0`) | La CI d'**origine** (sans `--frozen`, sans `build`), vérifié ligne par ligne | **Garder ma version** (`ours`) |
+| `src/indusense/api/main.py` | Jalon 03 seulement : **jamais modifié par moi** | **Apport M26** (+430 lignes) : limite de corps **413**, `Content-Length` illisible **400**, rate limit **429**, route `/predict-image` | **Version du jalon** (`theirs`) |
+| `FORMATION/EXERCICES/…/test_readiness_probe.py` | Jalon 03 seulement | Corrigé par le formateur : « aligner les preuves 503 sur le contrat API » (`cb548d6`) | **Version du jalon** (`theirs`) |
+
+*Étape C — Fusion :* sauvegarde `sauvegarde/ismael-sall/20260929-121047` → `git merge` → `checkout --ours` / `--theirs` → `git add` → aucun marqueur de conflit ✅ · `ci.yml` garde `--frozen` et `build` (lignes 60-85) ✅ · `main.py` contient `limit_body_size`, `rate_limit_dependency`, `require_api_key` ✅.
+
+*Étape D — Vérifier AVANT de valider : un problème détecté, anticipé.*
+- `verifier_jalon.ps1 -Jalon 04` → ❌ **`2 failed, 27 passed`** : les 2 tests 503 de **ma copie** `tests/test_readiness_probe.py`.
+- **Cause** : le jalon 04 a **accentué** le message d'erreur (`"Modele non charge"` → **`"Modèle non chargé"`**). Il a corrigé la version rangée dans `FORMATION/`, mais pas **la copie** faite par la surcouche dans `tests/` au M25 (`git diff --no-index` : exactement ces 2 assertions).
+- **Correction** : **réappliquer la surcouche officielle** (`APPLIQUER_PREUVES_M25.py .`) plutôt que retoucher un test à la main → `SAUVEGARDE tests/test_readiness_probe.py -> …\Temp\CISIA_M25_backup_…` · `INSTALLE tests/test_readiness_probe.py` · `DEJA_IDENTIQUE` ×3 · **`PRESERVE docs/model_card.md`** (ma carte intacte) · `M25_OVERLAY=READY`.
+- **Revérification** : `verifier_jalon.ps1 -Jalon 04` → **`Jalon verifie : jalon/04`** · **`29 passed`** · les 10 tests de la preuve M26 (`test_api.py` + `test_security.py`) passés, dont **413**, **400**, **429** · validateur Model Card toujours `C5=READY_FOR_REVIEW` · ruff / black propres · `uv.lock` inchangé.
+- **Preuve de la fiche jalon 04** : `signature(rate_limit_dependency)` → **`(request: 'Request') -> 'None'`** : ni `limit` ni `window` ne sont exposés (un client ne peut pas modifier la politique de quota par l'URL).
+
+*Étape E — Valider :* commit de fusion **`6d07334`** (parents `d13339c` = ma branche, `f9ef5a4` = jalon 04), correction de `tests/test_readiness_probe.py` **incluse** ; hooks *Passed*.
+
+- **Leçon** : une **copie** de fichier ne suit pas les corrections de l'original. La vérification avant validation l'a attrapé ; l'outil officiel l'a corrigé proprement (avec sauvegarde).
+- *Constat pour le TP 1* : le jalon livre `docs/threat_model.md` et `docs/security_controls.md` dans **`docs/`**, alors que la preuve finale du pas-à-pas lit `.\security_controls.md` **à la racine**.
+- *Constat* : la route **`/predict-image`** (option « si le groupe avance » du TP 3 du M25) est maintenant fournie par le jalon 04.
+- *Preuve corrigée* : un accent mal encodé (`ModÃ¨le`) dans mon commentaire, réparé.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : …
 - Ma preuve : … (401 sans clé · 429 rate limit · 413 payload)
 - Compétence(s) : C2 (risques) · C6

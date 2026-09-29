@@ -1,0 +1,556 @@
+# Preuve : M26 etape 0 - fusion MANUELLE du jalon 04 (3 conflits resolus)
+# Date : 2026-09-29 12:10
+# Branche : ismael-sall @ d13339c (avant fusion)
+
+# 💬 POURQUOI MANUELLE : la simulation (git merge-tree) a detecte 3 conflits. Le script officiel annule la fusion en cas de conflit,
+# 💬 et son option -Rattrapage ferait repartir la branche du jalon officiel (mon M24 ne resterait que dans une sauvegarde).
+# 💬 RESOLUTION DECIDEE : .github/workflows/ci.yml = MA version (--frozen + job build du M24 ; le jalon 04 remet la CI d'origine)
+# 💬                     src/indusense/api/main.py = version du JALON 04 (apport M26 : 413, 429, 400 ; je n'y avais rien change)
+# 💬                     FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py = version du JALON 04 (tests 503 realignes)
+
+# 💬 1) Branche de sauvegarde sur l'etat actuel (comme le fait mettre_a_niveau.ps1).
+PS> git branch sauvegarde/ismael-sall/20260929-121047
+
+# code retour : 0
+
+# 💬 2) Recuperer le jalon 04 officiel.
+PS> git fetch origin jalon/04
+From https://github.com/thomasfesq/CISIA_24082026_Parcours
+ * branch            jalon/04   -> FETCH_HEAD
+# code retour : 0
+
+# 💬 2b) Commit du jalon recupere.
+PS> git rev-parse --short FETCH_HEAD
+f9ef5a4
+# code retour : 0
+
+# 💬 3) Fusion : attendu = 3 conflits (ci.yml, main.py, test_readiness_probe.py de FORMATION), le reste fusionne automatiquement.
+PS> git merge --no-ff --no-edit -m "Merge branch 'jalon/04' of https://github.com/thomasfesq/CISIA_24082026_Parcours into ismael-sall" FETCH_HEAD
+Auto-merging .github/workflows/ci.yml
+CONFLICT (content): Merge conflict in .github/workflows/ci.yml
+Auto-merging .gitignore
+Auto-merging FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+CONFLICT (content): Merge conflict in FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+Auto-merging scripts/demo_versioning.py
+Auto-merging src/indusense/api/main.py
+CONFLICT (content): Merge conflict in src/indusense/api/main.py
+Automatic merge failed; fix conflicts and then commit the result.
+# code retour : 1
+
+# 💬 3b) Fichiers en conflit (U = unmerged).
+PS> git diff --name-only --diff-filter=U
+.github/workflows/ci.yml
+FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+src/indusense/api/main.py
+# code retour : 0
+
+# 💬 4) Resolution ci.yml : garder MA version (ours = ma branche).
+PS> git checkout --ours -- .github/workflows/ci.yml
+
+# code retour : 0
+
+# 💬 5) Resolution main.py : prendre la version du JALON 04 (theirs).
+PS> git checkout --theirs -- src/indusense/api/main.py
+
+# code retour : 0
+
+# 💬 5b) Resolution test_readiness_probe.py (FORMATION) : prendre la version du JALON 04 (theirs).
+PS> git checkout --theirs -- FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+
+# code retour : 0
+
+# 💬 6) Marquer les 3 conflits comme resolus.
+PS> git add -- .github/workflows/ci.yml src/indusense/api/main.py FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+
+# code retour : 0
+
+# 💬 7) Reste-t-il des conflits ? (aucune sortie attendue)
+PS> git diff --name-only --diff-filter=U
+
+# code retour : 0
+
+# 💬 7b) Aucun marqueur de conflit oublie dans les 3 fichiers ? (aucune sortie attendue)
+PS> findstr /n /c:"<<<<<<<" /c:">>>>>>>" .github\workflows\ci.yml src\indusense\api\main.py FORMATION\EXERCICES\tp_api_m25_v1_20260823\tests\test_readiness_probe.py
+
+# code retour : 1
+
+# 💬 8) ci.yml garde-t-il bien --frozen et le job build ?
+PS> findstr /n /c:"--frozen" /c:"build:" /c:"needs: quality" .github\workflows\ci.yml
+58:        # [PÉDAGOGIE] M24 — --frozen : installer exactement uv.lock, jamais de résolution à la
+60:        run: uv sync --frozen --extra dev
+66:        run: uv run --frozen ruff check .
+72:        run: uv run --frozen black --check .
+78:        run: uv run --frozen pytest -q
+82:  build:
+83:    # [PÉDAGOGIE] GARDE — `needs: quality` : build ne démarre que si quality est vert. On ne
+85:    needs: quality
+# code retour : 0
+
+# 💬 9) main.py contient-il bien les garde-fous du M26 ?
+PS> findstr /n /c:"rate_limit_dependency" /c:"limit_body_size" /c:"require_api_key" src\indusense\api\main.py
+104:#   - `limit_body_size` : middleware anti-payload-géant (413).
+106:#   ⚠️ On branche `rate_limit_dependency` (et NON `rate_limit`) : voir sa
+109:from indusense.api.security import limit_body_size, rate_limit_dependency
+176:# Le garde-fou `limit_body_size` sera enregistré APRÈS les autres middlewares,
+228:app.middleware("http")(limit_body_size)
+234:# Cette fonction sera branchée via `Depends(require_api_key)` sur les routes
+240:# [PÉDAGOGIE] BLOC `require_api_key` — unité de responsabilité : isoler un comportement nommable,
+244:def require_api_key(x_api_key: str | None = Header(None, alias="X-API-Key")) -> None:
+314:#   - `dependencies=[Depends(require_api_key), Depends(rate_limit_dependency)]` :
+317:#     (On branche `rate_limit_dependency`, pas `rate_limit` : cf. sa docstring —
+328:    dependencies=[Depends(require_api_key), Depends(rate_limit_dependency)],
+434:@app.post("/predict-image", dependencies=[Depends(require_api_key), Depends(rate_limit_dependency)])
+# code retour : 0
+
+
+# 💬 ======== VERIFICATIONS AVANT DE VALIDER LA FUSION (commit pas encore fait) ========
+
+# 💬 10) Le marqueur de jalon a-t-il bien change ? (attendu : 04-j2-apres-midi-m26)
+PS> findstr /b /c:"# Jalon actuel" FORMATION\JALON_ACTUEL.md
+# Jalon actuel : 04-j2-apres-midi-m26
+# code retour : 0
+
+# 💬 11) Script officiel de verification du jalon 03 : sync de l'environnement, tests, ruff, marqueur.
+PS> powershell -ExecutionPolicy Bypass -File .\scripts\formation\verifier_jalon.ps1 -Jalon 04
+Uninstalled 30 packages in 4.48s
+ - blinker==1.9.0
+ - contourpy==1.3.3
+ - cycler==0.12.1
+ - databricks-sdk==0.119.0
+ - flask==3.1.3
+ - flask-cors==6.0.5
+ - fonttools==4.63.0
+ - google-auth==2.55.1
+ - graphene==3.4.3
+ - graphql-core==3.2.11
+ - graphql-relay==3.2.0
+ - huey==3.0.3
+ - importlib-metadata==9.0.0
+ - itsdangerous==2.2.0
+ - kiwisolver==1.5.0
+ - matplotlib==3.11.0
+ - mlflow==3.14.0
+ - mlflow-skinny==3.14.0
+ - mlflow-tracing==3.14.0
+ - opentelemetry-sdk==1.43.0
+ - opentelemetry-semantic-conventions==0.64b0
+ - pillow==12.2.0
+ - prettytable==3.18.0
+ - pyasn1==0.6.3
+ - pyasn1-modules==0.4.2
+ - skops==0.14.0
+ - sqlparse==0.5.5
+ - waitress==3.0.2
+ - werkzeug==3.1.8
+ - zipp==4.1.0
+....................FF.......                                            [100%]
+================================== FAILURES ===================================
+___________ test_ready_returns_exact_503_when_model_is_unavailable ____________
+
+    def test_ready_returns_exact_503_when_model_is_unavailable() -> None:
+        # [PÉDAGOGIE] RESSOURCE — le gestionnaire de contexte garantit ouverture et libération, même
+        # [PÉDAGOGIE] en cas d'exception.
+        with model_unavailable():
+            response = client.get("/ready")
+    
+        # [PÉDAGOGIE] ORACLE — l'assertion compare le résultat observé au contrat attendu par ce test.
+        assert response.status_code == 503
+        # [PÉDAGOGIE] ORACLE — l'assertion compare le résultat observé au contrat attendu par ce test.
+>       assert response.json() == {"detail": "Modele non charge"}
+E       AssertionError: assert {'detail': 'M...e non chargé'} == {'detail': 'M...e non charge'}
+E         
+E         Differing items:
+E         {'detail': 'Modèle non chargé'} != {'detail': 'Modele non charge'}
+E         Use -v to get more diff
+
+tests\test_readiness_probe.py:89: AssertionError
+______ test_predict_tabular_returns_exact_503_after_auth_and_validation _______
+
+    def test_predict_tabular_returns_exact_503_after_auth_and_validation() -> None:
+        # [PÉDAGOGIE] RESSOURCE — le gestionnaire de contexte garantit ouverture et libération, même
+        # [PÉDAGOGIE] en cas d'exception.
+        with model_unavailable():
+            response = client.post(
+                "/predict-tabular",
+                headers={"X-API-Key": settings.api_key},
+                json={"machine_id": "MACH-01", "readings": readings()},
+            )
+    
+        # [PÉDAGOGIE] ORACLE — l'assertion compare le résultat observé au contrat attendu par ce test.
+        assert response.status_code == 503
+        # [PÉDAGOGIE] ORACLE — l'assertion compare le résultat observé au contrat attendu par ce test.
+>       assert response.json() == {"detail": "Modele non charge"}
+E       AssertionError: assert {'detail': 'M...e non chargé'} == {'detail': 'M...e non charge'}
+E         
+E         Differing items:
+E         {'detail': 'Modèle non chargé'} != {'detail': 'Modele non charge'}
+E         Use -v to get more diff
+
+tests\test_readiness_probe.py:109: AssertionError
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\issal\CISIA_24082026_Parcours\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:152: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    tolerance=pd.Timedelta(minutes=tolerance_minutes),
+
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:169: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    window = pd.Timedelta(hours=window_hours)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_readiness_probe.py::test_ready_returns_exact_503_when_model_is_unavailable
+FAILED tests/test_readiness_probe.py::test_predict_tabular_returns_exact_503_after_auth_and_validation
+2 failed, 27 passed, 5 warnings in 9.58s
+pytest a echoue.
+Au caractère C:\Users\issal\CISIA_24082026_Parcours\scripts\formation\verifier_jalon.ps1:90 : 28
++ if ($LASTEXITCODE -ne 0) { throw 'pytest a echoue.' }
++                            ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (pytest a echoue.:String) [], RuntimeException
+    + FullyQualifiedErrorId : pytest a echoue.
+# code retour : 1
+
+# 💬 12) Reinstaller aussi l'extra mlops (verifier_jalon n'installe que dev) ; lock du jalon, non modifie par moi.
+PS> uv sync --frozen --extra dev --extra mlops
+Installed 30 packages in 21.30s
+ + blinker==1.9.0
+ + contourpy==1.3.3
+ + cycler==0.12.1
+ + databricks-sdk==0.119.0
+ + flask==3.1.3
+ + flask-cors==6.0.5
+ + fonttools==4.63.0
+ + google-auth==2.55.1
+ + graphene==3.4.3
+ + graphql-core==3.2.11
+ + graphql-relay==3.2.0
+ + huey==3.0.3
+ + importlib-metadata==9.0.0
+ + itsdangerous==2.2.0
+ + kiwisolver==1.5.0
+ + matplotlib==3.11.0
+ + mlflow==3.14.0
+ + mlflow-skinny==3.14.0
+ + mlflow-tracing==3.14.0
+ + opentelemetry-sdk==1.43.0
+ + opentelemetry-semantic-conventions==0.64b0
+ + pillow==12.2.0
+ + prettytable==3.18.0
+ + pyasn1==0.6.3
+ + pyasn1-modules==0.4.2
+ + skops==0.14.0
+ + sqlparse==0.5.5
+ + waitress==3.0.2
+ + werkzeug==3.1.8
+ + zipp==4.1.0
+# code retour : 0
+
+# 💬 13) Toute la suite de tests, dont tests/test_security.py (nouveau, jalon 04), ma copie tests/test_readiness_probe.py (M25) et test_cleaning (M23).
+PS> uv run --frozen pytest -q -p no:warnings
+....................FF.......                                            [100%]
+================================== FAILURES ===================================
+___________ test_ready_returns_exact_503_when_model_is_unavailable ____________
+
+    def test_ready_returns_exact_503_when_model_is_unavailable() -> None:
+        # [PÉDAGOGIE] RESSOURCE — le gestionnaire de contexte garantit ouverture et libération, même
+        # [PÉDAGOGIE] en cas d'exception.
+        with model_unavailable():
+            response = client.get("/ready")
+    
+        # [PÉDAGOGIE] ORACLE — l'assertion compare le résultat observé au contrat attendu par ce test.
+        assert response.status_code == 503
+        # [PÉDAGOGIE] ORACLE — l'assertion compare le résultat observé au contrat attendu par ce test.
+>       assert response.json() == {"detail": "Modele non charge"}
+E       AssertionError: assert {'detail': 'M...e non chargé'} == {'detail': 'M...e non charge'}
+E         
+E         Differing items:
+E         {'detail': 'Modèle non chargé'} != {'detail': 'Modele non charge'}
+E         Use -v to get more diff
+
+tests\test_readiness_probe.py:89: AssertionError
+______ test_predict_tabular_returns_exact_503_after_auth_and_validation _______
+
+    def test_predict_tabular_returns_exact_503_after_auth_and_validation() -> None:
+        # [PÉDAGOGIE] RESSOURCE — le gestionnaire de contexte garantit ouverture et libération, même
+        # [PÉDAGOGIE] en cas d'exception.
+        with model_unavailable():
+            response = client.post(
+                "/predict-tabular",
+                headers={"X-API-Key": settings.api_key},
+                json={"machine_id": "MACH-01", "readings": readings()},
+            )
+    
+        # [PÉDAGOGIE] ORACLE — l'assertion compare le résultat observé au contrat attendu par ce test.
+        assert response.status_code == 503
+        # [PÉDAGOGIE] ORACLE — l'assertion compare le résultat observé au contrat attendu par ce test.
+>       assert response.json() == {"detail": "Modele non charge"}
+E       AssertionError: assert {'detail': 'M...e non chargé'} == {'detail': 'M...e non charge'}
+E         
+E         Differing items:
+E         {'detail': 'Modèle non chargé'} != {'detail': 'Modele non charge'}
+E         Use -v to get more diff
+
+tests\test_readiness_probe.py:109: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_readiness_probe.py::test_ready_returns_exact_503_when_model_is_unavailable
+FAILED tests/test_readiness_probe.py::test_predict_tabular_returns_exact_503_after_auth_and_validation
+2 failed, 27 passed in 9.47s
+# code retour : 1
+
+# 💬 14) Linter.
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+# 💬 15) Formatage (verifie sans modifier).
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+29 files would be left unchanged.
+# code retour : 0
+
+# 💬 15b) Preuve de la fiche jalon 04 : la signature ne doit exposer QUE request (ni limit ni window).
+PS> uv run --frozen python -c "from inspect import signature; from indusense.api.security import rate_limit_dependency; print(signature(rate_limit_dependency))"
+(request: 'Request') -> 'None'
+# code retour : 0
+
+# 💬 15c) Ma copie tests/test_readiness_probe.py differe-t-elle de la version corrigee du jalon (FORMATION) ?
+PS> git diff --no-index --stat -- tests/test_readiness_probe.py FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+ .../EXERCICES/tp_api_m25_v1_20260823/tests}/test_readiness_probe.py   | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+# code retour : 1
+
+# 💬 16) Mon extension M23 est-elle toujours la ?
+PS> cmd /c dir /b src\indusense\features\cleaning.py tests\test_cleaning.py
+cleaning.py
+test_cleaning.py
+# code retour : 0
+
+# 💬 17) Mes livrables M24 sont-ils toujours la ?
+PS> cmd /c dir /b versioning_strategy.md metrics.json params.yaml artifacts\models\rf.joblib.dvc data\gold\gold_dataset.csv.dvc
+versioning_strategy.md
+metrics.json
+params.yaml
+rf.joblib.dvc
+gold_dataset.csv.dvc
+# code retour : 0
+
+# 💬 18) DVC toujours coherent ?
+PS> uv run --frozen dvc status
+Data and pipelines are up to date.
+# code retour : 0
+
+# 💬 19) Ce qui sera dans le commit de fusion (resume).
+PS> git status --short
+M  FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+M  FORMATION/JALON_ACTUEL.md
+A  docs/security_controls.md
+A  docs/threat_model.md
+M  src/indusense/api/main.py
+A  src/indusense/api/security.py
+A  tests/test_security.py
+?? preuves/26_p0_fusion_jalon04.txt
+# code retour : 0
+
+
+# 💬 ======== CORRECTION AVANT VALIDATION : ma copie tests/test_readiness_probe.py etait perimee ========
+# 💬 Constat : 2 tests 503 echouent. Le jalon 04 a accentue le message ('Modele non charge' -> 'Modèle non chargé') et a corrige
+# 💬 la version FORMATION/.../test_readiness_probe.py (commit cb548d6), mais pas la COPIE faite par la surcouche dans tests/ au M25.
+# 💬 Correction choisie : reappliquer la surcouche officielle (copie la version corrigee, sauvegarde l'ancienne hors depot, controle uv.lock).
+
+# 💬 20) Les 2 lignes qui different (ma copie <- -> version corrigee du jalon).
+PS> git diff --no-index -U0 -- tests/test_readiness_probe.py FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+diff --git a/tests/test_readiness_probe.py b/FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+index 0cd428b..925a4e1 100644
+--- a/tests/test_readiness_probe.py
++++ b/FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+@@ -89 +89 @@ def test_ready_returns_exact_503_when_model_is_unavailable() -> None:
+-    assert response.json() == {"detail": "Modele non charge"}
++    assert response.json() == {"detail": "Modèle non chargé"}
+@@ -109 +109 @@ def test_predict_tabular_returns_exact_503_after_auth_and_validation() -> None:
+-    assert response.json() == {"detail": "Modele non charge"}
++    assert response.json() == {"detail": "Modèle non chargé"}
+# code retour : 1
+
+# 💬 21) Reappliquer la surcouche officielle.
+PS> uv run --frozen python FORMATION/EXERCICES/tp_api_m25_v1_20260823/APPLIQUER_PREUVES_M25.py .
+SAUVEGARDE tests/test_readiness_probe.py -> C:\Users\issal\AppData\Local\Temp\CISIA_M25_backup_20260929_121350_272520\tests\test_readiness_probe.py
+INSTALLE tests/test_readiness_probe.py
+DEJA_IDENTIQUE tests/test_model_card_gate.py
+DEJA_IDENTIQUE tests/fixtures/model_card_template.md
+DEJA_IDENTIQUE scripts/validate_model_card.py
+PRESERVE docs/model_card.md
+BACKUP_ROOT=C:\Users\issal\AppData\Local\Temp\CISIA_M25_backup_20260929_121350_272520
+M25_OVERLAY=READY
+# code retour : 0
+
+# 💬 22) La copie est-elle maintenant identique a la version du jalon ? (aucune sortie attendue)
+PS> git diff --no-index --stat -- tests/test_readiness_probe.py FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+
+# code retour : 0
+
+# 💬 23) La Model Card n'a pas ete touchee ? (aucune sortie attendue)
+PS> git diff --stat HEAD -- docs/model_card.md
+
+# code retour : 0
+
+# 💬 24) Script officiel de verification du jalon 04 (rejoue).
+PS> powershell -ExecutionPolicy Bypass -File .\scripts\formation\verifier_jalon.ps1 -Jalon 04
+Uninstalled 30 packages in 4.42s
+ - blinker==1.9.0
+ - contourpy==1.3.3
+ - cycler==0.12.1
+ - databricks-sdk==0.119.0
+ - flask==3.1.3
+ - flask-cors==6.0.5
+ - fonttools==4.63.0
+ - google-auth==2.55.1
+ - graphene==3.4.3
+ - graphql-core==3.2.11
+ - graphql-relay==3.2.0
+ - huey==3.0.3
+ - importlib-metadata==9.0.0
+ - itsdangerous==2.2.0
+ - kiwisolver==1.5.0
+ - matplotlib==3.11.0
+ - mlflow==3.14.0
+ - mlflow-skinny==3.14.0
+ - mlflow-tracing==3.14.0
+ - opentelemetry-sdk==1.43.0
+ - opentelemetry-semantic-conventions==0.64b0
+ - pillow==12.2.0
+ - prettytable==3.18.0
+ - pyasn1==0.6.3
+ - pyasn1-modules==0.4.2
+ - skops==0.14.0
+ - sqlparse==0.5.5
+ - waitress==3.0.2
+ - werkzeug==3.1.8
+ - zipp==4.1.0
+.............................                                            [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\issal\CISIA_24082026_Parcours\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:152: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    tolerance=pd.Timedelta(minutes=tolerance_minutes),
+
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:169: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    window = pd.Timedelta(hours=window_hours)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+29 passed, 5 warnings in 9.39s
+All checks passed!
+Jalon verifie : jalon/04
+# code retour : 0
+
+# 💬 25) Reinstaller l'extra mlops.
+PS> uv sync --frozen --extra dev --extra mlops
+Installed 30 packages in 18.59s
+ + blinker==1.9.0
+ + contourpy==1.3.3
+ + cycler==0.12.1
+ + databricks-sdk==0.119.0
+ + flask==3.1.3
+ + flask-cors==6.0.5
+ + fonttools==4.63.0
+ + google-auth==2.55.1
+ + graphene==3.4.3
+ + graphql-core==3.2.11
+ + graphql-relay==3.2.0
+ + huey==3.0.3
+ + importlib-metadata==9.0.0
+ + itsdangerous==2.2.0
+ + kiwisolver==1.5.0
+ + matplotlib==3.11.0
+ + mlflow==3.14.0
+ + mlflow-skinny==3.14.0
+ + mlflow-tracing==3.14.0
+ + opentelemetry-sdk==1.43.0
+ + opentelemetry-semantic-conventions==0.64b0
+ + pillow==12.2.0
+ + prettytable==3.18.0
+ + pyasn1==0.6.3
+ + pyasn1-modules==0.4.2
+ + skops==0.14.0
+ + sqlparse==0.5.5
+ + waitress==3.0.2
+ + werkzeug==3.1.8
+ + zipp==4.1.0
+# code retour : 0
+
+# 💬 26) Toute la suite de tests.
+PS> uv run --frozen pytest -q -p no:warnings
+.............................                                            [100%]
+29 passed in 7.91s
+# code retour : 0
+
+# 💬 27) Les 2 suites de la preuve M26.
+PS> uv run --frozen pytest -v -p no:warnings tests/test_api.py tests/test_security.py
+============================= test session starts =============================
+platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\issal\CISIA_24082026_Parcours\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\issal\CISIA_24082026_Parcours
+configfile: pyproject.toml
+plugins: anyio-4.14.1, Faker-40.23.0, hydra-core-1.3.3
+collecting ... collected 10 items
+
+tests/test_api.py::test_health_ok PASSED                                 [ 10%]
+tests/test_api.py::test_missing_api_key_returns_401 PASSED               [ 20%]
+tests/test_api.py::test_insufficient_readings_returns_422 PASSED         [ 30%]
+tests/test_api.py::test_predict_ok_with_bundle PASSED                    [ 40%]
+tests/test_api.py::test_predict_normalizes_noncanonical_machine_id PASSED [ 50%]
+tests/test_api.py::test_predict_invalid_machine_id_returns_422 PASSED    [ 60%]
+tests/test_security.py::test_payload_too_large_returns_413 PASSED        [ 70%]
+tests/test_security.py::test_invalid_content_length_returns_400 PASSED   [ 80%]
+tests/test_security.py::test_rate_limit_policy_is_not_exposed_as_query_parameters PASSED [ 90%]
+tests/test_security.py::test_rate_limit_blocks_after_limit PASSED        [100%]
+
+============================= 10 passed in 5.41s ==============================
+# code retour : 0
+
+# 💬 28) Validateur de Model Card toujours vert ?
+PS> uv run --frozen python scripts/validate_model_card.py docs/model_card.md --project-root . --require-c5
+STRUCTURE=PASS
+C4_EVIDENCE=READY_FOR_REVIEW
+C5_EVIDENCE=READY_FOR_REVIEW
+# code retour : 0
+
+# 💬 29) ruff + black.
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+# 💬 29b)
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+29 files would be left unchanged.
+# code retour : 0
+
+# 💬 30) uv.lock inchange ? (aucune sortie attendue)
+PS> git diff --stat HEAD -- uv.lock
+
+# code retour : 0
+
+# 💬 31) Contenu du commit de fusion.
+PS> git status --short
+M  FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+M  FORMATION/JALON_ACTUEL.md
+A  docs/security_controls.md
+A  docs/threat_model.md
+M  src/indusense/api/main.py
+A  src/indusense/api/security.py
+ M tests/test_readiness_probe.py
+A  tests/test_security.py
+?? preuves/26_p0_fusion_jalon04.txt
+# code retour : 0
+
