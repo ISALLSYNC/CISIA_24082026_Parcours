@@ -919,7 +919,9 @@ outs:
 - `indusense.api.main:app` = « dans le module `indusense/api/main.py`, l'objet `app` ». `--reload` = Uvicorn redémarre tout seul si le code change (pratique en développement, **jamais en production**).
 - **`X-Request-ID`** présent dans chaque réponse (ex. `b6b1f23e-a442-4655-98fd-120582878bd8`) : le middleware fonctionne (TP 3).
 - **OpenAPI** : la norme qui décrit une API REST en JSON. FastAPI la **génère depuis le code** ; `/docs` (Swagger UI) n'en est que l'affichage.
-- *Capture à faire (moi)* : `/docs` dans le navigateur (http://127.0.0.1:8000/docs), les 3 routes visibles → `preuves/25_docs.png`.
+- 📸 **Capture de `/docs`** (prise par moi, http://127.0.0.1:8000/docs) : [preuves/25_docs.png](preuves/25_docs.png). On y voit « InduSense API » **0.1.0**, **OAS 3.1** (version de la norme OpenAPI), le lien `/openapi.json`, les **3 routes** (`GET /health`, `GET /ready`, `POST /predict-tabular`) et les **5 schémas**. Exactement ce que liste `/openapi.json` : la doc est bien **générée depuis le code**. Vérifiée : aucune donnée sensible.
+
+![Page /docs de l'API InduSense](preuves/25_docs.png)
 - *Ma reformulation :* …
 
 - Ce que j'ai fait : …
