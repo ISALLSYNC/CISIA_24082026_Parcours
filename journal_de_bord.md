@@ -1769,6 +1769,49 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 
 *Validation :* commit de fusion **`1331061`** (parents `098c8ae` = ma branche, `e3ee0b5` = jalon 07) ; gitleaks **Passed**.
 - *Ma reformulation :* …
+
+**Ouverture + préflight (scénario A)** *(pas-à-pas R2, « Ouverture + préflight (scénario A) »)*
+
+📎 **Preuve brute** : [preuves/29_p1_preflight.txt](preuves/29_p1_preflight.txt)
+
+| # | Commande | Rôle | Résultat |
+|---|---|---|---|
+| 1 | `uv sync --frozen --extra dev --extra mlops` | Environnement conforme au lock | `Checked 252 packages` |
+| 2 | `import prefect; print(prefect.__version__)` | Version attendue par le pas-à-pas | **`3.7.6`** ✅ (déjà dans le lock : **pas de `uv add`**) |
+| 3 | `prefect profile ls` | Un profil (Cloud) est-il déjà configuré ? | **Aucun** profil enregistré |
+| 4 | `$env:PREFECT_PROFILE = 'ephemeral'` + 2 variables de télémétrie à `false` | **Forcer l'orchestration locale** (guide multiplateforme, section 10) | — |
+| 5 | `prefect config view` | Ce que Prefect utilise vraiment | `PREFECT_PROFILE='ephemeral'` · mode éphémère autorisé · télémétrie et statistiques **désactivées** |
+| 6 | `PREFECT_API_URL` / `PREFECT_API_KEY` | Prefect Cloud est-il utilisé ? | `PREFECT_API_URL = None` · aucune clé → **tout reste local** ✅ |
+| 7 | `src/indusense/flows` existe ? | — | **Absent** : à créer au TP |
+
+- **Mode « ephemeral »** : Prefect démarre un petit serveur **temporaire, en mémoire**, le temps d'un run ; rien n'est envoyé en ligne, aucun compte n'est nécessaire. Le guide l'impose pour ne pas hériter d'un profil **Prefect Cloud** éventuellement actif sur le poste.
+- ⚠️ Ces variables ne valent que pour la **session de terminal** en cours : chaque script de preuve Prefect les repositionne au début.
+
+**Théorie ciblée — pourquoi orchestrer** *(pas-à-pas R2, « Théorie ciblée — pourquoi orchestrer »)*
+
+*Le problème :* jusqu'ici, le cycle de prédiction est **un script lancé à la main**. En production : une base **momentanément** indisponible fait tout planter, personne ne relance ; on ne sait pas **qui a tourné, quand, ce qui a échoué** ; les dépendances entre étapes ne sont écrites nulle part. Un simple **cron** (tâche planifiée) **lance une commande à heure fixe, et c'est tout**.
+
+*Un orchestrateur (Prefect) ajoute :*
+
+| Apport | Exemple |
+|---|---|
+| **Réessais automatiques** (*retries*) + **backoff** (délai croissant) | La base ne répond pas → réessayer 3 fois, après 5 s, 15 s, 45 s |
+| **Observabilité** | Chaque exécution (**run**) a un nom, un **état** (*Completed*, *Failed*…), des journaux |
+| **Dépendances explicites** | `predict` ne démarre qu'avec la sortie de `feature` |
+
+*Vocabulaire :*
+
+| Terme | Sens | En Python (Prefect 3) |
+|---|---|---|
+| **Task** | Une étape unitaire (charger, transformer, prédire, écrire) | `@task` (option `retries=…`) |
+| **Flow** | L'orchestration des tasks | `@flow` ; on l'**appelle directement** (`hello_flow()`), **pas** de `flow.run()` en Prefect 3 |
+| **Run** | Une exécution d'un flow ou d'une task | nom, état, journaux |
+| **Idempotent** | Rejouer ne change pas le résultat (**aucun doublon**) | indispensable pour **reprendre** après un échec |
+| **Backoff** | Délai **croissant** entre réessais | `retry_delay_seconds=[5, 15, 45]` |
+
+- **On ne réessaie que les erreurs transitoires** (base absente une seconde), **pas les déterministes** (mauvais schéma de données : réessayer ne changerait rien).
+- **Concevoir avant d'implémenter** (M29 puis M30) : figer les **contrats** de chaque task (entrées / sorties / erreurs) pour ne pas découvrir les incompatibilités à l'exécution.
+- *Ma reformulation :* …
 - Ce que j'ai fait : … / Ma preuve : … (design du flow `ingest→feature→predict→store` + flow « hello ») / Compétence(s) : C6, C7 / Difficulté : …
 
 **Module 30 — Implémentation du flow** · *C6*
