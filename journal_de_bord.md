@@ -1812,6 +1812,32 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **On ne réessaie que les erreurs transitoires** (base absente une seconde), **pas les déterministes** (mauvais schéma de données : réessayer ne changerait rien).
 - **Concevoir avant d'implémenter** (M29 puis M30) : figer les **contrats** de chaque task (entrées / sorties / erreurs) pour ne pas découvrir les incompatibilités à l'exécution.
 - *Ma reformulation :* …
+
+**Le piège data — fuite inter-machines (à jouer)** *(pas-à-pas R2, « Le piège data — fuite inter-machines (à jouer) »)*
+
+📎 **Preuve brute** : [preuves/29_p2_fuite_inter_machines.txt](preuves/29_p2_fuite_inter_machines.txt) (script jetable hors dépôt : aucun fichier du projet modifié)
+
+*Le contexte :* la tâche `ingest` assemble **température** et **pression**, qui ne sont pas mesurées à la même seconde. On utilise `merge_asof` : à chaque température, on associe **la pression la plus proche dans le temps** ([loaders.py:146](src/indusense/data/loaders.py#L146)) :
+```python
+pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
+              tolerance=pd.Timedelta(minutes=90))
+```
+- `on="timestamp"` : rapprocher par l'**heure** · **`by="machine"`** : **seulement au sein de la même machine** · `direction="nearest"` : la plus proche (avant ou après) · `tolerance` : à ±90 min maximum, sinon pas de pression (NaN).
+
+*Le debug à jouer :* **symptôme** (pressions incohérentes) → **hypothèse** (la jointure mélange les machines) → **correction** (`by="machine"`, déjà présente dans le code) → **preuve**.
+
+*Ma prédiction* (petit exemple de la fiche TD 29 : à 00:00, la seule pression mesurée est celle de MACH-02) : MACH-01 reçoit **9,0 bar avec `by`** (sa pression) et **2,0 bar sans `by`** (celle de MACH-02, même heure). Première réponse hors sujet (« température ») ; guidé par des choix, j'ai trouvé **1-B, 2-A**.
+
+| Cas | Avec `by="machine"` | Sans `by="machine"` |
+|---|---|---|
+| **Petit exemple** : MACH-01 à 00:00 | **9,0 bar** (la sienne) ✅ | **2,0 bar**, venue de **MACH-02** ❌ |
+| **Vraies données** (`data/raw` : 1 920 relevés, 4 machines) | 0 ligne sans pression → **résidu non joint 0,00 %** | **1 440 lignes sur 1 920 (75 %)** reçoivent la pression d'une **autre** machine — **aucune erreur levée** |
+| Exemple réel contaminé | — | 26/08/2025 00:00 : MACH-01, MACH-03 **et** MACH-04 héritent **tous** de la pression de MACH-02 (200,21 bar) |
+
+- ✅ **Prédiction confirmée**. 🔑 **Bug silencieux** : sans `by`, le tableau a l'air parfaitement normal (bonnes colonnes, aucune valeur manquante) ; seules les **valeurs** sont fausses. Le modèle apprendrait sur des pressions qui ne sont pas les siennes.
+- 🔗 **Lien M23** : même idée que la fuite temporelle (`shift(1)`), mais **entre machines**. Au M23, on protégeait le **temps** ; ici, l'**identité** de la machine. Même logique que le `groupby("machine")` de `clean_sensor_data`.
+- ⚠️ **Écart avec le pas-à-pas** (« résidu non joint ≈ **1,76 %** ») — **expliqué, pas « arrangé »** : ce chiffre vient du **jeu complet** (**66 800 températures, 15 machines** : 1 175 / 66 800), cité dans [memo_metriques_sans_confusion.md](docs/memo_metriques_sans_confusion.md) et [CONTROLES_AVANT_PROCHAINE_SESSION.md](docs/CONTROLES_AVANT_PROCHAINE_SESSION.md), **absent du dépôt**. Le jeu du dépôt est **horaire et aligné** : chaque température trouve sa pression → **0,00 % est le bon chiffre ici**.
+- *Ma reformulation :* …
 - Ce que j'ai fait : … / Ma preuve : … (design du flow `ingest→feature→predict→store` + flow « hello ») / Compétence(s) : C6, C7 / Difficulté : …
 
 **Module 30 — Implémentation du flow** · *C6*

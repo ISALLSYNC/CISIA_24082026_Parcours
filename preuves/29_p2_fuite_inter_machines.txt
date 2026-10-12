@@ -1,0 +1,91 @@
+﻿# Preuve : M29 - Le piege data : fuite inter-machines (a jouer)
+# Date : 2026-10-12 12:21
+# Branche : ismael-sall @ 31fbe39
+
+# 💬 SYMPTOME (pas-a-pas) : des pressions incoherentes. HYPOTHESE : la jointure temperature + pression melange les machines.
+# 💬 CORRECTION : merge_asof(..., by='machine', tolerance='90min', direction='nearest') - deja presente dans src/indusense/data/loaders.py:146.
+# 💬 MA PREDICTION (avant execution) : MACH-01 recoit 9,0 bar AVEC by (sa pression) et 2,0 bar SANS by (celle de MACH-02, meme heure).
+# 💬 Script jetable hors depot (code ci-dessous) : AUCUN fichier du projet modifie.
+
+PS> uv run --frozen python fuite_m29.py
+=== 1) PETIT EXEMPLE (fiche TD 29) ===
+AVEC by='machine' :
+          timestamp machine  temp_c  pressure_bar
+2026-01-01 00:00:00 MACH-01    40.0           9.0
+2026-01-01 00:01:00 MACH-02    80.0           2.0
+SANS by='machine' (on garde la machine d'ou vient la pression pour la montrer) :
+          timestamp machine  temp_c  pressure_bar machine_de_la_pression
+2026-01-01 00:00:00 MACH-01    40.0           2.0                MACH-02
+2026-01-01 00:01:00 MACH-02    80.0           9.0                MACH-01
+-> MACH-01 recoit 2.0 bar SANS by (pression de MACH-02 ) contre 9.0 bar AVEC by.
+
+=== 2) VRAIES DONNEES InduSense (data/raw, chargees par les loaders du projet) ===
+releves temperature : 1920 | releves pression : 1920 | machines : ['MACH-01', 'MACH-02', 'MACH-03', 'MACH-04']
+AVEC by='machine' : 0 lignes sans pression a +/-90 min sur 1920 -> residu non-joint = 0.00%
+SANS by='machine' : 0 lignes sans pression ; 1440 lignes sur 1920 jointes (75.00%) recoivent la pression d'une AUTRE machine -> AUCUNE erreur levee
+exemples de lignes contaminees :
+          timestamp machine  temperature  pressure_bar machine_de_la_pression
+2025-08-26 00:00:00 MACH-01        48.15       200.210                MACH-02
+2025-08-26 00:00:00 MACH-04        57.69       200.210                MACH-02
+2025-08-26 00:00:00 MACH-03        53.40       200.210                MACH-02
+2025-08-26 01:00:00 MACH-02        50.71       203.104                MACH-04
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 - PETIT EXEMPLE : AVEC by -> MACH-01 = 9,0 bar (la sienne) ; SANS by -> MACH-01 = 2,0 bar, venue de MACH-02. PREDICTION CONFIRMEE.
+# 💬 - VRAIES DONNEES (data/raw : 1920 releves, 4 machines) : SANS by, 1440 lignes sur 1920 (75 %) recoivent la pression d'une
+# 💬   AUTRE machine, sans AUCUNE erreur (ex. a 00:00, MACH-01, 03 et 04 heritent tous de la pression de MACH-02) : bug SILENCIEUX.
+# 💬 - AVEC by : residu non-joint = 0,00 % (0 ligne sans pression a +/-90 min).
+# 💬 - ECART avec le pas-a-pas (~1,76 %) EXPLIQUE : ce chiffre vient du JEU COMPLET (66 800 temperatures, 15 machines ;
+# 💬   1 175 / 66 800, cf. docs/memo_metriques_sans_confusion.md et docs/CONTROLES_AVANT_PROCHAINE_SESSION.md), absent du depot.
+# 💬   Le jeu du depot est horaire et aligne : chaque temperature trouve sa pression -> 0,00 % est le bon chiffre ICI.
+# 💬 - Lien M23 : meme idee que la fuite temporelle (shift(1)), mais ENTRE MACHINES (by='machine').
+
+# 💬 ---- Code de fuite_m29.py (pour rejouer) ----
+"""M29 - piege data : fuite inter-machines dans merge_asof (aucun fichier du projet modifie)."""
+
+import pandas as pd
+
+from indusense.config import settings
+from indusense.data.loaders import load_pressure, load_temperature
+
+KW = dict(on="timestamp", tolerance=pd.Timedelta("90min"), direction="nearest")
+
+print("=== 1) PETIT EXEMPLE (fiche TD 29) ===")
+ts = pd.to_datetime(["2026-01-01 00:00", "2026-01-01 00:01"])
+temp = pd.DataFrame({"timestamp": ts, "machine": ["MACH-01", "MACH-02"], "temp_c": [40.0, 80.0]})
+pres = pd.DataFrame({"timestamp": ts, "machine": ["MACH-02", "MACH-01"], "pressure_bar": [2.0, 9.0]})
+avec = pd.merge_asof(temp.sort_values("timestamp"), pres.sort_values("timestamp"), by="machine", **KW)
+sans = pd.merge_asof(
+    temp.sort_values("timestamp"),
+    pres.rename(columns={"machine": "machine_de_la_pression"}).sort_values("timestamp"),
+    **KW,
+)
+print("AVEC by='machine' :")
+print(avec[["timestamp", "machine", "temp_c", "pressure_bar"]].to_string(index=False))
+print("SANS by='machine' (on garde la machine d'ou vient la pression pour la montrer) :")
+print(sans[["timestamp", "machine", "temp_c", "pressure_bar", "machine_de_la_pression"]].to_string(index=False))
+print("-> MACH-01 recoit", sans.loc[sans.machine == "MACH-01", "pressure_bar"].item(),
+      "bar SANS by (pression de", sans.loc[sans.machine == "MACH-01", "machine_de_la_pression"].item(),
+      ") contre", avec.loc[avec.machine == "MACH-01", "pressure_bar"].item(), "bar AVEC by.")
+
+print()
+print("=== 2) VRAIES DONNEES InduSense (data/raw, chargees par les loaders du projet) ===")
+d = settings.data_dir
+t = load_temperature(d / "capteurs_temperature.csv").sort_values("timestamp")
+p = load_pressure(d / "capteurs_pression.tsv").sort_values("timestamp")
+print(f"releves temperature : {len(t)} | releves pression : {len(p)} | machines : {sorted(t.machine.unique())}")
+
+j_avec = pd.merge_asof(t, p, by="machine", **KW)
+non_joint = j_avec["pressure_bar"].isna().sum()
+print(f"AVEC by='machine' : {non_joint} lignes sans pression a +/-90 min sur {len(j_avec)} "
+      f"-> residu non-joint = {non_joint / len(j_avec):.2%}")
+
+j_sans = pd.merge_asof(t, p.rename(columns={"machine": "machine_de_la_pression"}), **KW)
+jointes = j_sans.dropna(subset=["pressure_bar"])
+fuite = (jointes["machine"] != jointes["machine_de_la_pression"]).sum()
+print(f"SANS by='machine' : {j_sans['pressure_bar'].isna().sum()} lignes sans pression ; "
+      f"{fuite} lignes sur {len(jointes)} jointes ({fuite / len(jointes):.2%}) recoivent la pression "
+      f"d'une AUTRE machine -> AUCUNE erreur levee")
+print("exemples de lignes contaminees :")
+ex = jointes[jointes["machine"] != jointes["machine_de_la_pression"]].head(4)
+print(ex[["timestamp", "machine", "temperature", "pressure_bar", "machine_de_la_pression"]].to_string(index=False))
