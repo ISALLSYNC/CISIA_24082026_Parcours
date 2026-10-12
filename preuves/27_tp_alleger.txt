@@ -1,0 +1,189 @@
+﻿# Preuve : M27 TP - durcir & alleger : pourquoi l'image indusense:0.1.0 pese 1,81 Go ?
+# Date : 2026-10-12 09:58
+# Branche : ismael-sall @ 672a05c
+
+# 💬 BUT : OBSERVER et COMPRENDRE la taille de l'image, sans rien modifier (le Dockerfile reste celui du jalon 05).
+
+# 💬 1) Taille totale de l'image (disque) et de son contenu.
+PS> docker image ls indusense:0.1.0 --format "{{.Repository}}:{{.Tag}} taille={{.Size}}"
+indusense:0.1.0 taille=1.81GB
+# code retour : 0
+
+# 💬 2) QUESTION 1 - quelles COUCHES pesent lourd ? docker history = une ligne par instruction du Dockerfile, avec la taille ajoutee.
+PS> docker history indusense:0.1.0 --format "{{.Size}}	{{.CreatedBy}}"
+0B	CMD ["uvicorn" "indusense.api.main:app" "--h…
+0B	HEALTHCHECK {Test:[CMD-SHELL python -c "impo…
+0B	EXPOSE [8000/tcp]
+0B	USER appuser
+5MB	COPY artifacts/models ./artifacts/models # b…
+1.3GB	COPY /app/.venv /app/.venv # buildkit
+0B	ENV PATH=/app/.venv/bin:/usr/local/bin:/usr/…
+8.19kB	WORKDIR /app
+69.6kB	RUN /bin/sh -c useradd -m -u 10001 appuser #…
+5.26MB	RUN /bin/sh -c apt-get update     && apt-get…
+0B	CMD ["python3"]
+16.4kB	RUN /bin/sh -c set -eux;  for src in idle3 p…
+40.4MB	RUN /bin/sh -c set -eux;   savedAptMark="$(a…
+0B	ENV PYTHON_SHA256=f4b1bfb3c79b5bb11b8d228a12…
+0B	ENV PYTHON_VERSION=3.13.16
+0B	ENV GPG_KEY=7169605F62C751356D054A26A821E680…
+4.94MB	RUN /bin/sh -c set -eux;  apt-get update;  a…
+0B	ENV PATH=/usr/local/bin:/usr/local/sbin:/usr…
+87.7MB	# debian.sh --arch 'amd64' out/ 'trixie' '@1…
+# code retour : 0
+
+# 💬 3) Taille de l'image de BASE seule (python:3.13-slim), pour comparer.
+PS> docker image ls python:3.13-slim --format "{{.Repository}}:{{.Tag}} taille={{.Size}}"
+
+# code retour : 0
+
+# 💬 4) QUESTION 2 - dans la couche lourde (/app/.venv), quels PAQUETS pesent lourd ? Conteneur JETABLE (--rm), l'API n'est pas lancee (--entrypoint sh).
+PS> docker run --rm --entrypoint sh indusense:0.1.0 -c "du -sh /app/.venv; echo ---; du -sm /app/.venv/lib/python3.13/site-packages/* | sort -rn | head -25"
+1.3G	/app/.venv
+---
+184	/app/.venv/lib/python3.13/site-packages/plotly
+153	/app/.venv/lib/python3.13/site-packages/pyarrow
+108	/app/.venv/lib/python3.13/site-packages/scipy
+75	/app/.venv/lib/python3.13/site-packages/pandas
+74	/app/.venv/lib/python3.13/site-packages/prefect
+55	/app/.venv/lib/python3.13/site-packages/statsmodels
+48	/app/.venv/lib/python3.13/site-packages/sklearn
+42	/app/.venv/lib/python3.13/site-packages/numpy
+34	/app/.venv/lib/python3.13/site-packages/evidently
+30	/app/.venv/lib/python3.13/site-packages/scipy.libs
+27	/app/.venv/lib/python3.13/site-packages/numpy.libs
+24	/app/.venv/lib/python3.13/site-packages/faker
+23	/app/.venv/lib/python3.13/site-packages/sqlalchemy
+18	/app/.venv/lib/python3.13/site-packages/networkx
+16	/app/.venv/lib/python3.13/site-packages/uvloop
+15	/app/.venv/lib/python3.13/site-packages/cryptography
+14	/app/.venv/lib/python3.13/site-packages/pygit2.libs
+14	/app/.venv/lib/python3.13/site-packages/asyncpg
+13	/app/.venv/lib/python3.13/site-packages/nltk
+11	/app/.venv/lib/python3.13/site-packages/psycopg_binary.libs
+10	/app/.venv/lib/python3.13/site-packages/pygments
+10	/app/.venv/lib/python3.13/site-packages/beartype
+9	/app/.venv/lib/python3.13/site-packages/setuptools
+9	/app/.venv/lib/python3.13/site-packages/jupyterlab_plotly
+9	/app/.venv/lib/python3.13/site-packages/apprise
+# code retour : 0
+
+# 💬 5) Nombre total de paquets installes dans l'image.
+PS> docker run --rm --entrypoint sh indusense:0.1.0 -c "ls -d /app/.venv/lib/python3.13/site-packages/*.dist-info | wc -l"
+209
+# code retour : 0
+
+# 💬 6) QUESTION 3 - POURQUOI ces paquets ? Dependances PRINCIPALES declarees dans pyproject.toml ([project] dependencies, hors commentaires).
+PS> uv run --frozen python -c "import tomllib;d=tomllib.load(open('pyproject.toml','rb'));print(chr(10).join(d['project']['dependencies']));print('--- extras (NON installes dans l image : uv sync --no-dev sans --extra) :', list(d['project'].get('optional-dependencies',{}).keys()))"
+pandas>=2.2
+numpy>=2.0
+scikit-learn>=1.5
+joblib>=1.4
+pydantic-settings>=2.3
+typer>=0.12
+loguru>=0.7
+dvc>=3.67.1
+fastapi>=0.111
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+prometheus-fastapi-instrumentator>=8.0.2
+prefect>=3.7.6
+sqlalchemy>=2.0.51
+psycopg[binary]>=3.3.4
+scipy>=1.18.0
+evidently>=0.7.21
+--- extras (NON installes dans l image : uv sync --no-dev sans --extra) : ['dev', 'mlops']
+# code retour : 0
+
+# 💬 7) Ces paquets lourds sont-ils UTILISES par l'API ? Imports reels de src/indusense/api (hors commentaires).
+PS> findstr /r /c:"^import " /c:"^from " src\indusense\api\main.py src\indusense\api\model_store.py src\indusense\api\security.py src\indusense\api\schemas.py
+src\indusense\api\main.py:from __future__ import annotations
+src\indusense\api\main.py:import uuid
+src\indusense\api\main.py:from contextlib import asynccontextmanager
+src\indusense\api\main.py:import pandas as pd
+src\indusense\api\main.py:from fastapi import Depends, FastAPI, Header, HTTPException, Request, UploadFile, status
+src\indusense\api\main.py:from loguru import logger
+src\indusense\api\main.py:from prometheus_fastapi_instrumentator import Instrumentator
+src\indusense\api\main.py:import indusense.api.model_store as store
+src\indusense\api\main.py:from indusense.api.model_store import ModelBundle, get_model_bundle
+src\indusense\api\main.py:from indusense.api.schemas import PredictionResponse, TabularPredictionRequest
+src\indusense\api\main.py:from indusense.api.security import limit_body_size, rate_limit_dependency
+src\indusense\api\main.py:from indusense.config import settings
+src\indusense\api\main.py:from indusense.data.loaders import normalize_machine_id
+src\indusense\api\main.py:from indusense.features.temporal import add_temporal_features
+src\indusense\api\main.py:from indusense.models.tabular import predict_proba, select_features
+src\indusense\api\model_store.py:from __future__ import annotations
+src\indusense\api\model_store.py:import json
+src\indusense\api\model_store.py:from dataclasses import dataclass
+src\indusense\api\model_store.py:from pathlib import Path
+src\indusense\api\model_store.py:from typing import Any
+src\indusense\api\model_store.py:from indusense.models.tabular import load_model
+src\indusense\api\security.py:from __future__ import annotations
+src\indusense\api\security.py:import time
+src\indusense\api\security.py:from collections import defaultdict, deque
+src\indusense\api\security.py:from fastapi import HTTPException, Request, status
+src\indusense\api\security.py:from fastapi.responses import JSONResponse
+src\indusense\api\schemas.py:from __future__ import annotations
+src\indusense\api\schemas.py:from datetime import datetime
+src\indusense\api\schemas.py:from pydantic import BaseModel, Field
+# code retour : 0
+
+# 💬 8) QUI amene 'plotly' dans l'image ? (uv tree --invert : arbre des dependances lu a l'envers)
+PS> uv tree --frozen --no-dev --invert --package plotly --depth 2
+plotly v5.24.1
+└── evidently v0.7.21
+    └── indusense-sprint3-starter v0.1.0
+# code retour : 0
+
+# 💬 8) QUI amene 'pyarrow' dans l'image ? (uv tree --invert : arbre des dependances lu a l'envers)
+PS> uv tree --frozen --no-dev --invert --package pyarrow --depth 2
+pyarrow v24.0.0
+├── mlflow v3.14.0
+│   └── indusense-sprint3-starter v0.1.0 (extra: mlops)
+└── pandas v2.3.3 (extra: parquet)
+    └── evidently[parquet] v0.7.21
+# code retour : 0
+
+# 💬 8) QUI amene 'statsmodels' dans l'image ? (uv tree --invert : arbre des dependances lu a l'envers)
+PS> uv tree --frozen --no-dev --invert --package statsmodels --depth 2
+statsmodels v0.14.6
+└── evidently v0.7.21
+    └── indusense-sprint3-starter v0.1.0
+# code retour : 0
+
+# 💬 8) QUI amene 'nltk' dans l'image ? (uv tree --invert : arbre des dependances lu a l'envers)
+PS> uv tree --frozen --no-dev --invert --package nltk --depth 2
+nltk v3.9.4
+└── evidently v0.7.21
+    └── indusense-sprint3-starter v0.1.0
+# code retour : 0
+
+# 💬 8) QUI amene 'faker' dans l'image ? (uv tree --invert : arbre des dependances lu a l'envers)
+PS> uv tree --frozen --no-dev --invert --package faker --depth 2
+faker v40.23.0
+└── polyfactory v3.3.0
+    └── litestar v2.24.0
+# code retour : 0
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 QUESTION 1 (couches) : sur 1,81 Go, la couche 'COPY /app/.venv' (l'environnement Python) pese 1,3 Go a elle seule.
+# 💬   Le reste est petit : base Debian + Python ~133 Mo (87,7 + 40,4 + 4,94), mises a jour apt 5,26 Mo, modele 5 Mo, appuser 70 Ko.
+# 💬   -> Le multi-stage a bien fait son travail (uv, caches et outils de build ne sont PAS dans l'image) : le poids vient des DEPENDANCES.
+# 💬 QUESTION 2 (paquets) : 209 paquets. Les plus lourds : plotly 184 Mo, pyarrow 153 Mo, scipy 108+30 Mo, pandas 75 Mo, prefect 74 Mo,
+# 💬   statsmodels 55 Mo, sklearn 48 Mo, numpy 42+27 Mo, evidently 34 Mo, faker 24 Mo, sqlalchemy 23 Mo, nltk 13 Mo...
+# 💬 QUESTION 3 (pourquoi) : uv sync --no-dev installe TOUTES les dependances PRINCIPALES de pyproject.toml. Or le jalon y a mis
+# 💬   aussi celles des modules SUIVANTS : dvc (M24), prefect (M29-M30, orchestration), sqlalchemy + psycopg (M30, base de donnees),
+# 💬   evidently (M31-M32, drift). L'API, elle, n'importe que : pandas, fastapi, loguru, prometheus_fastapi_instrumentator, pydantic,
+# 💬   et via indusense : numpy, scikit-learn/scipy, joblib. (extras dev et mlops NON installes : bien.)
+# 💬   uv tree --invert : plotly, statsmodels, nltk viennent d'EVIDENTLY ; pyarrow vient d'evidently[parquet] (via pandas[parquet]) ;
+# 💬   faker vient de polyfactory <- litestar (chaine tiree par une autre dependance, cf. sortie ci-dessus).
+# 💬   -> Ordre de grandeur (deduit des tailles ci-dessus) : evidently et ses dependances ~440 Mo ; ce dont l'API a besoin ~400 Mo.
+# 💬 QUESTION 4 (alleger ?) - PISTES, NON APPLIQUEES :
+# 💬   a) Separer les dependances par usage : un groupe/extra 'api' (fastapi, uvicorn, pandas, sklearn...) et un pour drift/orchestration ;
+# 💬      l'image API n'installerait que le premier. Gain probable : plusieurs centaines de Mo. MAIS cela modifie pyproject.toml et uv.lock,
+# 💬      ce que le parcours INTERDIT en salle ('ne jamais modifier le lock') -> decision du formateur / du projet.
+# 💬   b) Des images separees par service (API d'un cote, flows Prefect / drift de l'autre) : c'est la logique du M28 (compose).
+# 💬   c) Petits gains sans risque : ne pas copier .gitignore, .gitkeep, rf.joblib.dvc (quelques octets : negligeable).
+# 💬   Avantage de la situation actuelle : UNE image qui sait tout faire, construite depuis le lock verrouille (reproductible).
+# 💬   Cout : image lourde (stockage, temps de build/telechargement) et SURFACE D'ATTAQUE plus grande (209 paquets, dont des
+# 💬   bibliotheques jamais utilisees par l'API mais presentes en cas de compromission).

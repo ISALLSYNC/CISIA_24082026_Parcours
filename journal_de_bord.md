@@ -340,6 +340,7 @@
 - **Incohérence entre supports** : la fiche jalon 01 demande d'extraire `clean_sensor_data`, alors que le pas-à-pas R2 la classe en extension facultative. → **Tranché par la fiche TD 23** (« Definition of done ») : « `test_cleaning.py` n'est exigé que si l'extension est jouée ». L'extension est donc bien **facultative**.
 - La fiche TD 23, citée par le pas-à-pas pour le code de `cleaning.py`, **n'est pas dans le dépôt**. → **Retrouvée** hors dépôt : `OneDrive\Documents\FORMATION\Docs\Sprint3\fiches_TD_apprenant_sprint3_AELION_20260928_R2.pdf` (section « Fiche TD 23 »).
 - **QCM J1 (questions 1-3)** : le pas-à-pas R2 (ligne 661 dans VS Code) donne les thèmes (package `src/`, rôle de `pyproject.toml`, fuite par split non temporel) et la correction attendue (1-B · 2-C · 3-A), mais **pas le texte des questions**. Les fichiers cités (`QCM_fin_de_journee_sprint3`, `kahoot_J1.xlsx`) sont introuvables dans le dépôt et sur mon poste ; la fiche TD précise que les QCM sont « fournis séparément par le formateur ». → À demander au formateur. Je ne réponds pas sans l'énoncé.
+- **M27 — taille de l'image** (1,81 Go, dont 1,3 Go de dépendances ; la moitié sert aux modules suivants, pas à l'API) : faut-il séparer les dépendances de l'API, sachant que cela modifie `uv.lock` ?
 - **M26 — emplacement des livrables sécurité** : le jalon 04 fournit les modèles dans `docs/`, la preuve finale lit `.\security_controls.md` à la racine ; j'ai créé les fichiers à la racine (modèles laissés intacts). → À confirmer.
 - **QCM J2** : comme pour le J1, le texte des questions n'est pas dans le dépôt. → À demander au formateur.
 - **M25 — titres de la Model Card** : le validateur (`Niveau métier`…) et la commande de preuve finale du pas-à-pas (`^## Métier`…) sont **incompatibles** ; j'ai suivi le validateur. → Quelle référence fait foi ?
@@ -1509,6 +1510,60 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - ⚠️ **Image de 1,81 Go** : lourde pour une image « slim ». À analyser au TP « durcir & alléger ».
 - *Détail* : `.gitignore`, `.gitkeep` et `rf.joblib.dvc` du dossier modèle sont aussi copiés (inutiles, sans risque).
 - *Incident outil* : ma 1ʳᵉ commande de nettoyage a été **bloquée avant exécution** par une protection de l'outil (mot `rm` de `docker rm`, comme `git rm` au M24) ; rejouée via un script.
+- *Ma reformulation :* …
+
+**TP — durcir & alléger : pourquoi l'image pèse 1,81 Go ?** *(pas-à-pas R2, « TP — durcir & alléger / Variante A »)*
+
+📎 **Preuve brute** : [preuves/27_tp_alleger.txt](preuves/27_tp_alleger.txt)
+
+*Démarche :* **observer et comprendre**, sans modifier le `Dockerfile`. Quatre questions, une commande (ou plus) par question.
+
+*Question 1 — Quelles couches pèsent lourd ?* `docker history indusense:0.1.0` liste les couches de l'image (une par instruction du `Dockerfile`) avec la taille ajoutée :
+
+| Couche | Taille | Commentaire |
+|---|---|---|
+| Base Debian + Python 3.13 (`python:3.13-slim`) | ~133 Mo (87,7 + 40,4 + 4,94) | Le socle « slim » : déjà mince |
+| `apt-get upgrade` + retrait de `pip` | 5,26 Mo | Mises à jour de sécurité |
+| `useradd appuser` | 70 Ko | L'utilisateur non-root |
+| **`COPY --from=build /app/.venv`** | **1,3 Go** | ⚠️ **L'environnement Python : 72 % de l'image** |
+| `COPY artifacts/models` | 5 Mo | Le modèle (Variante A) |
+| `USER`, `EXPOSE`, `HEALTHCHECK`, `CMD` | 0 o | Métadonnées seulement |
+
+→ Le **multi-stage marche** (ni `uv`, ni les caches, ni les outils de build ne sont dans l'image) : le poids vient des **dépendances Python**.
+
+*Question 2 — Quels paquets ?* Dans un conteneur **jetable** (`docker run --rm --entrypoint sh …` : l'API n'est pas lancée, le conteneur est supprimé à la fin), `du` mesure chaque paquet : **209 paquets**, 1,3 Go. Les plus lourds :
+
+| Paquet | Taille | Utilisé par l'API ? |
+|---|---|---|
+| plotly | 184 Mo | ❌ (graphiques, via evidently) |
+| pyarrow | 153 Mo | ❌ (format Parquet, via evidently) |
+| scipy (+ libs) | 138 Mo | ✅ indirectement (scikit-learn en a besoin) |
+| pandas | 75 Mo | ✅ |
+| prefect | 74 Mo | ❌ (orchestration, M29-M30) |
+| numpy (+ libs) | 69 Mo | ✅ |
+| statsmodels | 55 Mo | ❌ (statistiques, via evidently) |
+| scikit-learn | 48 Mo | ✅ (le modèle Random Forest) |
+| evidently | 34 Mo | ❌ (drift, M31-M32) |
+| faker, sqlalchemy, nltk… | 24 / 23 / 13 Mo | ❌ |
+
+*Question 3 — Pourquoi sont-ils là ?*
+- Le `Dockerfile` fait `uv sync --frozen --no-dev` : il installe **toutes les dépendances principales** de `pyproject.toml` (les extras `dev` et `mlops` ne sont **pas** installés : bien).
+- Or le jalon y a mis **aussi celles des modules suivants** : `dvc` (M24), `prefect` (M29-M30), `sqlalchemy` + `psycopg` (M30), `evidently` (M31-M32).
+- **L'API n'importe que** : `pandas`, `fastapi`, `loguru`, `prometheus_fastapi_instrumentator`, `pydantic` et, via `indusense`, `numpy`, `scikit-learn` / `scipy`, `joblib` (lu dans les imports réels de `src/indusense/api/`).
+- `uv tree --invert` (l'arbre des dépendances **lu à l'envers** : « qui amène ce paquet ? ») : **plotly, statsmodels, nltk ← evidently** ; **pyarrow ← evidently[parquet]** (via `pandas[parquet]`) ; **faker ← polyfactory ← litestar**.
+- *Ordre de grandeur (déduit des tailles)* : evidently et ses dépendances ≈ **440 Mo** ; ce dont l'API a besoin ≈ **400 Mo**.
+
+*Question 4 — Peut-on alléger ? Pistes, **non appliquées** :*
+
+| Piste | Gain | Prix / obstacle |
+|---|---|---|
+| a) Séparer les dépendances par usage (un groupe « api », un autre pour drift / orchestration) ; l'image API n'installe que le premier | Probablement **plusieurs centaines de Mo** | Modifie `pyproject.toml` et **`uv.lock`**, ce que le parcours **interdit** en salle (« ne jamais modifier le lock ») → **décision du formateur / du projet** |
+| b) Une image **par service** (API d'un côté, flows Prefect / drift de l'autre) | Image API mince | C'est la logique du **M28** (compose) |
+| c) Ne pas copier `.gitignore`, `.gitkeep`, `rf.joblib.dvc` | Quelques octets | Négligeable |
+
+- **Avantage de l'état actuel** : **une seule image** qui sait tout faire, construite depuis le lock verrouillé → **reproductible**.
+- **Coût** : image lourde (stockage, temps de build ~7 min, téléchargement) **et surface d'attaque plus grande** : 209 paquets, dont des bibliothèques **jamais utilisées par l'API** mais présentes si l'API est compromise (lien avec le principe de **moindre privilège** du M26).
+- → Question pour le formateur : faut-il alléger l'image API (séparation des dépendances), sachant que cela touche au lock ?
 - *Ma reformulation :* …
 
 - Ce que j'ai fait : … / Ma preuve : … (`docker build` · image non-root) / Compétence(s) : C6 / Difficulté : …
