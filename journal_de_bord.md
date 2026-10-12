@@ -340,7 +340,7 @@
 - **Incohérence entre supports** : la fiche jalon 01 demande d'extraire `clean_sensor_data`, alors que le pas-à-pas R2 la classe en extension facultative. → **Tranché par la fiche TD 23** (« Definition of done ») : « `test_cleaning.py` n'est exigé que si l'extension est jouée ». L'extension est donc bien **facultative**.
 - La fiche TD 23, citée par le pas-à-pas pour le code de `cleaning.py`, **n'est pas dans le dépôt**. → **Retrouvée** hors dépôt : `OneDrive\Documents\FORMATION\Docs\Sprint3\fiches_TD_apprenant_sprint3_AELION_20260928_R2.pdf` (section « Fiche TD 23 »).
 - **QCM J1 (questions 1-3)** : le pas-à-pas R2 (ligne 661 dans VS Code) donne les thèmes (package `src/`, rôle de `pyproject.toml`, fuite par split non temporel) et la correction attendue (1-B · 2-C · 3-A), mais **pas le texte des questions**. Les fichiers cités (`QCM_fin_de_journee_sprint3`, `kahoot_J1.xlsx`) sont introuvables dans le dépôt et sur mon poste ; la fiche TD précise que les QCM sont « fournis séparément par le formateur ». → À demander au formateur. Je ne réponds pas sans l'énoncé.
-- **M27 — taille de l'image** (1,81 Go, dont 1,3 Go de dépendances ; la moitié sert aux modules suivants, pas à l'API) : faut-il séparer les dépendances de l'API, sachant que cela modifie `uv.lock` ?
+- **M27 — taille de l'image** (1,81 Go, dont 1,3 Go de dépendances) : **tranché par moi** — pas de suppression de dépendances (objectif = conteneurisation ; lock interdit de modification ; dépendances utiles aux modules suivants). Risque accepté et documenté.
 - **M26 — emplacement des livrables sécurité** : le jalon 04 fournit les modèles dans `docs/`, la preuve finale lit `.\security_controls.md` à la racine ; j'ai créé les fichiers à la racine (modèles laissés intacts). → À confirmer.
 - **QCM J2** : comme pour le J1, le texte des questions n'est pas dans le dépôt. → À demander au formateur.
 - **M25 — titres de la Model Card** : le validateur (`Niveau métier`…) et la commande de preuve finale du pas-à-pas (`^## Métier`…) sont **incompatibles** ; j'ai suivi le validateur. → Quelle référence fait foi ?
@@ -1563,7 +1563,12 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 
 - **Avantage de l'état actuel** : **une seule image** qui sait tout faire, construite depuis le lock verrouillé → **reproductible**.
 - **Coût** : image lourde (stockage, temps de build ~7 min, téléchargement) **et surface d'attaque plus grande** : 209 paquets, dont des bibliothèques **jamais utilisées par l'API** mais présentes si l'API est compromise (lien avec le principe de **moindre privilège** du M26).
-- → Question pour le formateur : faut-il alléger l'image API (séparation des dépendances), sachant que cela touche au lock ?
+- **Ma décision : ne pas supprimer de dépendances.** Au vu de l'objectif du M27 (**la conteneurisation**, pas l'optimisation de taille), ce n'est **pas justifié** :
+  - l'objectif est **atteint** (image construite, conteneur fonctionnel, non-root, sans secret, `healthy`) ;
+  - alléger imposerait de **modifier `uv.lock`**, ce que le parcours **interdit** en salle ;
+  - ces dépendances **serviront aux modules suivants** (Prefect M29-M30, Evidently M31-M32) : les retirer risquerait de casser la suite ;
+  - une image **unique**, construite depuis le lock verrouillé, reste **reproductible**.
+- **Risque accepté et documenté** (limite assumée pour l'oral) : image lourde (1,81 Go) et surface d'attaque plus grande (209 paquets, dont certains inutilisés par l'API). Piste future si le projet passe en production : une image **par service** (M28) ou un groupe de dépendances dédié à l'API.
 - *Ma reformulation :* …
 
 - Ce que j'ai fait : … / Ma preuve : … (`docker build` · image non-root) / Compétence(s) : C6 / Difficulté : …
