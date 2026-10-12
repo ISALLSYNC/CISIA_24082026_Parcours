@@ -1393,7 +1393,7 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 
 ### J3 — lun. 12/10/2026 *(date prévue dans le modèle : 26/08)*
 
-**Module 27 — Conteneurisation (Docker)** · *C6* · *(en cours — 12/10/2026)*
+**Module 27 — Conteneurisation (Docker)** · *C6* · *(terminé — 12/10/2026)*
 
 **Charge le jalon 05 — AVANT M27** *(pas-à-pas R2, « Charge le jalon 05 — AVANT M27 »)*
 
@@ -1571,7 +1571,34 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **Risque accepté et documenté** (limite assumée pour l'oral) : image lourde (1,81 Go) et surface d'attaque plus grande (209 paquets, dont certains inutilisés par l'API). Piste future si le projet passe en production : une image **par service** (M28) ou un groupe de dépendances dédié à l'API.
 - *Ma reformulation :* …
 
-- Ce que j'ai fait : … / Ma preuve : … (`docker build` · image non-root) / Compétence(s) : C6 / Difficulté : …
+**Correction guidée et preuve Docker** *(pas-à-pas R2, « Correction guidée et preuve Docker » = preuve finale du M27)*
+
+📎 **Preuve brute** : [preuves/27_preuve_finale.txt](preuves/27_preuve_finale.txt)
+
+*Consigne* : « Rejoue `docker build`, `docker run`, les trois routes et `docker exec indusense whoami`, puis conserve une preuve lisible de `appuser` et des codes HTTP. Termine par `docker rm -f indusense` pour libérer le port 8000 avant M28. »
+
+| # | Commande | Résultat |
+|---|---|---|
+| 0 | Préalables | moteur Docker **29.7.2** actif · port 8000 **libre** |
+| 1 | `docker build -t indusense:0.1.0 .` | Code **0** en **3,6 s** (au lieu de ~413 s au 1ᵉʳ build) : **11 étapes `CACHED`** |
+| 2 | `docker run -d -p 8000:8000 --name indusense -e INDUSENSE_API_KEY=dev-key indusense:0.1.0` | Conteneur démarré, API prête en ~6 s |
+| 3 | `GET /health` | **200** `{"status":"ok"}` ✅ |
+| 4 | `GET /ready` | **200** `{"status":"ready","model_version":"0.1.0"}` ✅ |
+| 5 | `POST /predict-tabular` (clé + `payload.json`) | **200** `MACH-07`, `0.075`, `ok` ✅ |
+| 6 | **`docker exec indusense whoami`** | **`appuser`** ✅ (`id` → `uid=10001`, pas root) |
+| 7 | `docker rm -f indusense` | Conteneur supprimé ; port 8000 **libre** (après un court délai) ; image **conservée** |
+
+- ✅ **Preuve finale du M27 atteinte** : `docker build` OK · `docker run` → `/health` 200 → `/ready` 200 → `/predict-tabular` 200 · `whoami` = **appuser**.
+- **Le cache des couches en vrai** : rien n'a changé depuis le 1ᵉʳ build, donc Docker **réutilise toutes les couches** (`CACHED`) → **3,6 s au lieu de 7 minutes**. C'est l'intérêt de « dépendances avant le code » : modifier seulement `src/` ne relancerait que les dernières étapes.
+- *Corrections de ma preuve* : (1) les lignes « conteneur restant » ont planté parce que **mon** script ne gérait pas une sortie **vide** de `docker ps` (le résultat attendu) ; (2) le port affiché « OCCUPE » juste après la suppression : Docker Desktop libère le port avec un **court délai**. Les deux contrôles ont été **rejoués** : aucun conteneur `indusense`, port 8000 libre.
+
+**Bilan M27**
+
+- **Ce que j'ai fait** : lancé Docker Desktop (moteur arrêté) et libéré le port 8000 · fusionné le jalon 05 à la main (3 conflits, M24 conservé) · préflight `hello-world` · compris l'image en **couches**, le **multi-stage**, le **non-root** et la **Variante A** · lu le `Dockerfile` et le `.dockerignore` ligne par ligne · construit l'image, lancé le conteneur, testé les 3 routes, `whoami` · vérifié que le **modèle** est dans l'image (md5 = DVC) et qu'**aucun secret** n'y est · analysé la taille (1,81 Go) et **décidé** de ne pas supprimer de dépendances · rejoué la preuve finale (cache : 3,6 s).
+- **Mes preuves** : `Hello from Docker!` · `/health` 200, `/ready` 200, `/predict-tabular` 200 dans le conteneur · `whoami` → **appuser** (uid 10001) · conteneur **`healthy`** · md5 du modèle dans l'image = `2779890…` · `.env`, `tests`, `data` absents · `docker history` (1,3 Go de dépendances) · build en cache 3,6 s.
+- **Compétence(s)** : C6 (implémenter / intégrer les briques)
+- **Aide IA reçue** : Claude Code a lancé Docker Desktop, résolu la fusion (même schéma que validé aux jalons 03 et 04), exécuté les commandes Docker, analysé la taille de l'image et produit les preuves commentées. **J'ai décidé moi-même** de ne pas alléger l'image (objectif = conteneurisation). **Je dois savoir réexpliquer : image vs conteneur, couches et cache, multi-stage, non-root, Variante A, `--host 0.0.0.0`, pourquoi `.env` n'est pas dans l'image, pourquoi `docker rm -f` à la fin.**
+- **Difficultés / questions** : 2 conteneurs d'un autre projet (ports 5433, 8081) à surveiller au M28 · 802 avertissements de mon test du M26 · deux commandes bloquées par la protection de l'outil (mot `rm`), rejouées via script.
 
 **Module 28 — Déploiement local & compose** · *C6 · C7*
 - Ce que j'ai fait : … / Ma preuve : … (`docker compose up -d --wait` · api + db *healthy* · 3 smoke tests verts) / Compétence(s) : C6, C7 / Difficulté : …

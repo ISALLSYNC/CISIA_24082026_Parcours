@@ -1,0 +1,91 @@
+﻿# Preuve : M27 - Correction guidee et preuve Docker (preuve finale du M27)
+# Date : 2026-10-12 10:19
+# Branche : ismael-sall @ e92123e
+
+# 💬 CONSIGNE (pas-a-pas R2) : rejouer docker build, docker run, les trois routes et docker exec indusense whoami,
+# 💬 conserver une preuve lisible de appuser et des codes HTTP, terminer par docker rm -f indusense (liberer le port 8000 avant M28).
+# 💬 PREUVE FINALE VISEE : docker build OK . docker run -> /health 200 -> /ready 200 -> /predict-tabular 200 . whoami = appuser.
+
+# 💬 0) Prealables : moteur Docker actif, port 8000 libre, aucun conteneur 'indusense' residuel.
+moteur : 29.7.2
+port 8000 : libre
+
+# 💬 1) docker build -t indusense:0.1.0 .   (rejoue : le CACHE des couches doit le rendre tres rapide)
+PS> docker build -t indusense:0.1.0 .
+  #15 [build 7/7] RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-editable
+  #15 CACHED
+  #16 [build 2/7] COPY --from=ghcr.io/astral-sh/uv:0.11.19 /uv /usr/local/bin/uv
+  #16 CACHED
+  #17 [runtime 5/6] COPY --from=build /app/.venv /app/.venv
+  #17 CACHED
+  #18 [runtime 6/6] COPY artifacts/models ./artifacts/models
+  #18 CACHED
+  #19 exporting layers 0.0s done
+  #19 exporting manifest sha256:ca00d2f27d48d8856135d2ea8c81008e89cce12f54bfd172eaa0a3dc9f448ac5 done
+  #19 exporting config sha256:373565a4d1e0f9322c5d7828ac32fdef77d6d1bd898f33d0174d643b389cc939 done
+  #19 exporting attestation manifest sha256:bfd9dc312240e38f61406c145c1536fe55e9143ee840840b69ea3c92672b2fe0 0.0s done
+  #19 exporting manifest list sha256:fee1aaab0296f8e1c55c1421e441efa3543b43836b99b9211e813e786fd3396d 0.0s done
+  #19 naming to docker.io/library/indusense:0.1.0 0.0s done
+  #19 unpacking to docker.io/library/indusense:0.1.0 0.0s done
+  #19 DONE 0.4s
+# code retour : 0   | duree : 3.6 s (contre ~413 s au 1er build)
+# nombre d'etapes reprises du cache (CACHED) : 11
+
+# 💬 2) docker run (commande du pas-a-pas).
+PS> docker run -d -p 8000:8000 --name indusense -e INDUSENSE_API_KEY=dev-key indusense:0.1.0
+d0659b11802b4c81f9cf9ef71bd21a3151c5229abeee41b6086d89592740bead
+# code retour : 0
+
+# 💬 2b) API prete : oui, apres ~6 s
+
+# 💬 3) Route 1 : GET /health -> 200 attendu.
+PS> curl.exe -s -w " | HTTP %{http_code}" http://127.0.0.1:8000/health
+{"status":"ok"} | HTTP 200
+# code retour : 0
+
+# 💬 4) Route 2 : GET /ready -> 200 attendu (modele dans l'image, Variante A).
+PS> curl.exe -s -w " | HTTP %{http_code}" http://127.0.0.1:8000/ready
+{"status":"ready","model_version":"0.1.0"} | HTTP 200
+# code retour : 0
+
+# 💬 5) Route 3 : POST /predict-tabular avec cle -> 200 attendu.
+PS> curl.exe -s -w " | HTTP %{http_code}" -X POST -H "X-API-Key: dev-key" -H "Content-Type: application/json" --data-binary "@payload.json" http://127.0.0.1:8000/predict-tabular
+{"machine_id":"MACH-07","proba_panne":0.075,"decision":"ok","model_version":"0.1.0","threshold":0.5} | HTTP 200
+# code retour : 0
+
+# 💬 6) docker exec indusense whoami -> appuser attendu.
+PS> docker exec indusense whoami
+appuser
+# code retour : 0
+
+# 💬 6b) Confirmation numerique (uid 10001, pas 0).
+PS> docker exec indusense id
+uid=10001(appuser) gid=10001(appuser) groups=10001(appuser)
+# code retour : 0
+
+# 💬 7) docker rm -f indusense : liberer le port 8000 avant le M28.
+PS> docker rm -f indusense
+indusense
+# code retour : 0
+
+# 💬 7b) Verification du nettoyage.
+port 8000 : OCCUPE
+image conservee : indusense:0.1.0 1.81GB
+
+# 💬 7c) CONTROLE REJOUE quelques instants plus tard (10:20) :
+conteneur indusense restant : [] (vide attendu)
+port 8000 : libre
+
+# 💬 ---- CORRECTIONS DE CETTE PREUVE ------------------------------------------------
+# 💬 - Les lignes 'conteneur indusense existant / restant' ont plante (InvokeMethodOnNull) : erreur de MON script, qui ne gerait pas
+# 💬   une sortie VIDE de docker ps (c'etait pourtant le resultat attendu). Controle rejoue ci-dessus avec la bonne ecriture.
+# 💬 - 'port 8000 : OCCUPE' juste apres docker rm -f : Docker Desktop libere le port avec un court delai ; le controle etait
+# 💬   trop rapide. Rejoue : port libre, aucun conteneur indusense.
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 PREUVE FINALE DU M27 ATTEINTE :
+# 💬 - docker build OK (code 0) en 3,6 s au lieu de ~413 s : 11 etapes reprises du CACHE (CACHED). Rien n'a change depuis le
+# 💬   1er build, donc Docker reutilise toutes les couches : c'est l'interet de 'dependances avant le code'.
+# 💬 - docker run -> API prete en ~6 s -> /health 200 -> /ready 200 -> /predict-tabular 200 (MACH-07, 0.075, ok).
+# 💬 - docker exec indusense whoami -> appuser (uid=10001) : l'API ne tourne PAS en root.
+# 💬 - docker rm -f indusense -> conteneur supprime, port 8000 libre pour le M28 ; image indusense:0.1.0 conservee.
