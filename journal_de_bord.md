@@ -1420,6 +1420,66 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - *Constat à traiter* : `verifier_jalon` affiche **802 avertissements** venant de **mon** test `tests/test_logs_no_leak.py` (NumPy : « array.shape = self.shape »). *Hypothèse* : déclenchés par l'entraînement du faux modèle pendant que je passe la journalisation standard en DEBUG dans ce test. Pas un échec, mais du bruit à réduire.
 - *Ma reformulation :* …
 
+**Ouverture + préflight Docker** *(pas-à-pas R2, « Ouverture + préflight Docker »)*
+
+📎 **Preuve brute** : [preuves/27_p1_preflight_docker.txt](preuves/27_p1_preflight_docker.txt)
+
+| # | Commande | Rôle | Résultat |
+|---|---|---|---|
+| 1 | `docker version` | Le **client** (la commande `docker`) parle-t-il au **serveur** (le moteur) ? | client **29.7.2** / serveur **29.7.2** / `linux-amd64` |
+| 2 | `docker info` | Où tourne le moteur ? | Docker Desktop, moteur Linux dans **WSL2** (noyau `…-microsoft-standard-WSL2`), 4 CPU, ~8 Go de RAM |
+| 3 | **`docker run --rm hello-world`** (préflight **obligatoire** du pas-à-pas) | Télécharger une image, créer un conteneur, l'exécuter, le supprimer (`--rm`) | `Pulling from library/hello-world` … **`Hello from Docker!`** ✅ |
+| 4 | `docker ps -a` + port 8000 | Rien ne doit gêner le TP | port **8000 libre** ✅ |
+
+- *Image* = le paquet (ici `hello-world:latest`, téléchargé depuis **Docker Hub**) ; *conteneur* = l'image **en cours d'exécution** ; `--rm` = supprimer le conteneur à la fin.
+- ⚠️ *Découverte* : **2 conteneurs d'un autre projet** (`C:\Users\issal\Indusense\.docker` : `docker-db-1` = Postgres 15.9, `docker-admin-1` = pgAdmin) **redémarrent automatiquement** avec Docker Desktop. Ports : **5433** et **8081**. **Aucun conflit** avec le port 8000 du M27 ; **non touchés**. À surveiller au **M28** (Postgres) : vérifier les ports avant `docker compose up`. Même projet que le serveur MLflow du port 5000 (incident du M24).
+
+**Théorie — image = couches, multi-stage, non-root** *(pas-à-pas R2, « Théorie — image = couches, multi-stage, non-root »)*
+
+| Notion | Explication | Pourquoi c'est utile |
+|---|---|---|
+| **Image** | Paquet **immuable** : l'application + Python + ses dépendances (+ ici le modèle). Construite à partir d'un `Dockerfile`. | Le **même** paquet tourne pareil sur mon PC, en CI, en production : fini « ça marche sur ma machine » |
+| **Conteneur** | Une image **en cours d'exécution** (comme un programme lancé à partir d'un installateur). | On peut en lancer plusieurs à partir de la même image |
+| **Couches** | Chaque instruction du `Dockerfile` (`COPY`, `RUN`…) crée une **couche**, mise en **cache**. Si une couche n'a pas changé, Docker la réutilise. | D'où la règle « **dépendances avant le code** » : modifier mon code ne réinstalle pas toutes les dépendances |
+| **Multi-stage** | Deux étapes : un étage **`build`** (gros : outils, `uv`) qui prépare l'environnement, puis un étage **`runtime`** (mince) qui ne **recopie que le résultat**. | « Builder gros, livrer mince » : image plus légère, moins d'outils donc **moins de surface d'attaque** |
+| **Non-root** | L'application tourne sous un utilisateur **sans droits d'administrateur** (`appuser`). | Si l'API est piratée, l'attaquant **n'est pas root** dans le conteneur (moindre privilège, comme au M26) |
+| **Variante A** | Le **modèle** (`rf.joblib`) est **inclus dans l'image**. | `/ready` répond 200 dès le démarrage. L'image **emballe** le modèle, elle n'est pas « le modèle figé » |
+
+**Tour du code (Dockerfile réel)** *(pas-à-pas R2, « Tour du code (Dockerfile réel) »)*
+
+[Dockerfile](Dockerfile) (livré par le jalon 05), instruction par instruction :
+
+| Ligne | Instruction | Rôle |
+|---|---|---|
+| 50 | `FROM python:3.13-slim AS build` | **Étage 1 « build »** : part d'une image Python 3.13 allégée |
+| 57 | `COPY --from=ghcr.io/astral-sh/uv:0.11.19 /uv /usr/local/bin/uv` | Récupère l'outil `uv` (version **épinglée**) |
+| 79 | `COPY pyproject.toml uv.lock ./` | Copie **d'abord** le manifeste et le verrou… |
+| 94 | `RUN … uv sync --frozen --no-install-project --no-dev` | …et installe **les dépendances seules** (couche mise en **cache** tant que le lock ne change pas) · `--frozen` = versions exactes du lock (M24) · `--no-dev` = sans pytest, ruff… |
+| 100-108 | `COPY src ./src` puis `uv sync --frozen --no-dev --no-editable` | **Ensuite** le code, puis installe le package (non éditable : une vraie copie) |
+| 115 | `FROM python:3.13-slim AS runtime` | **Étage 2 « runtime »** : repart d'une image **vierge** (mince) |
+| 123-126 | `apt-get upgrade` · `pip uninstall pip setuptools` | Mises à jour de sécurité ; **retire `pip`** : moins d'outils exploitables |
+| 136 | `useradd -m -u 10001 appuser` | Crée l'utilisateur **non-root** (uid 10001) |
+| 152-154 | `ENV PATH=/app/.venv/bin… INDUSENSE_MODEL_DIR=/app/artifacts/models` | Utilise l'environnement Python copié ; dit à l'API où est le modèle |
+| 160 | `COPY --from=build /app/.venv /app/.venv` | **Ne recopie que le résultat** de l'étage build (pas `uv`, pas les caches) |
+| 167 | `COPY artifacts/models ./artifacts/models` | **Variante A** : le modèle entre dans l'image |
+| 172 | `USER appuser` | À partir d'ici, tout tourne **sans droits root** |
+| 178 | `EXPOSE 8000` | Documente le port de l'API |
+| 191-192 | `HEALTHCHECK … urlopen('http://localhost:8000/health')` | Docker interroge `/health` toutes les 30 s : le conteneur passe « **healthy** » / « unhealthy » (utilisé au M28) |
+| 206 | `CMD ["uvicorn", "indusense.api.main:app", "--host", "0.0.0.0", "--port", "8000"]` | Démarre l'API. **`--host 0.0.0.0`** : écoute sur **toutes** les interfaces, sinon elle serait injoignable depuis l'extérieur du conteneur |
+
+[.dockerignore](.dockerignore) — ce qui **n'entre pas** dans l'image (contexte de construction) :
+
+| Exclu | Pourquoi |
+|---|---|
+| `.git`, `.github`, `.venv*`, `__pycache__`, caches, `dist` | Inutile à l'exécution, et lourd |
+| **`.env`** | **Secrets** : jamais dans une image (on les passe au lancement, `-e …` ou `--env-file`) |
+| `*.md`, `tests`, `Makefile`, `.pre-commit-config.yaml` | Documentation et outils de développement |
+| `data` | Données brutes et Gold : pas nécessaires pour **servir** des prédictions |
+| `artifacts/*` **sauf** `!artifacts/models` et `!artifacts/models/**` | Tout `artifacts/` est exclu… **sauf le modèle** (Variante A) |
+
+- **Piège du pas-à-pas : « gitignoré = absent de l'image ? » → non.** Git et Docker sont **deux périmètres distincts**. Chez moi, `rf.joblib` est **ignoré par Git** depuis le M24 (suivi par DVC), mais **présent sur le disque** ; le `.dockerignore` le **garde** (`!artifacts/models`) → il entrera dans l'image. À **vérifier** au build.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : … / Ma preuve : … (`docker build` · image non-root) / Compétence(s) : C6 / Difficulté : …
 
 **Module 28 — Déploiement local & compose** · *C6 · C7*
