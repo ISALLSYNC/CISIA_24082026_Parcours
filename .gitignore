@@ -65,3 +65,8 @@ build/
 mlflow.db
 mlruns/
 mlartifacts/
+
+# [PÉDAGOGIE] M29-M30 — démo Prefect : base SQLite et page de visualisation régénérées à chaque
+# [PÉDAGOGIE] exécution de scripts/demo_prefect_idempotence.py ; elles n'entrent pas dans Git.
+predictions.db
+predictions.html

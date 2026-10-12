@@ -1836,7 +1836,38 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 
 - ✅ **Prédiction confirmée**. 🔑 **Bug silencieux** : sans `by`, le tableau a l'air parfaitement normal (bonnes colonnes, aucune valeur manquante) ; seules les **valeurs** sont fausses. Le modèle apprendrait sur des pressions qui ne sont pas les siennes.
 - 🔗 **Lien M23** : même idée que la fuite temporelle (`shift(1)`), mais **entre machines**. Au M23, on protégeait le **temps** ; ici, l'**identité** de la machine. Même logique que le `groupby("machine")` de `clean_sensor_data`.
-- ⚠️ **Écart avec le pas-à-pas** (« résidu non joint ≈ **1,76 %** ») — **expliqué, pas « arrangé »** : ce chiffre vient du **jeu complet** (**66 800 températures, 15 machines** : 1 175 / 66 800), cité dans [memo_metriques_sans_confusion.md](docs/memo_metriques_sans_confusion.md) et [CONTROLES_AVANT_PROCHAINE_SESSION.md](docs/CONTROLES_AVANT_PROCHAINE_SESSION.md), **absent du dépôt**. Le jeu du dépôt est **horaire et aligné** : chaque température trouve sa pression → **0,00 % est le bon chiffre ici**.
+- ⚠️ **Écart avec le pas-à-pas** (« résidu non joint ≈ 1,76 % ») — voir ci-dessous.
+
+**TP socle — flow « hello » + design** *(pas-à-pas R2, « TP socle — flow « hello » + design ») — partie 1 : le flow « hello »*
+
+📎 **Preuve brute** : [preuves/29_tp_hello.txt](preuves/29_tp_hello.txt) · 📎 **Code** : [src/indusense/flows/hello.py](src/indusense/flows/hello.py)
+
+*Cahier des charges (fiche TD 29)* : un `@flow` appelant une `@task(retries=2)`, lancé par `uv run python -m indusense.flows.hello`, qui affiche `pong:indusense` et un run journalisé. **Le code exact n'est pas dans la fiche** : écrit par Claude à partir de ce cahier des charges, **montré et validé par moi avant écriture**.
+
+*Fichiers créés :*
+
+| Fichier | Rôle |
+|---|---|
+| `src/indusense/flows/__init__.py` | Fait de `flows/` un **sous-package** Python (sinon `python -m indusense.flows.hello` est impossible) |
+| `src/indusense/flows/hello.py` | `@task(retries=2, retry_delay_seconds=1) ping(name)` → `"pong:<name>"` · `@flow(name="hello-indusense") hello_flow()` qui l'appelle et journalise le résultat avec `get_run_logger()` · lancement par **appel direct** `hello_flow()` (pas de `flow.run()` en Prefect 3) |
+
+- `retry_delay_seconds=1` et le paramètre `name` sont **mes ajouts** (relance visible rapidement ; préparation du « défi » flow paramétré).
+
+*Résultats :*
+
+| # | Commande | Résultat |
+|---|---|---|
+| 1 | `uv run --frozen python -m indusense.flows.hello` (profil `ephemeral`) | `Starting temporary server on http://127.0.0.1:8071` → run **`military-asp`** du flow **`hello-indusense`** → task `ping` **Completed** → log « Résultat de la task ping : pong:indusense » → flow **`Finished in state Completed()`** → affiche **`pong:indusense`** ✅ |
+| 2 | `uv run --frozen python scripts/demo_prefect_idempotence.py --flaky` | task `store` : **`Task run failed … panne transitoire simulée de la base`** → **`Retry 1/2 will start 1 second(s) from now`** → **réussite au 2ᵉ essai** (`lignes en base 0 -> 12`) → flow **Completed** ✅ |
+| 3 | `ruff` / `black` sur `src/indusense/flows` | propres ✅ |
+
+- ✅ **Attendu atteint** : flow « hello » vert (run *Completed*) **et** un retry **réellement visible** avant le succès (fiche TD 29).
+- **« Temporary server »** : en mode `ephemeral`, Prefect démarre un serveur **local en mémoire** le temps du run, puis l'arrête. Rien en ligne.
+- **Le retry de la démo est le bon cas d'usage** : une erreur **transitoire** sur une **ressource externe** (la base). Dans `hello`, `ping` ne peut pas échouer : ses `retries=2` ne se voient pas — d'où la démo `--flaky`.
+- La démo enchaîne **3 tasks** `ingest → predict_batch → store` (12 prédictions : 4 machines × 3 moments) dans une base **SQLite** locale `predictions.db`.
+- *Correction* : `predictions.db` et `predictions.html` (générés par la démo) n'étaient **pas ignorés** par Git → ajoutés au `.gitignore` avec un commentaire `[PÉDAGOGIE]` (même logique que `mlflow.db` au M24).
+
+*Écart avec le pas-à-pas sur le piège data* (« résidu non joint ≈ **1,76 %** ») — **expliqué, pas « arrangé »** : ce chiffre vient du **jeu complet** (**66 800 températures, 15 machines** : 1 175 / 66 800), cité dans [memo_metriques_sans_confusion.md](docs/memo_metriques_sans_confusion.md) et [CONTROLES_AVANT_PROCHAINE_SESSION.md](docs/CONTROLES_AVANT_PROCHAINE_SESSION.md), **absent du dépôt**. Le jeu du dépôt est **horaire et aligné** : chaque température trouve sa pression → **0,00 % est le bon chiffre ici**.
 - *Ma reformulation :* …
 - Ce que j'ai fait : … / Ma preuve : … (design du flow `ingest→feature→predict→store` + flow « hello ») / Compétence(s) : C6, C7 / Difficulté : …
 
