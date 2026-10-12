@@ -1727,6 +1727,7 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 
 - ✅ **Attendu atteint** : stack attendue, `/health` 200, smoke **reproductible**. Rien à « corriger » côté course au démarrage : `depends_on … service_healthy` la supprime déjà, et les horodatages le **prouvent**.
 - **Le volume persiste** : au redémarrage, Postgres écrit « *Database directory appears to contain a database; **Skipping initialization*** » — au 1ᵉʳ lancement, il l'avait initialisée. `down` supprime les **conteneurs**, pas les **données** (il faudrait `down -v`).
+- **CI GitHub sur l'état final du M28** : push `726084f..1991d3d` → run [38232053890](https://github.com/ISALLSYNC/CISIA_24082026_Parcours/actions/runs/38232053890) → **`quality` success** (Tests compris) · **`build` success**. La CI n'a pas de Compose : la réussite de l'étape *Tests* montre que les smoke tests **n'y font pas échouer** la suite (sautés par `skipif`, *déduit* : le détail du journal CI n'a pas été lu).
 - **Les smoke tests ont 2 comportements, tous deux prouvés** : stack lancée → **`3 passed`** ; stack arrêtée (comme en CI) → **`3 skipped`**, jamais en échec.
 
 **Bilan M28**
