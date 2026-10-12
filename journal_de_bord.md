@@ -1601,7 +1601,24 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **Aide IA reçue** : Claude Code a lancé Docker Desktop, résolu la fusion (même schéma que validé aux jalons 03 et 04), exécuté les commandes Docker, analysé la taille de l'image et produit les preuves commentées. **J'ai décidé moi-même** de ne pas alléger l'image (objectif = conteneurisation). **Je dois savoir réexpliquer : image vs conteneur, couches et cache, multi-stage, non-root, Variante A, `--host 0.0.0.0`, pourquoi `.env` n'est pas dans l'image, pourquoi `docker rm -f` à la fin.**
 - **Difficultés / questions** : 2 conteneurs d'un autre projet (ports 5433, 8081) à surveiller au M28 · 802 avertissements de mon test du M26 · deux commandes bloquées par la protection de l'outil (mot `rm`), rejouées via script.
 
-**Module 28 — Déploiement local & compose** · *C6 · C7*
+**Module 28 — Déploiement local & compose** · *C6 · C7* · *(en cours — 12/10/2026)*
+
+**Charge le jalon 06 — AVANT M28** *(pas-à-pas R2, « Charge le jalon 06 — AVANT M28 »)*
+
+📎 **Preuve brute** : [preuves/28_p0_fusion_jalon06.txt](preuves/28_p0_fusion_jalon06.txt)
+
+*Préalables demandés :* conteneur autonome M27 **retiré** (fait en fin de M27 : aucun conteneur `indusense`) · travail du matin **commité** · Docker Desktop actif.
+
+*Simulation* (`git fetch origin jalon/06` = `948382a`, `git merge-tree`) → **1 seul conflit** : `.github/workflows/ci.yml`. Vérifié ligne par ligne : le jalon n'y fait que **remettre la CI d'origine** (sans `--frozen`, sans job `build`) → **garder ma version** (`ours`), comme aux jalons 03, 04 et 05.
+
+*Ce que le jalon apporte :* **`docker-compose.yml`** (158 lignes) · `monitoring/prometheus.yml` · `monitoring/grafana/provisioning/datasources/datasource.yml` · **`tests/test_smoke_compose.py`** (+ mises à jour de `Dockerfile`, `.dockerignore`, `.env.example`, `Makefile`, `pyproject.toml`, fusionnées automatiquement).
+
+*Fusion et vérification AVANT validation :* sauvegarde `sauvegarde/ismael-sall/20261012-104450` → merge → `checkout --ours` → aucun marqueur · `ci.yml` garde `--frozen` et `build` · marqueur **`06-j3-apres-midi-m28`** · `verifier_jalon.ps1 -Jalon 06` → **`Jalon verifie : jalon/06`** · **`31 passed, 1 skipped`** · ruff / black propres.
+
+*Validation :* commit de fusion **`eaf185f`** (parents `726084f` = ma branche, `948382a` = jalon 06) ; gitleaks **Passed**.
+
+- **Le test sauté** : `tests/test_smoke_compose.py` est marqué `SKIPPED` avec le message « **A completer en M28 apres docker compose up** ». C'est le test que le pas-à-pas demande de **créer** au M28 (« 3 smoke tests verts »). Un *smoke test* (« test de fumée ») vérifie rapidement que l'essentiel marche une fois tout démarré.
+- *Ma reformulation :* …
 - Ce que j'ai fait : … / Ma preuve : … (`docker compose up -d --wait` · api + db *healthy* · 3 smoke tests verts) / Compétence(s) : C6, C7 / Difficulté : …
 
 ### J4 — mar. 01/09
