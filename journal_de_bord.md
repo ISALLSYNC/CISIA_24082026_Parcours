@@ -1742,7 +1742,7 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 
 *(Matin : M29 puis M30. Après-midi : M31-M32 en **passe 1 sur `tp_payguard`**.)*
 
-**Module 29 — Orchestration Prefect (design)** · *C6 · C7* · *(en cours — 12/10/2026)*
+**Module 29 — Orchestration Prefect (design)** · *C6 · C7* · *(terminé — 12/10/2026)*
 
 **Charge le jalon 07 — AVANT M29** *(pas-à-pas R2, « Charge le jalon 07 — AVANT M29 »)*
 
@@ -1869,7 +1869,54 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 
 *Écart avec le pas-à-pas sur le piège data* (« résidu non joint ≈ **1,76 %** ») — **expliqué, pas « arrangé »** : ce chiffre vient du **jeu complet** (**66 800 températures, 15 machines** : 1 175 / 66 800), cité dans [memo_metriques_sans_confusion.md](docs/memo_metriques_sans_confusion.md) et [CONTROLES_AVANT_PROCHAINE_SESSION.md](docs/CONTROLES_AVANT_PROCHAINE_SESSION.md), **absent du dépôt**. Le jeu du dépôt est **horaire et aligné** : chaque température trouve sa pression → **0,00 % est le bon chiffre ici**.
 - *Ma reformulation :* …
-- Ce que j'ai fait : … / Ma preuve : … (design du flow `ingest→feature→predict→store` + flow « hello ») / Compétence(s) : C6, C7 / Difficulté : …
+
+**TP socle — partie 2 : le design du flow** *(« Dessiner le flow `ingest→feature→predict→store` + une table I/O, à figer **avant** d'implémenter »)*
+
+📎 **Livrable** : [docs/flow_design.md](docs/flow_design.md)
+
+*Méthode :* brouillon construit par Claude **à partir du code existant** (loaders, `add_temporal_features`, `tabular.py`, table `predictions` de la démo : clé `PRIMARY KEY (machine, prediction_ts)`, `INSERT … ON CONFLICT … DO UPDATE`), **montré et validé par moi** avant écriture.
+
+*Contenu :*
+
+| Section | Contenu clé |
+|---|---|
+| Diagramme (Mermaid) | `data/raw` → **ingest** → **feature** → **predict** (+ `rf.joblib`) → **store** → table `predictions` |
+| Contrats des tasks | Pour chacune : entrée, sortie, effet de bord, retry, clé d'idempotence (colonnes du modèle fourni) |
+| Erreurs par task | Type (**déterministe** / **transitoire**) et réaction |
+| Choix de conception | Retries **uniquement sur `store`** · idempotence par **clé + upsert** · pièges M23 (`shift(1)`) et M29 (`by="machine"`) écrits dans le contrat |
+| Points ouverts | Délais de retry (fiche 5/15/45 s vs démo 1 s) · seuil 0,5 vs 0,975 · base SQLite ou PostgreSQL au M30 |
+
+*Les choix à savoir défendre :*
+- **Une seule task réessaie : `store`**, la seule à toucher une **ressource externe** (la base). `ingest`, `feature`, `predict` échouent sur des erreurs **déterministes** (fichier absent, colonne manquante, modèle introuvable) : réessayer ne changerait rien.
+- **Idempotence par clé**, pas par « une seule exécution » : la même `(machine, prediction_ts)` **remplace** la ligne → `count(*)` stable.
+- `feature` est une transformation **pure** (aucun effet de bord) : rejouable à volonté.
+
+**Preuve, FAQ et correction** *(pas-à-pas R2, « Preuve, FAQ et correction » = preuve finale du M29)*
+
+📎 **Preuve brute** : [preuves/29_preuve_finale.txt](preuves/29_preuve_finale.txt)
+
+| Attendu (pas-à-pas + fiche TD 29) | Résultat |
+|---|---|
+| Flow « hello » exécutable | Run `accelerated-orca` **Completed** · `pong:indusense` ✅ |
+| Retry réellement visible (`--flaky`) | `Task run failed … panne transitoire simulée` → `Retry 1/2 will start 1 second(s) from now` → succès ✅ |
+| `flow_design.md` : diagramme Mermaid des 4 tâches + table I/O | bloc `mermaid` présent · `ingest`, `feature`, `predict`, `store` dans le diagramme, la table des contrats **et** la table des erreurs ✅ · retries **uniquement** sur `store` ✅ |
+| Qualité | **31 passed, 3 skipped** (smoke compose, stack arrêtée) · ruff / black propres ✅ |
+
+- **Bonus observé** : au 2ᵉ passage de la démo, `lignes en base 12 -> 12 (nouvelles : 0)` → **« IDEMPOTENT (0 nouvelle ligne) »** : aperçu de la preuve du M30.
+- *Erreur corrigée dans mon contrôle* : la 1ʳᵉ vérification cherchait `ingest[` alors que le diagramme écrit `I[ingest]` → « absent » **à tort**. Motif corrigé : les 4 tâches sont bien dans le diagramme. Erreur de **mon contrôle**, pas du document.
+
+*FAQ (pas-à-pas) :*
+- « Pourquoi pas un simple cron ? » → cron **lance**, point ; un orchestrateur ajoute **retries, observabilité, dépendances**.
+- « On réessaie toutes les erreurs ? » → **non**, seulement les **transitoires** (base absente 1 s), pas les déterministes.
+- 🔑 `merge_asof` **sans `by="machine"`** ne lève **aucune erreur** : bug silencieux.
+
+**Bilan M29**
+
+- **Ce que j'ai fait** : fusionné le jalon 07 (2 conflits dont **mes smoke tests du M28**, conservés) · vérifié Prefect 3.7.6 et forcé le **profil local** (`ephemeral`, aucun Cloud) · compris pourquoi orchestrer (retries, observabilité, dépendances) · **joué le piège de la fuite inter-machines** (prédiction 1-B / 2-A confirmée ; 75 % des lignes contaminées sans `by`) · créé le flow **« hello »** · vu un **retry** en direct · **conçu** le pipeline `ingest → feature → predict → store` (diagramme + contrats + erreurs).
+- **Mes preuves** : `pong:indusense` (run Completed) · `Retry 1/2 … ` puis succès · 1 440 / 1 920 lignes contaminées sans `by` vs 0,00 % non joint avec · [docs/flow_design.md](docs/flow_design.md) · 31 tests verts.
+- **Compétence(s)** : C6 (implémenter) · C7 (architecture : concevoir un pipeline et ses contrats)
+- **Aide IA reçue** : Claude Code a fusionné le jalon, vérifié la configuration Prefect, écrit le script de démonstration de la fuite, écrit `hello.py` et le brouillon du design **à partir de cahiers des charges et du code existant** (montrés et **validés par moi**), produit les preuves. **J'ai fait les prédictions** du piège data. **Je dois savoir réexpliquer : task / flow / run, retries et backoff, transitoire vs déterministe, idempotence par clé + upsert, pourquoi `by="machine"`, pourquoi seul `store` réessaie.**
+- **Difficultés / questions** : écart 1,76 % (jeu complet absent du dépôt) · `flows/pipeline.py` à créer (référence au jalon 08) · délais de retry et seuil à trancher.
 
 **Module 30 — Implémentation du flow** · *C6*
 - Ce que j'ai fait : … / Ma preuve : … (2 runs → 0 doublon, `count(*)` stable) / Compétence(s) : C6 / Difficulté : …
