@@ -1589,6 +1589,7 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 | 7 | `docker rm -f indusense` | Conteneur supprimé ; port 8000 **libre** (après un court délai) ; image **conservée** |
 
 - ✅ **Preuve finale du M27 atteinte** : `docker build` OK · `docker run` → `/health` 200 → `/ready` 200 → `/predict-tabular` 200 · `whoami` = **appuser**.
+- **CI GitHub sur l'état final du M27** : push `7112943..d54e372` (16 commits, dont la fusion du jalon 05) → run [38223018120](https://github.com/ISALLSYNC/CISIA_24082026_Parcours/actions/runs/38223018120) → **`quality` success** · **`build` success**. (La CI ne construit pas l'image Docker : elle teste le code et fabrique le wheel.)
 - **Le cache des couches en vrai** : rien n'a changé depuis le 1ᵉʳ build, donc Docker **réutilise toutes les couches** (`CACHED`) → **3,6 s au lieu de 7 minutes**. C'est l'intérêt de « dépendances avant le code » : modifier seulement `src/` ne relancerait que les dernières étapes.
 - *Corrections de ma preuve* : (1) les lignes « conteneur restant » ont planté parce que **mon** script ne gérait pas une sortie **vide** de `docker ps` (le résultat attendu) ; (2) le port affiché « OCCUPE » juste après la suppression : Docker Desktop libère le port avec un **court délai**. Les deux contrôles ont été **rejoués** : aucun conteneur `indusense`, port 8000 libre.
 
