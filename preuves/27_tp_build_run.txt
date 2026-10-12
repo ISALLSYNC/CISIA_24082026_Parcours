@@ -130,3 +130,16 @@ PS> docker ps -a --filter name=indusense   (aucune sortie attendue)
 
 port 8000 : libre
 # 💬 L'IMAGE indusense:0.1.0 est CONSERVEE (seul le conteneur est supprime) : elle resservira.
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 PREUVE FINALE VISEE ATTEINTE : docker build OK (code 0) ; docker run -> /health 200 -> /ready 200 -> /predict-tabular 200 ;
+# 💬   whoami = appuser (uid=10001, pas root) ; conteneur 'healthy' (HEALTHCHECK Docker sur /health).
+# 💬 - Meme reponse qu'hors Docker (MACH-07, 0.075, ok) : l'image reproduit fidelement l'API.
+# 💬 - 401 sans cle : les garde-fous du M26 sont dans l'image (message desormais accentue : change par le jalon 05).
+# 💬 - VARIANTE A : rf.joblib present dans /app/artifacts/models, md5 2779890061870d6a08d6efdf733da094 = celui de DVC.
+# 💬   'Gitignore' (DVC) ne veut PAS dire 'absent de l'image' : le .dockerignore le garde (!artifacts/models).
+# 💬 - .dockerignore efficace : .env, tests, data, .git ABSENTS de l'image ; pip retire du runtime.
+# 💬 - Cle API passee AU LANCEMENT (-e INDUSENSE_API_KEY=...) et non dans l'image : une image ne contient jamais de secret.
+# 💬 - A NOTER : image de 1,81 Go -> lourde pour une image 'slim'. A analyser au TP 'durcir & alleger'.
+# 💬 - Detail : les fichiers .gitignore, .gitkeep et rf.joblib.dvc du dossier modele sont aussi copies (inutiles, sans risque).
+# 💬 - Incident outil : la 1re commande de nettoyage du conteneur a ete bloquee AVANT execution par une protection de l'outil ; rejouee via un script.
