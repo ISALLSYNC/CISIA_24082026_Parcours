@@ -1601,7 +1601,7 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **Aide IA reçue** : Claude Code a lancé Docker Desktop, résolu la fusion (même schéma que validé aux jalons 03 et 04), exécuté les commandes Docker, analysé la taille de l'image et produit les preuves commentées. **J'ai décidé moi-même** de ne pas alléger l'image (objectif = conteneurisation). **Je dois savoir réexpliquer : image vs conteneur, couches et cache, multi-stage, non-root, Variante A, `--host 0.0.0.0`, pourquoi `.env` n'est pas dans l'image, pourquoi `docker rm -f` à la fin.**
 - **Difficultés / questions** : 2 conteneurs d'un autre projet (ports 5433, 8081) à surveiller au M28 · 802 avertissements de mon test du M26 · deux commandes bloquées par la protection de l'outil (mot `rm`), rejouées via script.
 
-**Module 28 — Déploiement local & compose** · *C6 · C7* · *(en cours — 12/10/2026)*
+**Module 28 — Déploiement local & compose** · *C6 · C7* · *(terminé — 12/10/2026)*
 
 **Charge le jalon 06 — AVANT M28** *(pas-à-pas R2, « Charge le jalon 06 — AVANT M28 »)*
 
@@ -1708,7 +1708,34 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - *Erreur corrigée* : ruff signalait **E501** (une ligne de commentaire de **mon** fichier faisait 101 caractères, limite du projet = 100). Ligne raccourcie → ruff **`All checks passed!`**, 3 tests toujours verts.
 - *Limite* : à cause du `skipif`, **la CI ne prouve pas** ces tests ; ils ne prouvent quelque chose que **sur mon poste, stack lancée**. C'est le rôle d'un smoke test local.
 - *Ma reformulation :* …
-- Ce que j'ai fait : … / Ma preuve : … (`docker compose up -d --wait` · api + db *healthy* · 3 smoke tests verts) / Compétence(s) : C6, C7 / Difficulté : …
+**Autonomie, correction et preuve du module 28** *(pas-à-pas R2, « Autonomie, correction et preuve du module 28 »)*
+
+📎 **Preuve brute** : [preuves/28_preuve_finale.txt](preuves/28_preuve_finale.txt)
+
+*Consigne* : « Rejoue le démarrage depuis une stack **arrêtée**, vérifie le healthcheck de `db`, puis refais les trois smoke tests. » Attendu : `docker compose ps` montre la stack attendue, `/health` répond 200 et le smoke est **reproductible**.
+
+| # | Commande | Rôle | Résultat |
+|---|---|---|---|
+| 1 | **`docker compose down`** | Arrêter **et supprimer** les 4 conteneurs + le réseau (sans `-v` : le **volume est gardé**) | Arrêt dans l'ordre inverse des dépendances (grafana, prometheus, api, **db en dernier**) · réseau supprimé · aucun conteneur restant · volume `pgdata` **toujours là** · ports 8000, 9090, 3000 **libres** |
+| 2 | `pytest tests/test_smoke_compose.py -v -rs` (stack **arrêtée**) | Vérifier le comportement « CI » | **`3 skipped`** (« stack Compose non démarrée »), code 0 : **sautés, pas échoués** ✅ |
+| 3 | **`docker compose up -d --wait`** | Redémarrer **depuis zéro** | Code **0** en **40 s** (contre 176 s : images déjà présentes) · de nouveau `db` *Healthy* **puis** `api` *Starting* |
+| 4 | `docker compose ps` | État | `api` **healthy** · `db` **healthy** · `grafana` et `prometheus` running ✅ |
+| 5 | `docker compose exec -T db pg_isready -U indusense` | Rejouer **à la main** la sonde de santé de la base | `accepting connections` ✅ · Docker : `healthy`, **0 échec consécutif** |
+| 6 | `GET /health` | Liveness | **200** ✅ |
+| 7 | Les 3 smoke tests | Reproductibles après redémarrage ? | **`3 passed`** ✅ |
+| 8 | `docker compose logs --timestamps db api` | Ordre **réel** du démarrage | `db` « *ready to accept connections* » à **09:44:33** → `api` « *Started server process* » à **09:44:46** : l'API démarre **~13 s après** que la base est prête |
+
+- ✅ **Attendu atteint** : stack attendue, `/health` 200, smoke **reproductible**. Rien à « corriger » côté course au démarrage : `depends_on … service_healthy` la supprime déjà, et les horodatages le **prouvent**.
+- **Le volume persiste** : au redémarrage, Postgres écrit « *Database directory appears to contain a database; **Skipping initialization*** » — au 1ᵉʳ lancement, il l'avait initialisée. `down` supprime les **conteneurs**, pas les **données** (il faudrait `down -v`).
+- **Les smoke tests ont 2 comportements, tous deux prouvés** : stack lancée → **`3 passed`** ; stack arrêtée (comme en CI) → **`3 skipped`**, jamais en échec.
+
+**Bilan M28**
+
+- **Ce que j'ai fait** : fusionné le jalon 06 (1 conflit, M24 conservé) · préflight Compose et **repéré à temps un `.env` incomplet** (clé et mot de passe Postgres absents) · compris le réseau privé (joindre `db` par son nom) et « **démarré ≠ prêt** » · lu le `docker-compose.yml` (4 services, `depends_on … service_healthy`, volume) · démarré la stack (`api` + `db` healthy) · **écrit les 3 smoke tests** (sautés si la stack n'est pas lancée) · exploré l'API, Prometheus (cible `indusense-api` **UP**) et Grafana (source Prometheus) · arrêté puis redémarré la stack et rejoué les tests (reproductible).
+- **Mes preuves** : `docker compose up -d --wait` code 0 · `api` + `db` **healthy** · séquence `db Healthy → api Starting` et horodatages (13 s d'écart) · **`3 passed`** stack lancée / **`3 skipped`** stack arrêtée · `pg_isready` → *accepting connections* · volume persistant (*Skipping initialization*) · 34 tests au total.
+- **Compétence(s)** : C6 (intégrer les briques) · C7 (architecture : plusieurs services qui se parlent)
+- **Aide IA reçue** : Claude Code a fusionné le jalon, repéré et complété le `.env` (sans afficher les valeurs), lancé et arrêté la stack, écrit le smoke test (code montré et **validé par moi** avant écriture), interrogé les 3 interfaces pour m'expliquer leur contenu, produit les preuves. **J'ai exploré moi-même** l'API, Prometheus et Grafana. **Je dois savoir réexpliquer : Docker Compose vs `docker run`, service, réseau privé (`db:5432` et pas `localhost`), « démarré ≠ prêt », `depends_on … service_healthy`, volume, pourquoi les smoke tests sont sautés en CI.**
+- **Difficultés / questions** : `.env` du M25 non mis à jour par la consigne « copier si absent » (corrigé) · identifiants Grafana `admin/admin` = DEV uniquement · cible Prometheus `indusense-drift` DOWN (normal, M31-M32) · erreurs corrigées de ma part (preuve qui recopiait la configuration avec les secrets, avant commit ; ligne > 100 caractères).
 
 ### J4 — mar. 01/09
 
