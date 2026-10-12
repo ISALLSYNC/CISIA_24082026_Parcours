@@ -1390,9 +1390,36 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **Aide IA reçue** : Claude Code a résolu la fusion (après analyse que j'ai validée), écrit les deux documents de sécurité à partir du code lu et des tests **vérifiés existants**, écrit le test de non-divulgation (option choisie par moi sur sa recommandation argumentée), lancé et arrêté le serveur, produit et commenté les preuves. **Je dois savoir réexpliquer : les 6 lettres de STRIDE avec un exemple chacune, pourquoi 4 Implémenté + 1 Planifié v0, pourquoi `/health` reste libre, pourquoi une dépendance « fermée », ce que le test de non-divulgation prouve et ne prouve pas.**
 - **Difficultés / questions** : emplacement des deux documents (racine vs `docs/`) · limite de corps **déclarative** et compteur de quota **par processus** (déduit du code) · clé de dev par défaut · audit logging à concevoir — voir la liste « Difficultés / questions » (section M23).
 
-### J3 — mer. 26/08
+### J3 — lun. 12/10/2026 *(date prévue dans le modèle : 26/08)*
 
-**Module 27 — Conteneurisation (Docker)** · *C6*
+**Module 27 — Conteneurisation (Docker)** · *C6* · *(en cours — 12/10/2026)*
+
+**Charge le jalon 05 — AVANT M27** *(pas-à-pas R2, « Charge le jalon 05 — AVANT M27 »)*
+
+📎 **Preuve brute** : [preuves/27_p0_fusion_jalon05.txt](preuves/27_p0_fusion_jalon05.txt)
+
+*Préalables :*
+- **Serveur API arrêté** : il tournait encore sur le port 8000 (relancé pour explorer `/docs`) ; arrêté par `taskkill /T` sur les 3 processus du `.venv` de CISIA, port 8000 libre. Indispensable : le `docker run -p 8000:8000` du TP aurait sinon échoué (« port already allocated »).
+- **Docker Desktop lancé** (le pas-à-pas : « Lance Docker Desktop ») : le moteur était **arrêté** (`failed to connect to the docker API`). Installé par utilisateur dans `C:\Users\issal\AppData\Local\Programs\DockerDesktop\` (pas dans `C:\Program Files`) ; lancé par Claude, moteur prêt : **serveur 29.7.2**.
+- `.env` jamais suivi par Git (`git ls-files .env` → vide).
+
+*Simulation puis analyse* (`git fetch origin jalon/05` = `db242c4`, `git merge-tree`) → **3 conflits**, même schéma qu'aux jalons 03 et 04 :
+
+| Fichier | Mon côté | Côté jalon 05 | Décision |
+|---|---|---|---|
+| `.github/workflows/ci.yml` | **Mon M24** (`--frozen` + `build`) | Retour à la CI d'origine | **Garder ma version** (`ours`) |
+| `.env.example` | Socle seulement (jamais modifié par moi) | Ajoute `INDUSENSE_API_KEY`, `INDUSENSE_DECISION_THRESHOLD`, `POSTGRES_PASSWORD` (valeurs d'**exemple**, pour Docker / M28) | **Version du jalon** (`theirs`) — comble le manque noté au M25 (clé absente de `.env.example`) |
+| `Makefile` | Socle seulement | Ajoute les cibles `serve`, `docker-build`, `up`, `down`, `logs`, `ps` et `--frozen` | **Version du jalon** (`theirs`) |
+
+- Apports sans conflit : **`Dockerfile`** (206 lignes), **`.dockerignore`** (111 lignes), `scripts/check_image.py`.
+
+*Fusion et vérification AVANT validation :* sauvegarde `sauvegarde/ismael-sall/20261012-094014` → merge → résolution → aucun marqueur de conflit · `ci.yml` garde `--frozen` et `build` · noms des variables de `.env.example` vérifiés (valeurs masquées) · marqueur **`05-j3-matin-m27`** · `verifier_jalon.ps1 -Jalon 05` → **`Jalon verifie : jalon/05`**, **`31 passed`** · ruff / black propres · Model Card toujours `C5=READY_FOR_REVIEW` · livrables M24 / M26 présents.
+
+*Validation :* commit de fusion **`b71b0aa`** (parents `7112943` = ma branche, `db242c4` = jalon 05) ; gitleaks **Passed** (malgré `POSTGRES_PASSWORD=…` d'exemple dans `.env.example`).
+
+- *Constat à traiter* : `verifier_jalon` affiche **802 avertissements** venant de **mon** test `tests/test_logs_no_leak.py` (NumPy : « array.shape = self.shape »). *Hypothèse* : déclenchés par l'entraînement du faux modèle pendant que je passe la journalisation standard en DEBUG dans ce test. Pas un échec, mais du bruit à réduire.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : … / Ma preuve : … (`docker build` · image non-root) / Compétence(s) : C6 / Difficulté : …
 
 **Module 28 — Déploiement local & compose** · *C6 · C7*

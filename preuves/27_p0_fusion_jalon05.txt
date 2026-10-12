@@ -1,0 +1,246 @@
+﻿# Preuve : M27 etape 0 - fusion MANUELLE du jalon 05 (3 conflits resolus)
+# Date : 2026-10-12 09:40
+# Branche : ismael-sall @ 7112943 (avant fusion)
+
+# 💬 PREALABLES : serveur API arrete (port 8000 libre) ; Docker Desktop lance (moteur 29.7.2) ; .env jamais suivi par Git.
+# 💬 POURQUOI MANUELLE : la simulation (git merge-tree) a detecte 3 conflits ; le script officiel annulerait la fusion.
+# 💬 RESOLUTION DECIDEE : .github/workflows/ci.yml = MA version (M24 : --frozen + job build ; le jalon remet la CI d'origine)
+# 💬                     .env.example = version du JALON 05 (ajoute INDUSENSE_API_KEY, INDUSENSE_DECISION_THRESHOLD, POSTGRES_PASSWORD : valeurs d'EXEMPLE)
+# 💬                     Makefile     = version du JALON 05 (cibles serve, docker-build, up, down, logs, ps ; --frozen)
+
+# 💬 1) Branche de sauvegarde sur l'etat actuel.
+PS> git branch sauvegarde/ismael-sall/20261012-094014
+
+# code retour : 0
+
+# 💬 2) Recuperer le jalon 05 officiel.
+PS> git fetch origin jalon/05
+From https://github.com/thomasfesq/CISIA_24082026_Parcours
+ * branch            jalon/05   -> FETCH_HEAD
+# code retour : 0
+
+# 💬 2b) Commit du jalon recupere.
+PS> git rev-parse --short FETCH_HEAD
+db242c4
+# code retour : 0
+
+# 💬 3) Fusion : attendu = 3 conflits (.env.example, ci.yml, Makefile).
+PS> git merge --no-ff --no-edit -m "Merge branch 'jalon/05' of https://github.com/thomasfesq/CISIA_24082026_Parcours into ismael-sall" FETCH_HEAD
+Auto-merging .env.example
+CONFLICT (content): Merge conflict in .env.example
+Auto-merging .github/workflows/ci.yml
+CONFLICT (content): Merge conflict in .github/workflows/ci.yml
+Auto-merging .gitignore
+Auto-merging Makefile
+CONFLICT (content): Merge conflict in Makefile
+Auto-merging scripts/demo_versioning.py
+Automatic merge failed; fix conflicts and then commit the result.
+# code retour : 1
+
+# 💬 3b) Fichiers en conflit (U = unmerged).
+PS> git diff --name-only --diff-filter=U
+.env.example
+.github/workflows/ci.yml
+Makefile
+# code retour : 0
+
+# 💬 4) ci.yml : garder MA version (ours).
+PS> git checkout --ours -- .github/workflows/ci.yml
+
+# code retour : 0
+
+# 💬 5) .env.example : version du JALON (theirs).
+PS> git checkout --theirs -- .env.example
+
+# code retour : 0
+
+# 💬 5b) Makefile : version du JALON (theirs).
+PS> git checkout --theirs -- Makefile
+
+# code retour : 0
+
+# 💬 6) Marquer les 3 conflits comme resolus.
+PS> git add -- .github/workflows/ci.yml .env.example Makefile
+
+# code retour : 0
+
+# 💬 7) Reste-t-il des conflits ? (aucune sortie attendue)
+PS> git diff --name-only --diff-filter=U
+
+# code retour : 0
+
+# 💬 7b) Aucun marqueur de conflit oublie ? (aucune sortie attendue)
+PS> findstr /n /c:"<<<<<<<" /c:">>>>>>>" .github\workflows\ci.yml .env.example Makefile
+
+# code retour : 1
+
+# 💬 8) ci.yml garde-t-il --frozen et le job build ?
+PS> findstr /n /c:"run: uv sync --frozen" /c:"build:" /c:"needs: quality" .github\workflows\ci.yml
+60:        run: uv sync --frozen --extra dev
+82:  build:
+83:    # [PÉDAGOGIE] GARDE — `needs: quality` : build ne démarre que si quality est vert. On ne
+85:    needs: quality
+# code retour : 0
+
+# 💬 9) .env.example : noms des variables (valeurs masquees ici par prudence).
+PS> powershell -NoProfile -Command "Get-Content .env.example | Where-Object { $_ -match '^[A-Z_]+=' } | ForEach-Object { ($_ -split '=')[0] + ' = ***' }"
+INDUSENSE_DATA_DIR = ***
+INDUSENSE_GOLD_DIR = ***
+INDUSENSE_MODEL_DIR = ***
+INDUSENSE_RANDOM_SEED = ***
+INDUSENSE_TARGET_COL = ***
+INDUSENSE_INCIDENT_WINDOW_HOURS = ***
+INDUSENSE_API_KEY = ***
+INDUSENSE_DECISION_THRESHOLD = ***
+POSTGRES_PASSWORD = ***
+# code retour : 0
+
+# 💬 10) Le Dockerfile et le .dockerignore sont-ils arrives ?
+PS> cmd /c dir /b Dockerfile .dockerignore scripts\check_image.py
+Dockerfile
+.dockerignore
+check_image.py
+# code retour : 0
+
+# 💬 11) Marqueur de jalon (attendu 05-j3-matin-m27).
+PS> findstr /b /c:"# Jalon actuel" FORMATION\JALON_ACTUEL.md
+# Jalon actuel : 05-j3-matin-m27
+# code retour : 0
+
+# 💬 12) Script officiel de verification du jalon 05.
+PS> powershell -ExecutionPolicy Bypass -File .\scripts\formation\verifier_jalon.ps1 -Jalon 05
+Uninstalled 30 packages in 19.31s
+ - blinker==1.9.0
+ - contourpy==1.3.3
+ - cycler==0.12.1
+ - databricks-sdk==0.119.0
+ - flask==3.1.3
+ - flask-cors==6.0.5
+ - fonttools==4.63.0
+ - google-auth==2.55.1
+ - graphene==3.4.3
+ - graphql-core==3.2.11
+ - graphql-relay==3.2.0
+ - huey==3.0.3
+ - importlib-metadata==9.0.0
+ - itsdangerous==2.2.0
+ - kiwisolver==1.5.0
+ - matplotlib==3.11.0
+ - mlflow==3.14.0
+ - mlflow-skinny==3.14.0
+ - mlflow-tracing==3.14.0
+ - opentelemetry-sdk==1.43.0
+ - opentelemetry-semantic-conventions==0.64b0
+ - pillow==12.2.0
+ - prettytable==3.18.0
+ - pyasn1==0.6.3
+ - pyasn1-modules==0.4.2
+ - skops==0.14.0
+ - sqlparse==0.5.5
+ - waitress==3.0.2
+ - werkzeug==3.1.8
+ - zipp==4.1.0
+...............................                                          [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\issal\CISIA_24082026_Parcours\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:152: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    tolerance=pd.Timedelta(minutes=tolerance_minutes),
+
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:169: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    window = pd.Timedelta(hours=window_hours)
+
+tests/test_logs_no_leak.py: 802 warnings
+  C:\Users\issal\CISIA_24082026_Parcours\.venv\Lib\site-packages\joblib\numpy_pickle.py:207: DeprecationWarning: Setting the shape on a NumPy array has been deprecated in NumPy 2.5.
+  As an alternative, you can create a new view using np.reshape (with copy=False if needed).
+    array.shape = self.shape
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+31 passed, 807 warnings in 27.13s
+All checks passed!
+Jalon verifie : jalon/05
+# code retour : 0
+
+# 💬 13) Reinstaller l'extra mlops.
+PS> uv sync --frozen --extra dev --extra mlops
+Installed 30 packages in 29.12s
+ + blinker==1.9.0
+ + contourpy==1.3.3
+ + cycler==0.12.1
+ + databricks-sdk==0.119.0
+ + flask==3.1.3
+ + flask-cors==6.0.5
+ + fonttools==4.63.0
+ + google-auth==2.55.1
+ + graphene==3.4.3
+ + graphql-core==3.2.11
+ + graphql-relay==3.2.0
+ + huey==3.0.3
+ + importlib-metadata==9.0.0
+ + itsdangerous==2.2.0
+ + kiwisolver==1.5.0
+ + matplotlib==3.11.0
+ + mlflow==3.14.0
+ + mlflow-skinny==3.14.0
+ + mlflow-tracing==3.14.0
+ + opentelemetry-sdk==1.43.0
+ + opentelemetry-semantic-conventions==0.64b0
+ + pillow==12.2.0
+ + prettytable==3.18.0
+ + pyasn1==0.6.3
+ + pyasn1-modules==0.4.2
+ + skops==0.14.0
+ + sqlparse==0.5.5
+ + waitress==3.0.2
+ + werkzeug==3.1.8
+ + zipp==4.1.0
+# code retour : 0
+
+# 💬 14) Toute la suite de tests (dont mon test_logs_no_leak du M26 et test_cleaning du M23).
+PS> uv run --frozen pytest -q -p no:warnings
+...............................                                          [100%]
+31 passed in 10.59s
+# code retour : 0
+
+# 💬 15) ruff.
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+# 💬 15b) black.
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+31 files would be left unchanged.
+# code retour : 0
+
+# 💬 16) Validateur de la Model Card (M25).
+PS> uv run --frozen python scripts/validate_model_card.py docs/model_card.md --project-root .
+STRUCTURE=PASS
+C4_EVIDENCE=READY_FOR_REVIEW
+C5_EVIDENCE=READY_FOR_REVIEW
+# code retour : 0
+
+# 💬 17) Livrables M24/M26 toujours la ?
+PS> cmd /c dir /b versioning_strategy.md threat_model.md security_controls.md artifacts\models\rf.joblib.dvc
+versioning_strategy.md
+threat_model.md
+security_controls.md
+rf.joblib.dvc
+# code retour : 0
+
+# 💬 18) uv.lock et contenu du commit de fusion.
+PS> git status --short
+A  .dockerignore
+M  .env.example
+A  Dockerfile
+M  FORMATION/JALON_ACTUEL.md
+M  Makefile
+A  scripts/check_image.py
+# code retour : 0
+
