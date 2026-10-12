@@ -1666,6 +1666,48 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **Volume** = stockage géré par Docker, **hors** du conteneur : `docker compose down` supprime les conteneurs mais **garde** `pgdata` (sauf `down -v`).
 - Prometheus et Grafana n'ont **pas** de healthcheck déclaré → ils afficheront `running`, pas `healthy` (normal, d'après le pas-à-pas).
 - *Ma reformulation :* …
+
+**TP — compose up & smoke tests** *(pas-à-pas R2, « TP — compose up & smoke tests »)*
+
+📎 **Preuve brute** : [preuves/28_tp_compose_up.txt](preuves/28_tp_compose_up.txt) · 📎 **Test écrit** : [tests/test_smoke_compose.py](tests/test_smoke_compose.py)
+
+*Partie 1 — Démarrer la stack :*
+
+| # | Commande | Rôle | Résultat |
+|---|---|---|---|
+| 1 | `docker compose config -q` | Configuration valide (rejoué juste avant) | code **0** |
+| 2 | **`docker compose up -d --wait`** | `up` crée et démarre les 4 services · `-d` en arrière-plan · `--wait` **ne rend la main que quand ils sont prêts** | code **0** en 176 s (1ᵉʳ lancement : téléchargement de Postgres, Prometheus, Grafana + build de l'API) |
+| 3 | `docker compose ps` | État de chaque service | **`api` healthy** (8000) · **`db` healthy** (5432 interne) · `grafana` running (3000) · `prometheus` running (9090) ✅ |
+| 4 | `docker network ls` · `docker volume ls` | Ce que Compose a créé | réseau privé `cisia_24082026_parcours_default` · volume `cisia_24082026_parcours_pgdata` |
+| 5 | `docker compose logs api` / `db` | Journaux | base : « *database system is ready to accept connections* » · API : « *Modèle chargé* », Uvicorn sur `0.0.0.0:8000` |
+
+- ✅ **Attendu du pas-à-pas atteint** : `api` + `db` **healthy**, Prometheus + Grafana **running**.
+- 🔑 **« Démarré ≠ prêt » prouvé** par la séquence de `--wait` : `db` *Started* → *Waiting* → ***Healthy***, et **seulement ensuite** `api` *Starting*. C'est `depends_on: db: condition: service_healthy` **en action** : aucune course au démarrage.
+- **Prometheus interroge déjà l'API** : `GET /metrics 200` depuis `172.19.0.3` (son adresse sur le réseau privé) — préparation du M33.
+- `db` ne publie **aucun** port sur le PC : la base n'est joignable **que** par les autres services (moindre exposition).
+- Le nom du projet Compose = nom du dossier (`cisia_24082026_parcours`), d'où les préfixes des conteneurs, du réseau et du volume.
+
+*Partie 2 — Écrire le smoke test* (le jalon fournissait un squelette vide, marqué « à compléter »). Code montré **avant** d'être écrit, puis validé par moi :
+
+| Test | Ce qu'il prouve |
+|---|---|
+| `test_health_returns_200` | La liveness de l'API **conteneurisée** répond 200 |
+| `test_predict_without_key_returns_401` | Le garde-fou du M26 est actif **dans la stack** |
+| `test_predict_with_key_returns_200` | Avec la clé du `.env`, prédiction **200** et **5 champs** du contrat (un 200 vide ne serait pas une réussite) |
+
+| Choix | Pourquoi |
+|---|---|
+| De **vraies requêtes HTTP** (`httpx`) vers `127.0.0.1:8000` | Contrairement aux tests du M25 (TestClient, en mémoire), un smoke test vérifie la **vraie stack** : conteneur, réseau, port publié |
+| `httpx` | Déjà installé (0.28.1) → **lock inchangé** |
+| Clé lue dans `settings.api_key` | Vient du `.env`, comme pour le conteneur : **aucune clé écrite dans le test** |
+| `payload.json` | La même requête valide qu'aux M25 et M27 |
+| **`skipif` si la stack n'est pas lancée** | La **CI GitHub n'a pas de Compose** : sans ça, ces tests feraient **échouer la CI**. Ils y sont **sautés** |
+
+*Résultats :* `pytest tests/test_smoke_compose.py -v` → **`3 passed`** ✅ · suite complète **`34 passed`** (31 + 3) · black propre · le journal de l'API montre les vrais appels reçus (`/health` 200, `predict-tabular` **401** puis **200**).
+
+- *Erreur corrigée* : ruff signalait **E501** (une ligne de commentaire de **mon** fichier faisait 101 caractères, limite du projet = 100). Ligne raccourcie → ruff **`All checks passed!`**, 3 tests toujours verts.
+- *Limite* : à cause du `skipif`, **la CI ne prouve pas** ces tests ; ils ne prouvent quelque chose que **sur mon poste, stack lancée**. C'est le rôle d'un smoke test local.
+- *Ma reformulation :* …
 - Ce que j'ai fait : … / Ma preuve : … (`docker compose up -d --wait` · api + db *healthy* · 3 smoke tests verts) / Compétence(s) : C6, C7 / Difficulté : …
 
 ### J4 — mar. 01/09
