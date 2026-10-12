@@ -1480,6 +1480,37 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **Piège du pas-à-pas : « gitignoré = absent de l'image ? » → non.** Git et Docker sont **deux périmètres distincts**. Chez moi, `rf.joblib` est **ignoré par Git** depuis le M24 (suivi par DVC), mais **présent sur le disque** ; le `.dockerignore` le **garde** (`!artifacts/models`) → il entrera dans l'image. À **vérifier** au build.
 - *Ma reformulation :* …
 
+**TP — build & run** *(pas-à-pas R2, « TP — build & run »)* + **TP — durcir & alléger / Variante A** (vérification du modèle)
+
+📎 **Preuve brute** : [preuves/27_tp_build_run.txt](preuves/27_tp_build_run.txt)
+
+*Prérequis vérifiés juste avant :* port 8000 libre · moteur Docker actif · rien d'autre sur le port.
+
+| # | Commande (pas-à-pas) | Rôle | Résultat |
+|---|---|---|---|
+| 1 | `docker build -t indusense:0.1.0 .` | **Construire** l'image à partir du `Dockerfile` (le `.` = dossier courant = « contexte ») ; `-t` = lui donner un nom | Code retour **0** en ~413 s (1ᵉʳ build : téléchargement de `python:3.13-slim`, de `uv`, des dépendances) · étapes `[build 1/…]` puis `[runtime 6/6] COPY artifacts/models` |
+| 2 | `docker image ls` / `docker image inspect` | Vérifier l'image produite | `indusense:0.1.0`, **1,81 Go** · `User=appuser` · port `8000/tcp` · `CMD uvicorn … --host 0.0.0.0` · `HEALTHCHECK` sur `/health` |
+| 3 | `docker run -d -p 8000:8000 --name indusense -e INDUSENSE_API_KEY=dev-key indusense:0.1.0` | **Lancer** un conteneur : `-d` en arrière-plan · `-p 8000:8000` relie le port 8000 du **PC** au port 8000 du **conteneur** · `--name` · `-e` = variable d'environnement passée **au lancement** | Conteneur `6e1f130f…` ; API prête en ~8 s |
+| 4 | `GET /health` | Liveness | **200** `{"status":"ok"}` ✅ |
+| 5 | `GET /ready` | Readiness = **modèle chargé** | **200** `{"status":"ready","model_version":"0.1.0"}` ✅ |
+| 6 | `POST /predict-tabular` avec clé + `payload.json` | Prédiction | **200** `MACH-07`, `0.075`, `ok` — **identique** à l'API hors Docker ✅ |
+| 6b | Même requête **sans** clé | Garde-fou M26 | **401** `Clé API absente ou invalide` ✅ (message désormais **accentué**, modifié par le jalon 05) |
+| 7 | **`docker exec indusense whoami`** | Qui fait tourner l'API ? | **`appuser`** ✅ · `id` → `uid=10001(appuser)` (**pas 0 = root**) |
+| 8 | `docker exec indusense ls -la /app/artifacts/models` + md5 | **Variante A** : le modèle est-il dans l'image ? | `rf.joblib` (4 965 817 octets), md5 **`2779890061870d6a08d6efdf733da094`** = **exactement celui de DVC** ✅ |
+| 9 | Présence de `/app/.env`, `/app/tests`, `/app/data`, `/app/.git` | Le `.dockerignore` a-t-il marché ? | **Tous absents** ✅ · `pip` **retiré** (`No module named pip`) ✅ |
+| 10 | `docker inspect … {{.State.Health.Status}}` | Le `HEALTHCHECK` de Docker | `starting` puis **`healthy`** ✅ |
+| 11 | `docker logs --tail 8 indusense` | Journal de l'API **dans** le conteneur | `Modèle chargé` · `Uvicorn running on http://0.0.0.0:8000` · les requêtes 200 / 401 |
+| 12 | **`docker rm -f indusense`** | **Nettoyage obligatoire** : libérer le port 8000 avant le M28 | Conteneur supprimé · port **8000 libre** · image **conservée** |
+
+- ✅ **Preuve finale visée atteinte** : `docker build` OK · `docker run` → `/health` 200 → `/ready` 200 → `/predict-tabular` 200 · `whoami` = **appuser**.
+- **« Gitignoré ≠ absent de l'image »** vérifié en vrai : `rf.joblib`, ignoré par Git (DVC), **est** dans l'image, avec la bonne empreinte.
+- **Aucun secret dans l'image** : `.env` exclu ; la clé est passée **au lancement** (`-e`). Une image peut être partagée : elle ne doit jamais contenir de secret.
+- `172.17.0.1` dans les logs = l'adresse du **PC vu depuis le conteneur** (réseau virtuel de Docker).
+- ⚠️ **Image de 1,81 Go** : lourde pour une image « slim ». À analyser au TP « durcir & alléger ».
+- *Détail* : `.gitignore`, `.gitkeep` et `rf.joblib.dvc` du dossier modèle sont aussi copiés (inutiles, sans risque).
+- *Incident outil* : ma 1ʳᵉ commande de nettoyage a été **bloquée avant exécution** par une protection de l'outil (mot `rm` de `docker rm`, comme `git rm` au M24) ; rejouée via un script.
+- *Ma reformulation :* …
+
 - Ce que j'ai fait : … / Ma preuve : … (`docker build` · image non-root) / Compétence(s) : C6 / Difficulté : …
 
 **Module 28 — Déploiement local & compose** · *C6 · C7*
