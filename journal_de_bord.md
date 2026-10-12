@@ -1918,6 +1918,17 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 - **Aide IA reçue** : Claude Code a fusionné le jalon, vérifié la configuration Prefect, écrit le script de démonstration de la fuite, écrit `hello.py` et le brouillon du design **à partir de cahiers des charges et du code existant** (montrés et **validés par moi**), produit les preuves. **J'ai fait les prédictions** du piège data. **Je dois savoir réexpliquer : task / flow / run, retries et backoff, transitoire vs déterministe, idempotence par clé + upsert, pourquoi `by="machine"`, pourquoi seul `store` réessaie.**
 - **Difficultés / questions** : écart 1,76 % (jeu complet absent du dépôt) · `flows/pipeline.py` à créer (référence au jalon 08) · délais de retry et seuil à trancher.
 
+**Incident hors TP — push bloqué par le hook pre-commit (12/10/2026)**
+
+📎 **Preuve brute** : [preuves/29_alignement_hooks.txt](preuves/29_alignement_hooks.txt)
+
+- **Symptôme** : au `git push`, le hook **black** (exécuté aussi au *pre-push*) voulait reformater `scripts/demo_prefect_idempotence.py` (fichier du jalon 07), alors que `uv run black --check .` (= la CI) l'accepte → push refusé.
+- **Cause** : **deux copies de black, deux versions**. `pre-commit` ne lit pas `uv.lock` : il télécharge l'outil d'après le `rev:` de `.pre-commit-config.yaml` → **black 24.8.0 / ruff 0.6.9** (hook) contre **black 26.5.1 / ruff 0.15.20** (projet + CI). Les deux black ne formatent pas pareil → verdicts contradictoires.
+- **Options envisagées** : **A** aligner les `rev:` sur `uv.lock` · B accepter le reformatage de 24.8.0 (mais la CI 26.5.1 aurait pu le refuser ensuite) · C pousser avec `--no-verify` (contourne la garde : écarté).
+- **Mon choix : A**. Modification annulée dans le fichier (`git restore`), puis `rev:` ruff `v0.6.9 → v0.15.20` et black `24.8.0 → 26.5.1` (étiquettes vérifiées sur GitHub), avec un commentaire `[PÉDAGOGIE]` qui rappelle de les mettre à jour avec `uv.lock`.
+- **Vérification** : `pre-commit run --all-files` → ruff, black, gitleaks **Passed**, aucun fichier modifié · `ruff check .` et `black --check .` toujours propres → **hook, projet et CI d'accord**.
+- 🔑 **À retenir** : un hook n'est utile que s'il donne **le même verdict que la CI** ; sinon il bloque à tort (ou laisse passer à tort). Note : ruff récent signale l'id `ruff` comme « *legacy alias* » de `ruff-check` (fonctionne, renommage possible plus tard).
+
 **Module 30 — Implémentation du flow** · *C6*
 - Ce que j'ai fait : … / Ma preuve : … (2 runs → 0 doublon, `count(*)` stable) / Compétence(s) : C6 / Difficulté : …
 

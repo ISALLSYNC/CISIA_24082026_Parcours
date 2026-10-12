@@ -17,7 +17,12 @@ repos:
   # [PÉDAGOGIE] CLÉ `repo` — ce champ déclaratif participe au contrat de configuration.
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # [PÉDAGOGIE] CLÉ `rev` — ce champ déclaratif participe au contrat de configuration.
-    rev: v0.6.9
+    # [PÉDAGOGIE] ALIGNEMENT (M29, 12/10/2026) — v0.6.9 → v0.15.20 = la version de ruff verrouillée
+    # [PÉDAGOGIE]           dans uv.lock (celle de la CI). pre-commit télécharge SA propre copie de
+    # [PÉDAGOGIE]           l'outil d'après ce `rev` : il ne lit pas uv.lock. Si les deux divergent,
+    # [PÉDAGOGIE]           le hook et la CI peuvent rendre des verdicts contradictoires.
+    # [PÉDAGOGIE]           → À chaque mise à jour de ruff dans uv.lock, mettre ce `rev` à jour aussi.
+    rev: v0.15.20
     # [PÉDAGOGIE] CLÉ `hooks` — ce champ déclaratif participe au contrat de configuration.
     hooks:
       # [PÉDAGOGIE] CLÉ `id` — ce champ déclaratif participe au contrat de configuration.
@@ -27,7 +32,10 @@ repos:
   # [PÉDAGOGIE] CLÉ `repo` — ce champ déclaratif participe au contrat de configuration.
   - repo: https://github.com/psf/black
     # [PÉDAGOGIE] CLÉ `rev` — ce champ déclaratif participe au contrat de configuration.
-    rev: 24.8.0
+    # [PÉDAGOGIE] ALIGNEMENT (M29, 12/10/2026) — 24.8.0 → 26.5.1 = la version de black de uv.lock.
+    # [PÉDAGOGIE]           Incident à l'origine : au push, black 24.8.0 (hook) voulait reformater
+    # [PÉDAGOGIE]           scripts/demo_prefect_idempotence.py, que black 26.5.1 (CI) accepte tel quel.
+    rev: 26.5.1
     # [PÉDAGOGIE] CLÉ `hooks` — ce champ déclaratif participe au contrat de configuration.
     hooks:
       # [PÉDAGOGIE] CLÉ `id` — ce champ déclaratif participe au contrat de configuration.

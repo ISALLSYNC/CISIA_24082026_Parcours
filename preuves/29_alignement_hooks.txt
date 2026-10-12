@@ -1,0 +1,58 @@
+﻿# Preuve : M29 - incident push bloque -> alignement des versions des hooks pre-commit sur uv.lock (option A)
+# Date : 2026-10-12 14:11
+# Branche : ismael-sall @ 15cb241 (+ .pre-commit-config.yaml modifie, pas encore commite)
+
+# 💬 CAUSE : pre-commit telecharge sa propre copie de black/ruff d'apres 'rev:' (il ne lit pas uv.lock).
+# 💬   black 24.8.0 (hook) voulait reformater scripts/demo_prefect_idempotence.py ; black 26.5.1 (projet + CI) l'accepte.
+# 💬 CORRECTION : rev ruff v0.6.9 -> v0.15.20 ; rev black 24.8.0 -> 26.5.1 (= versions de uv.lock).
+
+# 💬 1) Les etiquettes visees existent-elles sur GitHub ?
+PS> git ls-remote --tags https://github.com/astral-sh/ruff-pre-commit refs/tags/v0.15.20 && git ls-remote --tags https://github.com/psf/black refs/tags/26.5.1
+c59bba8fb259db0fec2bbb77ad8ba51ea7341b56	refs/tags/v0.15.20
+87928e6d6761a4a6d22250e1fee5601b3998086e	refs/tags/26.5.1
+# code retour : 0
+
+# 💬 2) Versions du projet (uv.lock, utilisees par la CI).
+PS> uv run --frozen black --version && uv run --frozen ruff --version
+black, 26.5.1 (compiled: yes)
+Python (CPython) 3.13.15
+ruff 0.15.20
+# code retour : 0
+
+# 💬 3) Le diff de configuration.
+PS> git diff --stat -- .pre-commit-config.yaml
+ .pre-commit-config.yaml | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+# code retour : 0
+
+# 💬 4) Tous les hooks sur tout le depot (telecharge les nouvelles versions). Attendu : Passed, aucun fichier modifie.
+PS> uv run --frozen pre-commit run --all-files
+[INFO] Initializing environment for https://github.com/astral-sh/ruff-pre-commit.
+[INFO] Initializing environment for https://github.com/psf/black.
+[INFO] Installing environment for https://github.com/astral-sh/ruff-pre-commit.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for https://github.com/psf/black.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+ruff (legacy alias)......................................................Passed
+black....................................................................Passed
+Detect hardcoded secrets.................................................Passed
+# code retour : 0
+
+# 💬 5) Meme verdict cote projet/CI.
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+# 💬 5b)
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+35 files would be left unchanged.
+# code retour : 0
+
+# 💬 6) Le fichier de l'incident n'a pas ete touche ; seul .pre-commit-config.yaml est modifie.
+PS> git status --short
+ M .pre-commit-config.yaml
+# code retour : 0
+
