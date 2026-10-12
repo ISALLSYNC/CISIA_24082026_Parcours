@@ -1619,6 +1619,53 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 
 - **Le test sauté** : `tests/test_smoke_compose.py` est marqué `SKIPPED` avec le message « **A completer en M28 apres docker compose up** ». C'est le test que le pas-à-pas demande de **créer** au M28 (« 3 smoke tests verts »). Un *smoke test* (« test de fumée ») vérifie rapidement que l'essentiel marche une fois tout démarré.
 - *Ma reformulation :* …
+
+**Reprise et préflight Compose** *(pas-à-pas R2, « Reprise et préflight Compose »)*
+
+📎 **Preuve brute** : [preuves/28_p1_preflight_compose.txt](preuves/28_p1_preflight_compose.txt)
+
+| # | Contrôle | Résultat |
+|---|---|---|
+| 1 | `docker version` | client / serveur **29.7.2** |
+| 2 | `docker compose version` | **v5.4.0** |
+| 3 | Conteneur autonome du M27 retiré ? | aucun conteneur `indusense` ✅ |
+| 4 | Ports publiés par la stack : 8000 (api), 9090 (prometheus), 3000 (grafana) | **libres** ✅ (l'autre projet occupe 5433 et 8081 : aucun recouvrement ; `db` ne publie aucun port) |
+| 5 | Variables du `.env` (noms seulement) | ⚠️ **manquaient** : `INDUSENSE_API_KEY`, `INDUSENSE_DECISION_THRESHOLD`, `POSTGRES_PASSWORD` |
+| 6 | Correction : ajout au `.env` **des 3 variables manquantes seulement** (valeurs d'exemple de `.env.example`, dev local) | 9 variables, aucune manquante ✅ |
+| 7 | `git check-ignore -v .env` · `git ls-files .env` | `.env` **ignoré** (`.gitignore:40`) et **non suivi** ✅ |
+| 8 | **`docker compose config -q`** (« DOIT réussir avant tout démarrage ») | code retour **0** : configuration **valide** ✅ |
+| 8b | `docker compose config --services` / `--images` | `db`, `api`, `prometheus`, `grafana` · `postgres:16`, `prom/prometheus:v2.53.0`, `grafana/grafana:11.1.0`, `indusense-api:v1.0` |
+
+- **Piège évité** : mon `.env` avait été créé au **M25** depuis l'**ancien** `.env.example` (sans clé ni mot de passe). La consigne « copier `.env.example` **si `.env` est absent** » ne l'aurait **pas** mis à jour → **Postgres refuse de démarrer sans `POSTGRES_PASSWORD`**. Repéré **avant** de lancer, en comparant les **noms** de variables (valeurs jamais affichées).
+- **Valeurs de développement** : clé d'exemple, mot de passe d'exemple. Normal en local ; en production, ce seraient de vrais secrets, hors de tout fichier versionné.
+- *Erreur corrigée dans ma preuve* : ma 1ʳᵉ version utilisait `docker compose config --format json`, qui **affiche la configuration complète avec les valeurs du `.env` résolues**. Bloc **retiré avant commit** et remplacé par `--services` / `--images` ; vérifié : **0 ligne** contenant un mot de passe ou la clé.
+
+**Théorie — réseau privé & « démarré ≠ prêt »** *(pas-à-pas R2, « Théorie — réseau privé & « démarré ≠ prêt » »)*
+
+| Notion | Explication |
+|---|---|
+| **Docker Compose** | Lancer **plusieurs conteneurs ensemble** à partir d'**un fichier** (`docker-compose.yml`) et d'**une commande** (`docker compose up`). Au M27, `docker run` = **un** conteneur à la main |
+| **Service** | Un conteneur déclaré dans le fichier Compose (ici `api`, `db`, `prometheus`, `grafana`) |
+| **Réseau privé** | Compose crée un réseau commun : les conteneurs se joignent **par le nom du service**. L'API contacte la base à l'adresse **`db:5432`**, pas `localhost` (dans un conteneur, `localhost` = **lui-même**) |
+| **« Démarré ≠ prêt »** | Un conteneur peut être **lancé** alors que le programme dedans **n'accepte pas encore** de connexions (Postgres met quelques secondes à s'initialiser) |
+| **Course au démarrage** | Si l'API démarre avant que la base soit prête, elle plante « 1 fois sur 2 » selon qui gagne la course |
+| **Solution** | `depends_on: db: condition: service_healthy` : l'API **attend** que le **healthcheck** de la base soit **vert** (`pg_isready`), pas seulement que le conteneur soit lancé. C'est le même principe que `/health` vs `/ready` (M25) |
+
+**Tour du code (docker-compose.yml réel)** *(pas-à-pas R2, « Tour du code (docker-compose.yml réel) »)*
+
+[docker-compose.yml](docker-compose.yml) (livré par le jalon 06) :
+
+| Service | Image | Port sur le PC | Points clés |
+|---|---|---|---|
+| **`api`** | **construite** depuis le `Dockerfile` du M27 (`build: .`), nommée `indusense-api:${IMAGE_TAG:-v1.0}` | **8000** | `INDUSENSE_API_KEY: ${INDUSENSE_API_KEY}` (**lue dans `.env`**, jamais en clair) · `INDUSENSE_DB_URL: postgresql+psycopg://indusense:${POSTGRES_PASSWORD}@db:5432/indusense` (**`db`** = nom du service) · **`depends_on: db: condition: service_healthy`** · son healthcheck = le `HEALTHCHECK` du `Dockerfile` (M27) sur `/health` |
+| **`db`** | `postgres:16` (image officielle, pas de build) | **aucun** (interne au réseau) | crée l'utilisateur et la base `indusense` · mot de passe lu dans `.env` · **healthcheck `pg_isready -U indusense`** toutes les 5 s, 5 essais · **volume `pgdata`** (les données **survivent** à l'arrêt des conteneurs) |
+| **`prometheus`** | `prom/prometheus:v2.53.0` | **9090** | configuration montée depuis `monitoring/prometheus.yml` (il viendra lire `/metrics` de l'API ; M33) |
+| **`grafana`** | `grafana/grafana:11.1.0` | **3000** | démarre **après** Prometheus (`depends_on`) · identifiants `admin/admin` (**DEV uniquement**) · source de données déclarée dans `monitoring/grafana/provisioning/` |
+
+- **L'image du M27 devient un service** ; le `/health` du M25 sert de **healthcheck** ; la clé du M26 est lue dans `.env`.
+- **Volume** = stockage géré par Docker, **hors** du conteneur : `docker compose down` supprime les conteneurs mais **garde** `pgdata` (sauf `down -v`).
+- Prometheus et Grafana n'ont **pas** de healthcheck déclaré → ils afficheront `running`, pas `healthy` (normal, d'après le pas-à-pas).
+- *Ma reformulation :* …
 - Ce que j'ai fait : … / Ma preuve : … (`docker compose up -d --wait` · api + db *healthy* · 3 smoke tests verts) / Compétence(s) : C6, C7 / Difficulté : …
 
 ### J4 — mar. 01/09
