@@ -1738,11 +1738,37 @@ response.headers["X-Request-ID"] = request_id                         # l'ajoute
 - **Aide IA reçue** : Claude Code a fusionné le jalon, repéré et complété le `.env` (sans afficher les valeurs), lancé et arrêté la stack, écrit le smoke test (code montré et **validé par moi** avant écriture), interrogé les 3 interfaces pour m'expliquer leur contenu, produit les preuves. **J'ai exploré moi-même** l'API, Prometheus et Grafana. **Je dois savoir réexpliquer : Docker Compose vs `docker run`, service, réseau privé (`db:5432` et pas `localhost`), « démarré ≠ prêt », `depends_on … service_healthy`, volume, pourquoi les smoke tests sont sautés en CI.**
 - **Difficultés / questions** : `.env` du M25 non mis à jour par la consigne « copier si absent » (corrigé) · identifiants Grafana `admin/admin` = DEV uniquement · cible Prometheus `indusense-drift` DOWN (normal, M31-M32) · erreurs corrigées de ma part (preuve qui recopiait la configuration avec les secrets, avant commit ; ligne > 100 caractères).
 
-### J4 — mar. 01/09
+### J4 — lun. 12/10/2026 *(date prévue dans le modèle : 01/09 ; enchaîné le même jour que le J3)*
 
 *(Matin : M29 puis M30. Après-midi : M31-M32 en **passe 1 sur `tp_payguard`**.)*
 
-**Module 29 — Orchestration Prefect (design)** · *C6 · C7*
+**Module 29 — Orchestration Prefect (design)** · *C6 · C7* · *(en cours — 12/10/2026)*
+
+**Charge le jalon 07 — AVANT M29** *(pas-à-pas R2, « Charge le jalon 07 — AVANT M29 »)*
+
+📎 **Preuve brute** : [preuves/29_p0_fusion_jalon07.txt](preuves/29_p0_fusion_jalon07.txt)
+
+*Préalables :* stack Compose du M28 **arrêtée** (`docker compose down`, sans `-v` : volume `pgdata` et image conservés, ports libres) · travail commité · Docker Desktop actif.
+
+*Ce que dit la fiche jalon 07 :* passer d'un **script** à un **pipeline orchestré**, rejouable et **idempotent** (relancé N fois, même résultat, **aucun doublon**). Deux modules : **M29** (design + flow « hello » avec *retries*) et **M30** (flow complet, **2 runs → 0 doublon**, `panne` ≈ 4,7802 %).
+
+*Simulation* (`git fetch origin jalon/07` = `e3ee0b5`, `git merge-tree`) → **2 conflits**, analysés avant de décider :
+
+| Fichier | Mon côté | Côté jalon 07 | Décision |
+|---|---|---|---|
+| `.github/workflows/ci.yml` | **Mon M24** (`--frozen` + `build`) | Retour à la CI d'origine | **Garder ma version** (`ours`) |
+| `tests/test_smoke_compose.py` | **Mes 3 smoke tests du M28** | Toujours le **squelette vide** (`skip` + `NotImplementedError`), seuls les commentaires changent | **Garder ma version** (`ours`) — prendre la leur effacerait mon travail du M28 |
+
+- **Nouveau cas** par rapport aux jalons précédents : un fichier que **j'avais écrit** moi-même (et pas seulement `ci.yml`). Lu en entier avant de choisir.
+
+*Écart repéré, puis résolu par le jalon :* l'ancienne fiche annonçait un « squelette `flows/pipeline.py` », **absent** du jalon. La fiche **mise à jour par cette fusion** précise : « `flows/pipeline.py` est **volontairement absent** : il est **à créer pendant M29** et sa version de référence n'apparaît qu'au jalon 08 ». Elle ajoute : forcer le **profil Prefect local `ephemeral`** avant la preuve (guide multiplateforme).
+
+*Apports du jalon :* **`scripts/demo_prefect_idempotence.py`** (démo du M30 : 3 tâches `ingest → predict → store`, *retries*, écriture **upsert** dans une base **SQLite** locale `predictions.db`, sans Docker) · **`docs/flow_design.md`** (modèle du design du M29).
+
+*Fusion et vérification AVANT validation :* sauvegarde → merge → `checkout --ours` des 2 fichiers → aucun marqueur · `ci.yml` garde `--frozen` et `build` · **mes 3 smoke tests présents** (lignes 47, 52, 58) · marqueur **`07-j4-matin-m29-m30`** · `verifier_jalon.ps1 -Jalon 07` → **`Jalon verifie : jalon/07`** · **`31 passed, 3 skipped`** (les 3 smoke tests, stack arrêtée : comportement voulu) · ruff / black propres.
+
+*Validation :* commit de fusion **`1331061`** (parents `098c8ae` = ma branche, `e3ee0b5` = jalon 07) ; gitleaks **Passed**.
+- *Ma reformulation :* …
 - Ce que j'ai fait : … / Ma preuve : … (design du flow `ingest→feature→predict→store` + flow « hello ») / Compétence(s) : C6, C7 / Difficulté : …
 
 **Module 30 — Implémentation du flow** · *C6*
