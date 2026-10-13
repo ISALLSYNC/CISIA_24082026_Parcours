@@ -2038,7 +2038,23 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 - *Incident 2* : 1ᵉʳ essai des 2 runs → `Timed out while attempting to connect to ephemeral Prefect API server`. Le mini-serveur Prefect démarre en plus de **20 s** (délai par défaut) dans le conteneur sur ce poste. Correctif **pour les runs seulement** : `-e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=120`. La base était restée vide → preuve valide.
 - **Écart** : 4 lignes au lieu de **15** (jeu complet absent), comme en SQLite.
 
-- Ce que j'ai fait : … / Ma preuve : … (2 runs → 0 doublon, `count(*)` stable) / Compétence(s) : C6 / Difficulté : …
+**Observabilité — tableau de bord Prefect local** *(hors preuve obligatoire)*
+
+- Serveur lancé en local : `uv run --frozen prefect server start --host 127.0.0.1 --port 4200` (aucun Cloud, aucune exposition réseau) → **http://127.0.0.1:4200**. Runs visibles en lançant le flow avec `$env:PREFECT_API_URL = "http://127.0.0.1:4200/api"` : `massive-quail` (0 → 4) puis `lumpy-elephant` (4 → 4, IDEMPOTENT), graphe des 4 tasks, logs, paramètres (l'URL de la base n'y figure pas).
+- Le serveur relit l'historique local `~/.prefect` : on y retrouve **tous** les runs depuis le M29. **3 runs fantômes** restés « RUNNING » (processus tués pendant mes tests de retries : `efficient-jackalope`, `happy-oxpecker`, `positive-loon`) → passés en **Cancelled** via l'API, avec un message explicatif. 0 run actif ensuite.
+
+**Autonomie tutorée courte** : option choisie = **documenter le contrat I/O de `store`** → fait dans la section « Implémentation (M30) » de [docs/flow_design.md](docs/flow_design.md). Le test anti-doublon (autre option) a été proposé puis **écarté par moi** (non exigé).
+
+**QCM express 29-30** (`kahoot_J4.xlsx`) : énoncé absent du dépôt → à demander au formateur (comme les QCM J1-J3).
+
+**Bilan M30**
+
+- **Ce que j'ai fait** : audité les sources brutes (anomalie de fuseau trouvée sur la pression) · implémenté le flow **`ingest → feature → predict → store`** conforme au design du M29, sans réécrire de logique métier · prouvé l'**idempotence** en **SQLite** puis en **PostgreSQL dans Compose** (2 runs → `count(*)` stable, 0 doublon) · prouvé que les **retries ne visent que le transitoire** · joué le **piège « date seule »** (prédictions 1 juste / 1 fausse) · ouvert le **tableau de bord Prefect** local.
+- **Mes preuves** : `0 → 4` puis `4 → 4 IDEMPOTENT` (SQLite et PostgreSQL) · 0 doublon (`psql`) · URL absente → échec immédiat ; base injoignable → `Retry 1/3 (5 s)`, `2/3 (15 s)`, `3/3 (45 s)` · 192 / 1 920 étiquettes fausses à taux identique (date seule) · 31 tests verts, ruff / black propres.
+- **Écart assumé** : **4** lignes et **10,42 % / 10,55 %** au lieu de **15** lignes et **4,78 % / 4,81 %** → population = échantillon `data/raw` (jeu complet absent). Les taux obtenus sont ceux que le cours annonce pour l'échantillon.
+- **Compétence(s)** : C6 (implémenter un pipeline orchestré) · C7 (architecture : contrats de tasks, idempotence, gestion d'erreurs)
+- **Aide IA reçue** : Claude Code a audité les données, écrit `predict_flow.py` (**code montré et validé par moi avant écriture**), les scripts de preuve et la documentation ; il a diagnostiqué les incidents (désinstallation par `uv sync` sans extras — de son fait —, délai Prefect dans le conteneur, connexion de ≈ 130 s, runs fantômes). **J'ai choisi** le backend, la stratégie (`data/raw` plutôt que le gold), les prédictions du piège et l'abandon du test. **Je dois savoir réexpliquer : clé naturelle + upsert, pourquoi seul `store` réessaie et seulement sur `OperationalError`, pourquoi le flow tourne dans le service `api` (`db:5432`), pourquoi 4 lignes et pas 15, pourquoi un taux identique ne prouve pas des étiquettes justes.**
+- **Difficultés / questions** : jeu complet introuvable · anomalie de fuseau de `load_pressure` · seuil 0,5 vs 0,975 · QCM J4 absent — voir la liste « Difficultés / questions » (section M23).
 
 ### J5 — mer. 02/09
 
