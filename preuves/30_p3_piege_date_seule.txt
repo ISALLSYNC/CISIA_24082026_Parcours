@@ -1,0 +1,90 @@
+﻿# Preuve : M30 - le piege data « cible sur la date seule » (a jouer)
+# Date : 2026-10-13 11:26
+# Branche : ismael-sall @ b3297f3
+
+# 💬 Pas-a-pas : symptome panne.mean() ~4,89 % -> diagnostic (time a minuit) -> correction date + time -> 4,7802 % (JEU COMPLET).
+# 💬 Ici : echantillon data/raw (8 incidents, 4 machines). Script temporaire, lecture seule : la lib n'est PAS modifiee,
+# 💬   on simule l'erreur en remplacant incident_ts par sa date seule (dt.normalize()).
+# 💬 MES PREDICTIONS : fenetre -> B (decalee plus tot) : JUSTE. Taux global -> B (baisse) : FAUX (il reste identique ici).
+
+# 💬 --- code du script ---
+"""M30 - piege data « cible sur la date seule » (lecture seule, aucune modification de la lib).
+
+On construit la cible `panne` deux fois avec la MEME fonction build_dataset :
+  - CORRECT : incident_ts = date + time        (ce que fait load_incidents)
+  - PIEGE   : incident_ts = date seule (minuit) (l'erreur a ne pas faire)
+puis on compare taux de panne et lignes etiquetees.
+"""
+
+from pathlib import Path
+
+import pandas as pd
+
+from indusense.config import settings
+from indusense.data.loaders import build_dataset, load_incidents, load_pressure, load_temperature
+
+raw = Path("data/raw")
+temp = load_temperature(raw / "capteurs_temperature.csv")
+pres = load_pressure(raw / "capteurs_pression.tsv")
+inc_ok = load_incidents(raw / "releves_incidents.csv")
+
+# PIEGE : on remplace l'horodatage par la date seule -> heure a 00:00.
+inc_piege = inc_ok.copy()
+inc_piege["incident_ts"] = inc_piege["incident_ts"].dt.normalize()
+
+w = settings.incident_window_hours
+ok = build_dataset(temp, pres, inc_ok, window_hours=w)
+piege = build_dataset(temp, pres, inc_piege, window_hours=w)
+
+print("1) SYMPTOME - taux de panne (meme population : jointure, 1920 lignes)")
+for nom, df in (("date + time (correct)", ok), ("date seule  (piege)  ", piege)):
+    print(f"   {nom} : panne_count={int(df['panne'].sum())} panne_rate={df['panne'].mean():.8f}")
+
+print("\n2) DIAGNOSTIC - decalage de chaque incident (heure perdue = recul de la fenetre)")
+for (_, a), (_, b) in zip(inc_ok.iterrows(), inc_piege.iterrows(), strict=True):
+    recul = (a["incident_ts"] - b["incident_ts"]).total_seconds() / 3600
+    print(f"   {a['machine']} incident {a['incident_ts']} -> {b['incident_ts']}  (fenetre reculee de {recul:.0f} h)")
+
+diff = (ok["panne"] != piege["panne"])
+faux_pos = int(((piege["panne"] == 1) & (ok["panne"] == 0)).sum())
+faux_neg = int(((piege["panne"] == 0) & (ok["panne"] == 1)).sum())
+print("\n3) IMPACT - lignes dont l'etiquette change")
+print(f"   lignes differentes : {int(diff.sum())} / {len(ok)}")
+print(f"   etiquetees panne A TORT (heures saines, la veille) : {faux_pos}")
+print(f"   pannes MANQUEES (heures juste avant l'incident)    : {faux_neg}")
+
+print("\n4) CORRECTION - load_incidents combine deja date + time :")
+print("   pd.to_datetime(df['date'].astype(str) + ' ' + df['time'].astype(str))  (loaders.py:93)")
+
+# 💬 --- execution ---
+PS> uv run --frozen python piege_date_seule.py
+1) SYMPTOME - taux de panne (meme population : jointure, 1920 lignes)
+   date + time (correct) : panne_count=200 panne_rate=0.10416667
+   date seule  (piege)   : panne_count=200 panne_rate=0.10416667
+
+2) DIAGNOSTIC - decalage de chaque incident (heure perdue = recul de la fenetre)
+   MACH-01 incident 2025-08-28 06:00:00 -> 2025-08-28 00:00:00  (fenetre reculee de 6 h)
+   MACH-01 incident 2025-08-30 14:00:00 -> 2025-08-30 00:00:00  (fenetre reculee de 14 h)
+   MACH-02 incident 2025-09-02 09:00:00 -> 2025-09-02 00:00:00  (fenetre reculee de 9 h)
+   MACH-03 incident 2025-09-05 22:00:00 -> 2025-09-05 00:00:00  (fenetre reculee de 22 h)
+   MACH-03 incident 2025-09-08 11:00:00 -> 2025-09-08 00:00:00  (fenetre reculee de 11 h)
+   MACH-04 incident 2025-09-10 15:00:00 -> 2025-09-10 00:00:00  (fenetre reculee de 15 h)
+   MACH-02 incident 2025-09-12 03:00:00 -> 2025-09-12 00:00:00  (fenetre reculee de 3 h)
+   MACH-01 incident 2025-09-13 16:00:00 -> 2025-09-13 00:00:00  (fenetre reculee de 16 h)
+
+3) IMPACT - lignes dont l'etiquette change
+   lignes differentes : 192 / 1920
+   etiquetees panne A TORT (heures saines, la veille) : 96
+   pannes MANQUEES (heures juste avant l'incident)    : 96
+
+4) CORRECTION - load_incidents combine deja date + time :
+   pd.to_datetime(df['date'].astype(str) + ' ' + df['time'].astype(str))  (loaders.py:93)
+# code retour : 0
+
+# 💬 LECTURE :
+# 💬 - Chaque fenetre recule de l'heure perdue (3 a 22 h) mais garde sa LONGUEUR (25 points horaires, bornes incluses).
+# 💬 - Ici aucune fenetre ne chevauche une autre ni ne sort de la periode -> 8 x 25 = 200 pannes dans les deux cas -> taux IDENTIQUE.
+# 💬 - Pourtant 192 etiquettes sur 1920 sont FAUSSES : 96 heures saines marquees panne + 96 heures pre-incident manquees.
+# 💬 - => Sur l'echantillon le symptome (taux) est INVISIBLE : bug silencieux. Sur le jeu complet, chevauchements et bords
+# 💬   font bouger le taux (4,89 % au lieu de 4,78 %, +73 FP selon les fiches) : c'est la que le symptome apparait.
+# 💬 - Correction deja en place : load_incidents (loaders.py:93) combine date + time.

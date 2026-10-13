@@ -2001,6 +2001,26 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 - *Incident* : le 1ᵉʳ essai a duré **> 10 min** et a été arrêté : sur ce poste, une connexion vers un port fermé **n'est pas refusée**, elle expire après ≈ **130 s** (`ConnectionTimeout`) → 4 tentatives ≈ 10 min. Correctif **pour le test seulement** : `?connect_timeout=3` dans l'URL factice (113 s au total). Code du flow inchangé.
 - *Amélioration notée* (points ouverts de `flow_design.md`) : en production, prévoir un délai maximal de connexion dans `store`.
 
+**Le piège data — cible date seule (à jouer)**
+
+📎 **Preuve brute** : [preuves/30_p3_piege_date_seule.txt](preuves/30_p3_piege_date_seule.txt) (code du script inclus ; lib **non modifiée** : l'erreur est simulée avec `dt.normalize()`)
+
+- **Le piège** : un incident a une `date` **et** une `time`. Si on n'utilise que la date, l'incident est placé à **minuit** et la fenêtre « panne » (24 h avant l'incident) **recule** de l'heure perdue.
+- **Mes prédictions** : sens du décalage → **B (plus tôt)** ✅ · taux de panne global → **B (baisse)** ❌.
+- **Résultat sur l'échantillon** :
+
+| Cible construite avec | `panne_count` | `panne_rate` |
+|---|---|---|
+| `date + time` (correct) | 200 | 0,10416667 |
+| `date` seule (piège) | 200 | 0,10416667 |
+
+  - Reculs de **3 h à 22 h** selon l'heure de l'incident (ex. MACH-03, 05/09 22:00 → 00:00 : 22 h).
+  - **Taux identique**, mais **192 / 1 920 étiquettes fausses** : **96** heures saines marquées « panne » (la veille) + **96** heures pré-incident **manquées**.
+- **Pourquoi mon « baisse » était faux** : la fenêtre est **déplacée, pas raccourcie** (toujours 25 points horaires). Sur l'échantillon, aucune fenêtre ne chevauche une autre ni ne sort de la période → 8 × 25 = 200 dans les deux cas. Sur le **jeu complet**, chevauchements et bords font bouger le taux (≈ 4,89 % au lieu de 4,78 %, « +73 FP » selon les fiches).
+- 🔑 **À retenir** : un taux de panne inchangé **ne prouve pas** que les étiquettes sont justes — ici le bug est **totalement silencieux**. Même famille que `merge_asof` sans `by` (M29) et que la fuite temporelle (M23).
+- **Correction** : déjà en place dans `load_incidents` ([loaders.py:93](src/indusense/data/loaders.py#L93)) : `pd.to_datetime(date + " " + time)`.
+- **Ma reformulation** : …
+
 - Ce que j'ai fait : … / Ma preuve : … (2 runs → 0 doublon, `count(*)` stable) / Compétence(s) : C6 / Difficulté : …
 
 ### J5 — mer. 02/09
