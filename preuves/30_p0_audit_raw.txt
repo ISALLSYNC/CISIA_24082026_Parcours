@@ -1,0 +1,60 @@
+﻿# Preuve : M30 P0 - audit des sources brutes data/raw (lecture seule) avant d'implementer le flow
+# Date : 2026-10-13 10:43
+# Branche : ismael-sall @ 76ee849
+
+# 💬 POURQUOI : le jeu complet (15 machines, 66 800 temperatures) est absent du depot. On developpe le M30 sur data/raw
+# 💬   (echantillon, byte-identique a data/sample) : il faut d'abord savoir ce qu'il contient et comment les loaders le lisent.
+
+# 💬 1) Fichiers presents.
+PS> cmd /c dir /b data\raw
+capteurs_pression.tsv
+capteurs_temperature.csv
+machine.sql
+README.md
+releves_incidents.csv
+# code retour : 0
+
+# 💬 2) data/raw est-il identique a data/sample ? (fc /b : aucune difference attendue)
+PS> fc /b data\raw\capteurs_pression.tsv data\sample\capteurs_pression.tsv >NUL && echo identique-pression && fc /b data\raw\capteurs_temperature.csv data\sample\capteurs_temperature.csv >NUL && echo identique-temperature
+identique-pression 
+identique-temperature
+# code retour : 0
+
+# 💬 3) Les 4 premieres lignes de la pression : formats de date MELANGES (avec et sans fuseau).
+PS> powershell -NoProfile -Command "Get-Content data\raw\capteurs_pression.tsv -TotalCount 4"
+machine_id	timestamp	pressure_bar
+MACH_01	2025-08-26T00:00:00+01:00	196.96
+MACH_01	2025-08-26 01:00:00	197.931
+MACH_01	2025-08-26 02:00:00	197.84
+# code retour : 0
+
+# 💬 4) Audit via les loaders du projet (script temporaire audit_raw.py, lecture seule).
+PS> uv run --frozen python "C:\Users\issal\AppData\Local\Temp\claude\c--Users-issal-CISIA-24082026-Parcours\368fb739-2fae-4b87-9837-0c2f780c4f29\scratchpad\audit_raw.py"
+== temperature : 1920 lignes
+   ids bruts -> normalises : ['MACH-01', 'MACH-02', 'MACH-03', 'MACH-04'] -> ['MACH-01', 'MACH-02', 'MACH-03', 'MACH-04']
+   periode                 : 2025-08-26 00:00:00 -> 2025-09-14 23:00:00
+   pas entre mesures (min) : {60.0: 1916}
+   doublons (machine, ts)  : 0
+   vides / min / moy / max : 0 42.71 51.76 60.29
+== pression : 1920 lignes
+   ids bruts -> normalises : ['MACH_01', 'MACH_02', 'MACH_03', 'MACH_04'] -> ['MACH-01', 'MACH-02', 'MACH-03', 'MACH-04']
+   periode                 : 2025-08-25 23:00:00 -> 2025-09-14 23:00:00
+   pas entre mesures (min) : {60.0: 1152, 120.0: 384, 0.0: 380}
+   doublons (machine, ts)  : 380
+   vides / min / moy / max : 0 195.91 200.09 204.04
+== pression : lignes avec fuseau : 384 sur 1920
+   brut 2025-08-26T00:00:00+01:00 -> loader 2025-08-25 23:00:00 | ligne suivante brute 2025-08-26 01:00:00
+   brut 2025-08-26T05:00:00+01:00 -> loader 2025-08-26 04:00:00 | ligne suivante brute 2025-08-26 06:00:00
+== incidents : 8 lignes
+   ids bruts -> normalises : ['M-01', 'M-02', 'M-03', 'M-04', 'M-1', 'M-3'] -> ['MACH-01', 'MACH-02', 'MACH-03', 'MACH-04']
+   periode                 : 2025-08-28 06:00:00 -> 2025-09-13 16:00:00
+   par machine             : {'MACH-01': 3, 'MACH-02': 2, 'MACH-03': 2, 'MACH-04': 1}
+# code retour : 0
+
+# 💬 LECTURE :
+# 💬 - 3 sources heterogenes (separateurs ; / tab / , - ids MACH-01 / MACH_01 / M-1) -> 4 machines apres normalize_machine_id. 0 valeur vide.
+# 💬 - machine.sql liste 15 machines : data/raw n'en couvre que 4 (echantillon).
+# 💬 - ANOMALIE : 384/1920 lignes de pression portent '+01:00'. load_pressure (loaders.py:79) les convertit en UTC (-1 h)
+# 💬   alors que les lignes sans fuseau restent telles quelles -> 380 doublons (machine, timestamp) + 384 trous de 2 h.
+# 💬   Impact M30 faible (merge_asof nearest +/-90 min joint quand meme), mais certaines temperatures recoivent la pression de l'heure voisine.
+# 💬   Loader NON modifie (logique fournie par le cours ; chiffres de reference calcules avec) -> question au formateur.

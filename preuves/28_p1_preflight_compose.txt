@@ -1,0 +1,71 @@
+# Preuve : M28 - Reprise et preflight Compose (+ mise a jour du .env local)
+# Date : 2026-10-12 10:47
+# Branche : ismael-sall @ 5ce98e8
+
+# 💬 BUT : avant tout 'docker compose up', verifier Docker, Compose, les ports, l'absence du conteneur M27, le .env et la configuration.
+# 💬 REGLE : aucune VALEUR du .env n'est affichee dans cette preuve (seulement les NOMS de variables).
+
+# 💬 1) Docker (client + serveur).
+PS> docker version --format "client {{.Client.Version}} / serveur {{.Server.Version}}"
+client 29.7.2 / serveur 29.7.2
+# code retour : 0
+
+# 💬 2) Docker Compose.
+PS> docker compose version
+Docker Compose version v5.4.0
+# code retour : 0
+
+# 💬 3) Conteneur autonome du M27 bien retire ? (aucun conteneur 'indusense')
+conteneurs nommes indusense : []
+
+# 💬 4) Ports publies par la stack (8000 api, 9090 prometheus, 3000 grafana) : libres ? (db ne publie aucun port)
+port 8000 : libre
+port 9090 : libre
+port 3000 : libre
+(rappel : un autre projet occupe 5433 et 8081 -> aucun recouvrement)
+
+# 💬 5) .env : il EXISTE deja (cree au M25 depuis l'ANCIEN .env.example) -> la consigne 'copier si absent' ne le met pas a jour.
+variables presentes : INDUSENSE_DATA_DIR, INDUSENSE_GOLD_DIR, INDUSENSE_MODEL_DIR, INDUSENSE_RANDOM_SEED, INDUSENSE_TARGET_COL, INDUSENSE_INCIDENT_WINDOW_HOURS
+variables de .env.example ABSENTES de .env : INDUSENSE_API_KEY, INDUSENSE_DECISION_THRESHOLD, POSTGRES_PASSWORD
+
+# 💬 6) Correction : ajouter au .env UNIQUEMENT les variables manquantes, avec les valeurs d'EXEMPLE de .env.example (dev local).
+variables presentes apres ajout : INDUSENSE_DATA_DIR, INDUSENSE_GOLD_DIR, INDUSENSE_MODEL_DIR, INDUSENSE_RANDOM_SEED, INDUSENSE_TARGET_COL, INDUSENSE_INCIDENT_WINDOW_HOURS, INDUSENSE_API_KEY, INDUSENSE_DECISION_THRESHOLD, POSTGRES_PASSWORD
+manquantes restantes : []
+
+# 💬 7) .env toujours ignore par Git ?
+PS> git check-ignore -v .env
+.gitignore:40:.env	.env
+# code retour : 0
+
+# 💬 7b) .env toujours NON suivi par Git ? (aucune sortie attendue)
+PS> git ls-files .env
+
+# code retour : 0
+
+# 💬 8) docker compose config -q : la configuration est-elle VALIDE ? (le pas-a-pas : 'DOIT reussir avant tout demarrage' ; -q = silencieux, seul le code retour compte)
+PS> docker compose config -q
+
+# code retour : 0
+
+# 💬 8b) Services et images tels que Compose les comprend (SANS les variables d'environnement).
+PS> docker compose config --services
+db
+api
+prometheus
+grafana
+PS> docker compose config --images
+postgres:16
+prom/prometheus:v2.53.0
+grafana/grafana:11.1.0
+indusense-api:v1.0
+
+# 💬 CORRECTION : la 1re version de l'etape 8b utilisait 'docker compose config --format json', qui affiche la configuration
+# 💬 COMPLETE avec les valeurs du .env resolues (cle d'API, mot de passe). Bloc RETIRE de cette preuve avant commit et remplace
+# 💬 par --services / --images. Valeurs concernees : valeurs d'EXEMPLE de .env.example (dev), mais la regle reste : ne jamais les recopier.
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 - Docker 29.7.2 et Compose v5.4.0 operationnels ; conteneur M27 bien retire ; ports 8000, 9090, 3000 libres (db ne publie rien).
+# 💬 - PIEGE EVITE : le .env (cree au M25) n'avait ni INDUSENSE_API_KEY, ni INDUSENSE_DECISION_THRESHOLD, ni POSTGRES_PASSWORD.
+# 💬   La consigne 'copier .env.example si .env absent' ne l'aurait PAS mis a jour -> sans POSTGRES_PASSWORD, Postgres refuse de demarrer.
+# 💬   Les 3 variables ont ete AJOUTEES (valeurs d'exemple, dev local), sans toucher aux 6 existantes. .env reste ignore et non suivi par Git.
+# 💬 - docker compose config -q -> code retour 0 : configuration VALIDE, condition du pas-a-pas avant tout demarrage.

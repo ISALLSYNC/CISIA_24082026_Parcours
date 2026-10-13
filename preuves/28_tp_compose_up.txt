@@ -1,0 +1,177 @@
+﻿# Preuve : M28 TP - compose up & smoke tests (partie 1 : demarrage de la stack)
+# Date : 2026-10-12 11:01
+# Branche : ismael-sall @ 503bec0
+
+# 💬 ATTENDU (pas-a-pas) : api + db healthy ; prometheus + grafana running.
+
+# 💬 1) Configuration valide (rejoue juste avant le demarrage).
+PS> docker compose config -q
+
+# code retour : 0
+
+# 💬 2) docker compose up -d --wait : cree et demarre les 4 services, ATTEND qu'ils soient prets.
+PS> docker compose up -d --wait
+  Volume cisia_24082026_parcours_pgdata Created
+  Volume cisia_24082026_parcours_pgdata Created
+  Network cisia_24082026_parcours_default Created
+  Network cisia_24082026_parcours_default Created
+  Container cisia_24082026_parcours-prometheus-1 Creating
+  Container cisia_24082026_parcours-db-1 Creating
+  Container cisia_24082026_parcours-db-1 Created
+  Container cisia_24082026_parcours-api-1 Creating
+  Container cisia_24082026_parcours-prometheus-1 Created
+  Container cisia_24082026_parcours-grafana-1 Creating
+  Container cisia_24082026_parcours-api-1 Created
+  Container cisia_24082026_parcours-grafana-1 Created
+  Container cisia_24082026_parcours-db-1 Starting
+  Container cisia_24082026_parcours-prometheus-1 Starting
+  Container cisia_24082026_parcours-db-1 Started
+  Container cisia_24082026_parcours-db-1 Waiting
+  Container cisia_24082026_parcours-prometheus-1 Started
+  Container cisia_24082026_parcours-grafana-1 Starting
+  Container cisia_24082026_parcours-grafana-1 Started
+  Container cisia_24082026_parcours-db-1 Healthy
+  Container cisia_24082026_parcours-api-1 Starting
+  Container cisia_24082026_parcours-api-1 Started
+  Container cisia_24082026_parcours-grafana-1 Waiting
+  Container cisia_24082026_parcours-api-1 Waiting
+  Container cisia_24082026_parcours-db-1 Waiting
+  Container cisia_24082026_parcours-prometheus-1 Waiting
+  Container cisia_24082026_parcours-prometheus-1 Healthy
+  Container cisia_24082026_parcours-grafana-1 Healthy
+  Container cisia_24082026_parcours-db-1 Healthy
+  Container cisia_24082026_parcours-api-1 Healthy
+# code retour : 0   | duree : 176 s
+
+# 💬 3) docker compose ps : etat de chaque service.
+PS> docker compose ps --format "table {{.Service}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
+SERVICE      IMAGE                     STATUS                    PORTS
+api          indusense-api:v1.0        Up 32 seconds (healthy)   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+db           postgres:16               Up 49 seconds (healthy)   5432/tcp
+grafana      grafana/grafana:11.1.0    Up 47 seconds             0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+prometheus   prom/prometheus:v2.53.0   Up 49 seconds             0.0.0.0:9090->9090/tcp, [::]:9090->9090/tcp
+# code retour : 0
+
+# 💬 4) Etat de sante detaille (healthy attendu pour api et db).
+PS> docker compose ps --format "{{.Service}} : etat={{.State}} sante={{.Health}}"
+api : etat=running sante=healthy
+db : etat=running sante=healthy
+grafana : etat=running sante=
+prometheus : etat=running sante=
+# code retour : 0
+
+# 💬 5) Reseau prive cree par Compose.
+PS> docker network ls --filter name=cisia --format "{{.Name}} ({{.Driver}})"
+cisia_24082026_parcours_default (bridge)
+# code retour : 0
+
+# 💬 6) Volume des donnees Postgres.
+PS> docker volume ls --filter name=pgdata --format "{{.Name}}"
+cisia_24082026_parcours_pgdata
+# code retour : 0
+
+# 💬 7) Ordre reel du demarrage : journal de l'api (elle doit avoir attendu la base).
+PS> docker compose logs --no-color --tail 6 api
+api-1  | 2026-10-12 09:03:39.858 | INFO     | indusense.api.main:lifespan:150 - Modèle chargé
+api-1  | INFO:     Application startup complete.
+api-1  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+api-1  | INFO:     172.19.0.3:40254 - "GET /metrics HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.3:48932 - "GET /metrics HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:37924 - "GET /health HTTP/1.1" 200 OK
+# code retour : 0
+
+# 💬 7b) Journal de la base (doit finir par 'ready to accept connections').
+PS> docker compose logs --no-color --tail 4 db
+db-1  | 2026-10-12 09:03:29.463 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+db-1  | 2026-10-12 09:03:29.475 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+db-1  | 2026-10-12 09:03:29.494 UTC [84] LOG:  database system was shut down at 2026-10-12 09:03:29 UTC
+db-1  | 2026-10-12 09:03:29.514 UTC [1] LOG:  database system is ready to accept connections
+# code retour : 0
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 - docker compose up -d --wait : code 0 en 176 s (1er lancement : telechargement de postgres, prometheus, grafana + build de l'API).
+# 💬 - ATTENDU ATTEINT : api healthy, db healthy, prometheus et grafana running (pas de healthcheck declare -> pas de 'healthy' affiche).
+# 💬   (La ligne 'Healthy' de --wait pour prometheus et grafana veut dire 'demarre' : --wait n'a pas d'autre critere pour eux.)
+# 💬 - 'DEMARRE != PRET' PROUVE : db 'Started' -> 'Waiting' -> 'Healthy', et SEULEMENT ENSUITE api 'Starting'.
+# 💬   C'est depends_on: db: condition: service_healthy en action : pas de course au demarrage.
+# 💬 - Base prete : 'database system is ready to accept connections' ; API : 'Modele charge', Uvicorn sur 0.0.0.0:8000.
+# 💬 - Prometheus interroge deja l'API : 'GET /metrics 200' (depuis 172.19.0.3 = adresse du conteneur prometheus sur le reseau prive).
+# 💬 - Reseau prive 'cisia_24082026_parcours_default' et volume 'cisia_24082026_parcours_pgdata' crees (nom du projet = nom du dossier).
+# 💬 - db ne publie AUCUN port sur le PC (5432/tcp interne seulement) : la base n'est joignable que par les autres services.
+# 💬 ======== PARTIE 2 : smoke tests (tests/test_smoke_compose.py, ecrit au M28) ========
+
+# 💬 8) La stack tourne-t-elle toujours ?
+PS> docker compose ps --format "{{.Service}} : {{.State}} {{.Health}}"
+api : running healthy
+db : running healthy
+grafana : running 
+prometheus : running
+# code retour : 0
+
+# 💬 9) Les 3 smoke tests (commande du pas-a-pas, en verbeux pour voir chaque nom).
+PS> uv run --frozen pytest tests/test_smoke_compose.py -v -p no:warnings
+============================= test session starts =============================
+platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\issal\CISIA_24082026_Parcours\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\issal\CISIA_24082026_Parcours
+configfile: pyproject.toml
+plugins: anyio-4.14.1, Faker-40.23.0, hydra-core-1.3.3
+collecting ... collected 3 items
+
+tests/test_smoke_compose.py::test_health_returns_200 PASSED              [ 33%]
+tests/test_smoke_compose.py::test_predict_without_key_returns_401 PASSED [ 66%]
+tests/test_smoke_compose.py::test_predict_with_key_returns_200 PASSED    [100%]
+
+============================== 3 passed in 2.98s ==============================
+# code retour : 0
+
+# 💬 10) Toute la suite (le smoke compose n'est plus 'skipped' puisque la stack est lancee).
+PS> uv run --frozen pytest -q -p no:warnings
+..................................                                       [100%]
+34 passed in 9.33s
+# code retour : 0
+
+# 💬 11) ruff.
+PS> uv run --frozen ruff check .
+E501 Line too long (101 > 100)
+ --> tests\test_smoke_compose.py:6:101
+  |
+4 | # [PÉDAGOGIE] RÔLE    — Vérifier, sur la VRAIE stack démarrée (conteneur, réseau, port publié),
+5 | # [PÉDAGOGIE]           que l'essentiel répond : /health 200, prédiction 401 sans clé, 200 avec.
+6 | # [PÉDAGOGIE] THÉORIE — un smoke test (« test de fumée ») est court et rapide : on allume, on vérifie
+  |                                                                                                     ^
+7 | # [PÉDAGOGIE]           qu'il n'y a « pas de fumée », avant des tests plus poussés
+8 | # [PÉDAGOGIE]           • contrairement aux tests du M25 (TestClient, en mémoire), il passe par HTTP
+  |
+
+Found 1 error.
+# code retour : 1
+
+# 💬 11b) black.
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+32 files would be left unchanged.
+# code retour : 0
+
+# 💬 12) Ce que le serveur a recu (journal de l'api : les appels des smoke tests).
+PS> docker compose logs --no-color --tail 5 api
+api-1  | INFO:     172.19.0.1:41692 - "GET /health HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:41264 - "GET /health HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:41280 - "POST /predict-tabular HTTP/1.1" 401 Unauthorized
+api-1  | INFO:     172.19.0.1:41290 - "POST /predict-tabular HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:35690 - "GET /health HTTP/1.1" 200 OK
+# code retour : 0
+
+# 💬 11c) CORRECTION : ruff signalait E501 (ligne de commentaire de 101 caracteres > 100) dans MON fichier. Ligne raccourcie, ruff rejoue :
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+PS> uv run --frozen pytest tests/test_smoke_compose.py -q -p no:warnings
+...                                                                      [100%]
+3 passed in 3.74s
+# code retour : 0
+
+# 💬 ---- LECTURE (partie 2) ----
+# 💬 - 3 smoke tests verts sur la VRAIE stack : /health 200 · predict sans cle 401 · predict avec cle (du .env) 200 + 5 champs du contrat.
+# 💬 - Le journal de l'api montre les vrais appels HTTP recus (172.19.0.1 = le PC vu depuis le reseau Compose).
+# 💬 - Suite complete : 34 passed (31 + 3 smoke). Sans stack (CI GitHub), ces 3 tests sont SAUTES (skipif), pas echoues.

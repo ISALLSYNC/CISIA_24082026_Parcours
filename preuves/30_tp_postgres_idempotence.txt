@@ -1,0 +1,73 @@
+﻿# Preuve : M30 mode PostgreSQL - etape 2 : 2 runs dans Compose -> 0 doublon
+# Date : 2026-10-13 11:44
+# Branche : ismael-sall @ 6ae92be
+# 💬 COMPOSE_PROJECT_NAME = cisia_m30_20261013_113546 (base neuve de l'etape 1).
+# 💬 Le flow tourne DANS le service api (db:5432 n'existe que sur le reseau Compose). INDUSENSE_DB_URL vient du service (jamais affichee).
+# 💬 1er essai : echec des 2 runs (Timed out while attempting to connect to ephemeral Prefect API server) : delai Prefect par defaut 20 s depasse dans le conteneur -> PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=120 (runs seulement). Base restee vide.
+# 💬 Donnees : data/raw (4 machines) montees en lecture seule sur /app/data/run. Attendu : count1 == count2 == 4 (15 avec le jeu complet).
+
+# 💬 0) La table n'existe pas encore (base neuve). Attendu : 'predictions' absente.
+PS> docker compose exec -T db psql -U indusense -d indusense -tA -c "SELECT to_regclass('public.predictions');"
+
+# code retour : 0 | duree : 1 s
+
+# 💬 1) RUN 1 dans le conteneur api. Attendu : lignes 0 -> 4.
+PS> docker compose run --rm --no-deps -e PREFECT_PROFILE=ephemeral -e PREFECT_SERVER_ANALYTICS_ENABLED=false -e PREFECT_CLOUD_ENABLE_ORCHESTRATION_TELEMETRY=false -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=120 -e INDUSENSE_DATA_DIR=/app/data/run --volume "C:\Users\issal\CISIA_24082026_Parcours\data\raw:/app/data/run:ro" api python -m indusense.flows.predict_flow
+09:44:38.892 | INFO    | Task run 'ingest-858' - joined_rows=1920 joined_panne_count=200 joined_panne_rate=0.10416667
+09:44:38.959 | INFO    | Task run 'feature-035' - gold_rows=1896 gold_panne_count=200 gold_panne_rate=0.10548523
+09:44:39.184 | INFO    | Task run 'predict-e6e' - predict : 4 machines scorées | seuil=0.5 | alertes=0
+09:44:39.415 | INFO    | Task run 'store-dcc' - store : 4 prédictions | base=postgresql | lignes 0 -> 4 (nouvelles : 4)
+09:44:39.424 | INFO    | Flow run 'married-poodle' - FLOW terminé : 4 lignes en base -> 4 nouvelle(s) ligne(s)
+09:44:39.705 | INFO    | Flow run 'married-poodle' - Finished in state Completed()
+# code retour : 0 | duree : 36 s
+
+# 💬 2) count1
+PS> docker compose exec -T db psql -U indusense -d indusense -tA -c "SELECT count(*) FROM predictions;"
+4
+# code retour : 0 | duree : 1 s
+
+# 💬 3) RUN 2 (meme base). Attendu : lignes 4 -> 4, IDEMPOTENT.
+PS> docker compose run --rm --no-deps -e PREFECT_PROFILE=ephemeral -e PREFECT_SERVER_ANALYTICS_ENABLED=false -e PREFECT_CLOUD_ENABLE_ORCHESTRATION_TELEMETRY=false -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=120 -e INDUSENSE_DATA_DIR=/app/data/run --volume "C:\Users\issal\CISIA_24082026_Parcours\data\raw:/app/data/run:ro" api python -m indusense.flows.predict_flow
+09:45:15.008 | INFO    | Task run 'ingest-8cb' - joined_rows=1920 joined_panne_count=200 joined_panne_rate=0.10416667
+09:45:15.070 | INFO    | Task run 'feature-4c6' - gold_rows=1896 gold_panne_count=200 gold_panne_rate=0.10548523
+09:45:15.277 | INFO    | Task run 'predict-60f' - predict : 4 machines scorées | seuil=0.5 | alertes=0
+09:45:15.476 | INFO    | Task run 'store-e78' - store : 4 prédictions | base=postgresql | lignes 4 -> 4 (nouvelles : 0)
+09:45:15.483 | INFO    | Flow run 'electric-markhor' - FLOW terminé : 4 lignes en base -> IDEMPOTENT (0 nouvelle ligne)
+09:45:15.857 | INFO    | Flow run 'electric-markhor' - Finished in state Completed()
+# code retour : 0 | duree : 35 s
+
+# 💬 4) count2
+PS> docker compose exec -T db psql -U indusense -d indusense -tA -c "SELECT count(*) FROM predictions;"
+4
+# code retour : 0 | duree : 1 s
+
+# 💬 5) Doublons sur (machine, prediction_ts). Attendu : 0.
+PS> docker compose exec -T db psql -U indusense -d indusense -tA -c "SELECT count(*) FROM (SELECT machine, prediction_ts FROM predictions GROUP BY 1, 2 HAVING count(*) != 1) d;"
+0
+# code retour : 0 | duree : 1 s
+
+# 💬 6) Types reels des colonnes (prediction_ts sans fuseau, created_at avec fuseau).
+PS> docker compose exec -T db psql -U indusense -d indusense -tA -c "SELECT column_name || ' : ' || data_type FROM information_schema.columns WHERE table_name = 'predictions' ORDER BY ordinal_position;"
+machine : character varying
+prediction_ts : timestamp without time zone
+proba_panne : double precision
+decision : character varying
+created_at : timestamp with time zone
+# code retour : 0 | duree : 1 s
+
+# 💬 7) Contenu (created_at = instant du RUN 1, non ecrase).
+PS> docker compose exec -T db psql -U indusense -d indusense -tA -c "SELECT machine, prediction_ts, round(proba_panne::numeric, 4), decision, created_at FROM predictions ORDER BY machine;"
+MACH-01|2025-09-14 23:00:00|0.0700|ok|2026-10-13 09:44:39.367662+00
+MACH-02|2025-09-14 23:00:00|0.1000|ok|2026-10-13 09:44:39.367662+00
+MACH-03|2025-09-14 23:00:00|0.0200|ok|2026-10-13 09:44:39.367662+00
+MACH-04|2025-09-14 23:00:00|0.0450|ok|2026-10-13 09:44:39.367662+00
+# code retour : 0 | duree : 1 s
+
+# 💬 VERDICT : count1=4 count2=4 -> IDEMPOTENT, population attendue (4 machines) OK
+
+# 💬 8) Depot : rien de modifie par les runs (uv.lock inchange).
+PS> git status --short
+?? preuves/30_p4_pg_preflight_build.txt
+?? preuves/30_tp_postgres_idempotence.txt
+# code retour : 0 | duree : 0 s
+

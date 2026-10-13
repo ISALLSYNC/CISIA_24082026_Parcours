@@ -1,0 +1,247 @@
+# ⚠️ PREUVE REMPLACEE PAR preuves/24_mlflow_v2.txt - conservee pour la tracabilite de l'incident.
+# ⚠️ Ces 2 runs (dc83b65f..., ac4544af...) ont ete enregistres dans le MLflow d'un AUTRE projet (C:\Users\issal\Indusense) :
+# ⚠️ son serveur ecoutait deja sur le port 5000, et Windows a laisse les deux serveurs partager ce port.
+# ⚠️ Les metriques restent justes (identiques en v2) ; seuls l'emplacement des runs et leurs run_id sont a lire dans la v2.
+
+# Preuve : M24 - Versioning modele : 2 runs MLflow comparables + resynchronisation DVC
+# Date : 2026-09-28 17:37
+# Branche : ismael-sall @ 193be25
+
+# 💬 NOTE : les barres de progression 'Downloading artifacts' ci-dessous sont l'affichage normal de MLflow.
+# 💬 PRINCIPE : MLflow trace COMMENT un modele a ete obtenu (parametres, metriques, donnees) ; DVC trace QUELLE version du fichier.
+# 💬 Serveur : mlflow server --backend-store-uri sqlite:///mlflow.db --host 127.0.0.1 --port 5000 (lance en arriere-plan, accessible seulement depuis ce PC).
+# 💬 PREDICTION : le run 'stratified' (split aleatoire = fuite) aura un score PLUS BEAU que le run 'temporal' (split honnete).
+
+# 💬 0) Le serveur repond-il ? (attendu : 200)
+PS> (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:5000/health).StatusCode
+200
+
+# 💬 0b) Empreinte du modele AVANT les runs (pointeur DVC) : md5 2779890061870d6a08d6efdf733da094
+#     (ligne corrigee a la main : mon script affichait 'System.Object[]' car 2 lignes du pointeur contiennent 'md5')
+
+# 💬 1) RUN 1 - split STRATIFIE (aleatoire) : une meme machine a cheval train/test = FUITE, pour la demonstration.
+PS> uv run --frozen python scripts/demo_versioning.py --no-dvc --tracking-uri http://127.0.0.1:5000 --split stratified
+2026/09/28 17:37:53 INFO mlflow.tracking.fluent: Experiment with name 'indusense-maintenance' does not exist. Creating a new experiment.
+2026/09/28 17:37:55 INFO mlflow.utils.uv_utils: Detected uv project: found uv.lock and pyproject.toml in C:\Users\issal\CISIA_24082026_Parcours
+2026/09/28 17:38:05 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+== 1. Entrainement ==
+   split=stratifie (fuite) | train=1516 test=380 | PR-AUC=0.4336 ROC-AUC=0.8531 seuil=0.975 recall=0.0
+   modele -> artifacts\models\rf.joblib | metadata -> model_metadata.json
+== 2. MLflow (params + metriques + modele + registre) ==
+
+Downloading artifacts:   0%|          | 0/7 [00:00<?, ?it/s]
+Downloading artifacts:  14%|█▍        | 1/7 [00:00<00:00, 4609.13it/s]
+Downloading artifacts:  29%|██▊       | 2/7 [00:00<00:00, 2631.31it/s]
+Downloading artifacts:  43%|████▎     | 3/7 [00:00<00:00, 2988.82it/s]
+Downloading artifacts:  57%|█████▋    | 4/7 [00:00<00:00, 3385.92it/s]
+Downloading artifacts:  71%|███████▏  | 5/7 [00:00<00:00, 3602.73it/s]
+Downloading artifacts:  86%|████████▌ | 6/7 [00:00<00:00, 3838.01it/s]
+Downloading artifacts: 100%|██████████| 7/7 [00:00<00:00, 466.77it/s] 
+Downloading artifacts: 100%|██████████| 7/7 [00:00<00:00, 455.92it/s]
+Successfully registered model 'indusense-rf'.
+2026/09/28 17:38:08 INFO mlflow.store.model_registry.abstract_store: Waiting up to 300 seconds for model version to finish creation. Model name: indusense-rf, version 1
+Created version '1' of model 'indusense-rf'.
+   modele enregistre au registre : 'indusense-rf'
+🏃 View run rf-637be8d38250 at: http://127.0.0.1:5000/#/experiments/3/runs/dc83b65fafd0484eb87efa7587b67590
+🧪 View experiment at: http://127.0.0.1:5000/#/experiments/3
+   run_id=dc83b65fafd0484eb87efa7587b67590 | tracking=http://127.0.0.1:5000
+   -> visualiser :  uv run mlflow ui --backend-store-uri http://127.0.0.1:5000
+
+== 4. Figer la version (a copier-coller) ==
+   git add data/gold/gold_dataset.csv.dvc artifacts/models/rf.joblib.dvc .gitignore metrics.json params.yaml
+   git commit -m "data+model 637be8d38250 | PR-AUC 0.4336"
+   git tag data-637be8d38250
+   git switch --detach data-637be8d38250
+   dvc checkout        # commande suivante, sur une ligne separee
+# code retour : 0
+
+# 💬 2) RUN 2 - split TEMPOREL par machine : passe en train, futur en test = HONNETE. Ce modele devient l'artefact final.
+PS> uv run --frozen python scripts/demo_versioning.py --no-dvc --tracking-uri http://127.0.0.1:5000 --split temporal
+2026/09/28 17:38:20 INFO mlflow.utils.uv_utils: Detected uv project: found uv.lock and pyproject.toml in C:\Users\issal\CISIA_24082026_Parcours
+2026/09/28 17:38:26 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+== 1. Entrainement ==
+   split=temporel/machine | train=1516 test=380 | PR-AUC=0.1036 ROC-AUC=0.2475 seuil=0.975 recall=0.0
+   modele -> artifacts\models\rf.joblib | metadata -> model_metadata.json
+== 2. MLflow (params + metriques + modele + registre) ==
+
+Downloading artifacts:   0%|          | 0/7 [00:00<?, ?it/s]
+Downloading artifacts:  14%|█▍        | 1/7 [00:00<00:00, 8192.00it/s]
+Downloading artifacts:  29%|██▊       | 2/7 [00:00<00:00, 5522.45it/s]
+Downloading artifacts:  43%|████▎     | 3/7 [00:00<00:00, 5329.48it/s]
+Downloading artifacts:  57%|█████▋    | 4/7 [00:00<00:00, 5372.15it/s]
+Downloading artifacts:  71%|███████▏  | 5/7 [00:00<00:00, 5322.72it/s]
+Downloading artifacts:  86%|████████▌ | 6/7 [00:00<00:00, 5361.27it/s]
+Downloading artifacts: 100%|██████████| 7/7 [00:00<00:00, 5459.30it/s]
+Downloading artifacts: 100%|██████████| 7/7 [00:00<00:00, 4556.90it/s]
+Registered model 'indusense-rf' already exists. Creating a new version of this model...
+2026/09/28 17:38:27 INFO mlflow.store.model_registry.abstract_store: Waiting up to 300 seconds for model version to finish creation. Model name: indusense-rf, version 2
+Created version '2' of model 'indusense-rf'.
+   modele enregistre au registre : 'indusense-rf'
+🏃 View run rf-637be8d38250 at: http://127.0.0.1:5000/#/experiments/3/runs/ac4544af25d14f50bb5edd7e518cca3a
+🧪 View experiment at: http://127.0.0.1:5000/#/experiments/3
+   run_id=ac4544af25d14f50bb5edd7e518cca3a | tracking=http://127.0.0.1:5000
+   -> visualiser :  uv run mlflow ui --backend-store-uri http://127.0.0.1:5000
+
+== 4. Figer la version (a copier-coller) ==
+   git add data/gold/gold_dataset.csv.dvc artifacts/models/rf.joblib.dvc .gitignore metrics.json params.yaml
+   git commit -m "data+model 637be8d38250 | PR-AUC 0.1036"
+   git tag data-637be8d38250
+   git switch --detach data-637be8d38250
+   dvc checkout        # commande suivante, sur une ligne separee
+# code retour : 0
+
+# 💬 3) Fichiers de preuve ecrits par le script (etat apres le run temporel).
+PS> Get-Content metrics.json
+{
+  "pr_auc": 0.1036,
+  "roc_auc": 0.2475,
+  "precision": 0.0,
+  "recall": 0.0,
+  "f1": 0.0,
+  "panne_rate_test": 0.1316,
+  "threshold": 0.975,
+  "n_train": 1516,
+  "n_test": 380,
+  "split": "temporel/machine"
+}
+
+PS> Get-Content params.yaml
+train:
+  n_estimators: 200
+  random_state: 42
+  threshold: 0.975
+  test_size: 0.2
+
+PS> Get-Content artifacts/models/model_metadata.json
+{
+  "created_at": "2026-09-28T15:38:15.858638+00:00",
+  "package_version": "0.1.0",
+  "random_seed": 42,
+  "target_col": "panne",
+  "features": [
+    "temperature",
+    "pressure_bar",
+    "temperature_lag1",
+    "temperature_lag3",
+    "temperature_lag6",
+    "temperature_roll3_mean",
+    "temperature_roll6_mean",
+    "pressure_bar_lag1",
+    "pressure_bar_lag3",
+    "pressure_bar_lag6",
+    "pressure_bar_roll3_mean",
+    "pressure_bar_roll6_mean"
+  ],
+  "n_train_rows": 1896,
+  "panne_rate": 0.1055,
+  "dataset": "data\\gold\\gold_dataset.csv",
+  "threshold": 0.975,
+  "gold_md5": "637be8d38250",
+  "metrics_holdout": {
+    "pr_auc": 0.1036,
+    "roc_auc": 0.2475,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "panne_rate_test": 0.1316,
+    "threshold": 0.975,
+    "n_train": 1516,
+    "n_test": 380,
+    "split": "temporel/machine"
+  }
+}
+
+PS> (metriques du run stratifie, sauvegardees avant d'etre ecrasees)
+{
+  "pr_auc": 0.4336,
+  "roc_auc": 0.8531,
+  "precision": 0.0,
+  "recall": 0.0,
+  "f1": 0.0,
+  "panne_rate_test": 0.1053,
+  "threshold": 0.975,
+  "n_train": 1516,
+  "n_test": 380,
+  "split": "stratifie (fuite)"
+}
+
+# 💬 4) DVC voit-il que le modele a change ? (attendu : 'modified')
+PS> uv run --frozen dvc status
+Data and pipelines are up to date.
+# code retour : 0
+
+# 💬 5) Resynchroniser : nouveau md5 dans le pointeur + copie dans le cache.
+PS> uv run --frozen dvc add artifacts/models/rf.joblib
+
+To track the changes with git, run:
+
+	git add 'artifacts\models\rf.joblib.dvc' 'artifacts\models\.gitignore'
+
+To enable auto staging, run:
+
+	dvc config core.autostage true
+# code retour : 0
+
+# 💬 6) Envoyer la nouvelle version vers le remote localstore.
+PS> uv run --frozen dvc push
+Everything is up to date.
+# code retour : 0
+
+# 💬 7) Tout est coherent ? (attendu : up to date)
+PS> uv run --frozen dvc status
+Data and pipelines are up to date.
+# code retour : 0
+
+# 💬 7b) Cache et remote synchronises ?
+PS> uv run --frozen dvc status -c
+Cache and remote 'localstore' are in sync.
+# code retour : 0
+
+# 💬 8) Empreinte du modele APRES : md5 2779890061870d6a08d6efdf733da094 = IDENTIQUE a avant
+#     (ligne corrigee a la main ; verifie par Get-FileHash -Algorithm MD5 artifacts/models/rf.joblib -> 2779890061870d6a08d6efdf733da094)
+
+# 💬 9) Ce que Git voit maintenant.
+PS> git status --short
+ M .gitignore
+ M artifacts/models/.gitignore
+ M artifacts/models/model_metadata.json
+?? metrics.json
+?? params.yaml
+# code retour : 0
+
+# 💬 10) Les runs et les versions au registre, lus via l'API du serveur MLflow.
+PS> POST /api/2.0/mlflow/runs/search (experience indusense-maintenance)
+run_id=dc83b65fafd0484eb87efa7587b67590 nom=rf-637be8d38250 statut=FINISHED split=stratifie (fuite)
+   pr_auc=0.4336 roc_auc=0.8531 precision=0.0 recall=0.0 f1=0.0 threshold=0.975
+run_id=ac4544af25d14f50bb5edd7e518cca3a nom=rf-637be8d38250 statut=FINISHED split=temporel/machine
+   pr_auc=0.1036 roc_auc=0.2475 precision=0.0 recall=0.0 f1=0.0 threshold=0.975
+
+PS> GET /api/2.0/mlflow/registered-models/get?name=indusense-rf  +  model-versions/search
+modele=indusense-rf version=1 run_id=dc83b65fafd0484eb87efa7587b67590 statut=READY stage=None
+modele=indusense-rf version=2 run_id=ac4544af25d14f50bb5edd7e518cca3a statut=READY stage=None
+
+
+# 💬 ---- CORRECTION APRES COUP ------------------------------------------------------
+# 💬 git status montrait ' M artifacts/models/.gitignore' : dvc add avait DUPLIQUE la ligne '/rf.joblib'. Annule par
+# 💬 'git restore -- artifacts/models/.gitignore' (sans effet fonctionnel, juste inutile).
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 A) Tracabilite : 2 runs FINISHED dans l'experience indusense-maintenance, 2 versions READY au registre indusense-rf :
+# 💬    v1 <- run dc83b65fafd0484eb87efa7587b67590 (stratifie)   v2 <- run ac4544af25d14f50bb5edd7e518cca3a (temporel)
+# 💬    Aucune promotion de stage (stage=None) : non exigee par le pas-a-pas.
+# 💬 B) Comparaison (meme donnees : gold_md5 637be8d38250, memes 200 arbres, meme graine 42, meme taille 1516/380) :
+# 💬                 PR-AUC   ROC-AUC  taux de panne test
+# 💬    stratifie    0.4336   0.8531   0.1053
+# 💬    temporel     0.1036   0.2475   0.1316
+# 💬    PREDICTION CONFIRMEE : le split stratifie (fuite) donne un score BIEN plus beau.
+# 💬    Le split temporel dit la verite : sur le FUTUR, le modele ne classe pas mieux que le hasard, et meme PIRE
+# 💬    (ROC-AUC 0.25 < 0.5 ; PR-AUC 0.10 < taux de panne 0.13, qui serait le score d'un classement aleatoire).
+# 💬    Le score 0.85 du stratifie venait donc de la fuite (meme machine, instants voisins de part et d'autre).
+# 💬 C) precision = recall = f1 = 0 dans LES DEUX runs : le seuil (0.975) est calibre sur le TRAIN (ligne 280 du script),
+# 💬    ou une foret aleatoire sur-apprend ; aucune proba du test ne l'atteint -> aucune alerte. (hypothese)
+# 💬    -> comparer les runs sur PR-AUC / ROC-AUC, independants du seuil.
+# 💬 D) DVC : rf.joblib a ete REECRIT (17:38:34) mais son md5 est IDENTIQUE. Le script sauvegarde model_full, entraine sur
+# 💬    TOUT le gold avec la graine 42 (ligne 307) : le split ne change que l'EVALUATION, pas le modele livre.
+# 💬    dvc add + dvc push faits comme demande : 'Everything is up to date', pointeur inchange.
+# 💬 E) Fichiers de preuve : metrics.json et params.yaml crees (etat du run temporel), model_metadata.json mis a jour
+# 💬    (threshold, gold_md5, metrics_holdout). mlflow.db ignore par Git (regle ajoutee au .gitignore).

@@ -1,0 +1,119 @@
+﻿# Preuve : M24 TP 1 - activation de pre-commit
+# Date : 2026-09-28 15:53
+# Branche : ismael-sall @ f3675b4
+
+# 💬 Reprise : environnement conforme au lock (dev + mlops), sans modifier uv.lock.
+PS> uv sync --frozen --extra dev --extra mlops
+Downloading mlflow (12.0MiB)
+Downloading sqlalchemy (2.0MiB)
+Downloading matplotlib (8.9MiB)
+Downloading pillow (6.8MiB)
+Downloading pyarrow (26.0MiB)
+Downloading mlflow-tracing (1.6MiB)
+Downloading fonttools (2.2MiB)
+Downloading mlflow-skinny (3.3MiB)
+ Downloaded sqlalchemy
+ Downloaded fonttools
+ Downloaded mlflow-tracing
+ Downloaded pillow
+ Downloaded matplotlib
+ Downloaded mlflow-skinny
+ Downloaded pyarrow
+ Downloaded mlflow
+Prepared 30 packages in 48.28s
+Installed 48 packages in 26.48s
+ + alembic==1.18.5
+ + anyio==4.14.1
+ + blinker==1.9.0
+ + cachetools==7.1.4
+ + cloudpickle==3.1.2
+ + contourpy==1.3.3
+ + cycler==0.12.1
+ + databricks-sdk==0.119.0
+ + docker==7.1.0
+ + fastapi==0.138.1
+ + flask==3.1.3
+ + flask-cors==6.0.5
+ + fonttools==4.63.0
+ + google-auth==2.55.1
+ + graphene==3.4.3
+ + graphql-core==3.2.11
+ + graphql-relay==3.2.0
+ + greenlet==3.5.3
+ + h11==0.16.0
+ + huey==3.0.3
+ + importlib-metadata==9.0.0
+ + itsdangerous==2.2.0
+ + jinja2==3.1.6
+ + kiwisolver==1.5.0
+ + mako==1.3.12
+ + markupsafe==3.0.3
+ + matplotlib==3.11.0
+ + mlflow==3.14.0
+ + mlflow-skinny==3.14.0
+ + mlflow-tracing==3.14.0
+ + opentelemetry-api==1.43.0
+ + opentelemetry-proto==1.43.0
+ + opentelemetry-sdk==1.43.0
+ + opentelemetry-semantic-conventions==0.64b0
+ + pillow==12.2.0
+ + prettytable==3.18.0
+ + protobuf==6.33.6
+ + pyarrow==24.0.0
+ + pyasn1==0.6.3
+ + pyasn1-modules==0.4.2
+ + skops==0.14.0
+ + sqlalchemy==2.0.51
+ + sqlparse==0.5.5
+ + starlette==1.3.1
+ + uvicorn==0.49.0
+ + waitress==3.0.2
+ + werkzeug==3.1.8
+ + zipp==4.1.0
+# code retour : 0
+
+# 💬 Installe le gardien dans .git/hooks : avant chaque commit ET avant chaque push.
+PS> uv run --frozen pre-commit install --hook-type pre-commit --hook-type pre-push
+pre-commit installed at .git\hooks\pre-commit
+pre-commit installed at .git\hooks\pre-push
+# code retour : 0
+
+# 💬 Lance ruff --fix, black et gitleaks sur TOUT le projet. 1er lancement : telecharge les 3 outils (versions epinglees par rev:).
+PS> uv run --frozen pre-commit run --all-files
+[INFO] Initializing environment for https://github.com/astral-sh/ruff-pre-commit.
+[INFO] Initializing environment for https://github.com/psf/black.
+[INFO] Initializing environment for https://github.com/gitleaks/gitleaks.
+[INFO] Installing environment for https://github.com/astral-sh/ruff-pre-commit.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for https://github.com/psf/black.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for https://github.com/gitleaks/gitleaks.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+ruff.....................................................................Passed
+black....................................................................Passed
+Detect hardcoded secrets.................................................Passed
+# code retour : 0
+
+# 💬 Les hooks ont-ils modifie des fichiers ? (aucune sortie = non)
+PS> git status --short
+
+# code retour : 0
+
+PS> Get-ChildItem .git\hooks -Exclude *.sample
+pre-commit
+pre-push
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 uv sync : 48 paquets ajoutes (extra mlops : mlflow 3.14.0, sqlalchemy, pyarrow...). verifier_jalon n'installe
+# 💬   que --extra dev ; le M24 demande aussi --extra mlops pour DVC/MLflow. Le lock n'est pas modifie (--frozen).
+# 💬 install : 2 hooks crees, .git\hooks\pre-commit (avant chaque commit) et .git\hooks\pre-push (avant chaque push).
+# 💬   Ils sont LOCAUX a mon poste : .git/hooks n'est pas versionne. Un collegue doit lancer 'pre-commit install' lui-meme.
+# 💬 run --all-files : ruff Passed, black Passed, gitleaks ('Detect hardcoded secrets') Passed.
+# 💬   git status vide : ni ruff --fix ni black n'ont eu besoin de modifier un fichier. Le code etait deja conforme.
+# 💬   L'ecart de versions redoute (hooks ruff 0.6.9 / black 24.8.0 vs projet ruff 0.15.20 / black 26.5.1) ne pose
+# 💬   donc pas de probleme sur le code actuel. A surveiller si un jour le hook et 'uv run black' se contredisent.
+# 💬 Hypothese (non verifiee) : le hook gitleaks analyse les changements prepares au commit, pas tout l'historique ;
+# 💬   c'est pourquoi les cles d'exemple deja presentes dans docs/ ne le font pas echouer ici.

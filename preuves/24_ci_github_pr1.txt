@@ -1,0 +1,58 @@
+# Preuve : M24 - CI reelle sur GitHub Actions (PR brouillon #1 sur mon fork)
+# Date : 2026-09-28 17:12
+# Branche : ismael-sall @ c24bfef (commit teste par la CI)
+#
+# 💬 Source : API publique GitHub (lecture seule, sans authentification).
+# 💬 Fork : https://github.com/ISALLSYNC/CISIA_24082026_Parcours (copie du depot du formateur sur mon compte)
+
+# 💬 1) La Pull Request : brouillon, base = MON fork (pas le depot du formateur), branche comparee = ismael-sall.
+PS> GET /repos/ISALLSYNC/CISIA_24082026_Parcours/pulls
+#1 https://github.com/ISALLSYNC/CISIA_24082026_Parcours/pull/1
+   draft=True base=ISALLSYNC/CISIA_24082026_Parcours:main head=ismael-sall@c24bfef
+   titre=M23-M24 : package testé, pre-commit, CI quality + build
+
+# 💬 2) Le run CI declenche par l'evenement pull_request (cf. 'on: pull_request' ligne 27 de ci.yml).
+PS> GET /repos/ISALLSYNC/CISIA_24082026_Parcours/actions/runs/36441665863
+run 36441665863 'CI' event=pull_request branche=ismael-sall@c24bfef
+   status=completed conclusion=success
+   https://github.com/ISALLSYNC/CISIA_24082026_Parcours/actions/runs/36441665863
+
+# 💬 3) Les jobs et leurs etapes. build demarre APRES la fin de quality (needs: quality).
+PS> GET .../actions/runs/36441665863/jobs
+job quality: success  (debut 2026-09-28T15:11:19Z -> fin 2026-09-28T15:11:32Z)
+     1 Set up job                       success
+     2 Run actions/checkout@v4          success
+     3 Run actions/setup-python@v5      success
+     4 Run astral-sh/setup-uv@v3        success
+     5 Install                          success
+     6 Lint                             success
+     7 Format                           success
+     8 Tests                            success
+    14 Post Run astral-sh/setup-uv@v3   success
+    15 Post Run actions/setup-python@v5 success
+    16 Post Run actions/checkout@v4     success
+    17 Complete job                     success
+job build: success  (debut 2026-09-28T15:11:34Z -> fin 2026-09-28T15:11:45Z)
+     1 Set up job                       success
+     2 Run actions/checkout@v4          success
+     3 Run actions/setup-python@v5      success
+     4 Run astral-sh/setup-uv@v3        success
+     5 Build wheel                      success
+     6 Upload artifact                  success
+    10 Post Run astral-sh/setup-uv@v3   success
+    11 Post Run actions/setup-python@v5 success
+    12 Post Run actions/checkout@v4     success
+    13 Complete job                     success
+
+# 💬 4) L'artefact publie par le job build (upload-artifact, name: indusense-wheel).
+PS> GET .../actions/runs/36441665863/artifacts
+artefact 'indusense-wheel' taille=14971 octets expire=2026-12-27T15:11:16Z expire_deja=False
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 - PR #1 en brouillon, base = ISALLSYNC/...:main : la PR ne touche PAS le depot du formateur.
+# 💬 - Le run a ete declenche par 'pull_request' : le simple push sur ismael-sall ne suffisait pas (on: push = main seulement).
+# 💬 - quality : Install (uv sync --frozen), Lint, Format, Tests = success sur une machine Ubuntu NEUVE.
+# 💬   -> meme verdict qu'en local : aucun test ne depend d'un fichier local non commite.
+# 💬 - build : demarre apres la fin de quality (needs: quality verifie en conditions reelles), Build wheel + Upload artifact = success.
+# 💬 - Artefact indusense-wheel publie : le package installable est telechargeable depuis la page du run.
+# 💬 - Les etapes 'Post Run ...' sont le nettoyage automatique des actions, ajoute par GitHub.

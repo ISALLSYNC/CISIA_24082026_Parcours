@@ -1,0 +1,67 @@
+﻿# Preuve : M24 - ci.yml modifie (--frozen + job build) et verifie en local
+# Date : 2026-09-28 16:13
+# Branche : ismael-sall @ 0e756da (+ ci.yml modifie, pas encore commite)
+
+# 💬 1) Ampleur de la modification.
+PS> git diff --stat -- .github/workflows/ci.yml
+ .github/workflows/ci.yml | 38 ++++++++++++++++++++++++++++++++++----
+ 1 file changed, 34 insertions(+), 4 deletions(-)
+# code retour : 0
+
+# 💬 2) Le YAML est-il valide ? On le charge avec PyYAML (outil temporaire via --with, le lock n'est pas touche) et on affiche la structure.
+PS> uv run --frozen --with pyyaml python -c "import yaml; d=yaml.safe_load(open('.github/workflows/ci.yml',encoding='utf-8')); j=d['jobs']; print('jobs:', list(j)); print('build.needs:', j['build']['needs']); print('quality run:', [s['run'] for s in j['quality']['steps'] if 'run' in s]); print('build run:', [s.get('run', s.get('uses')) for s in j['build']['steps']])"
+jobs: ['quality', 'build']
+build.needs: quality
+quality run: ['uv sync --frozen --extra dev', 'uv run --frozen ruff check .', 'uv run --frozen black --check .', 'uv run --frozen pytest -q']
+build run: ['actions/checkout@v4', 'actions/setup-python@v5', 'astral-sh/setup-uv@v3', 'uv build', 'actions/upload-artifact@v4']
+# code retour : 0
+
+# 💬 3) dist/ est-il ignore par Git ? (sinon le wheel risquerait d'etre commite). Une ligne = ignore, avec la regle.
+PS> git check-ignore -v dist/
+.gitignore:43:dist/	dist/
+# code retour : 0
+
+# 💬 4) Rejouer l'etape 'Build wheel' du job build : fabriquer le package.
+PS> uv build
+Building source distribution...
+Building wheel from source distribution...
+Successfully built dist\indusense_sprint3_starter-0.1.0.tar.gz
+Successfully built dist\indusense_sprint3_starter-0.1.0-py3-none-any.whl
+# code retour : 0
+
+# 💬 5) Le wheel (.whl) est-il present dans dist/ ? (+ le .tar.gz = archive des sources)
+PS> cmd /c dir /b dist
+.gitignore
+indusense_sprint3_starter-0.1.0-py3-none-any.whl
+indusense_sprint3_starter-0.1.0.tar.gz
+# code retour : 0
+
+# 💬 6) Rien d'inattendu a commiter ? Seul ci.yml doit apparaitre (dist/ ignore).
+PS> git status --short
+ M .github/workflows/ci.yml
+# code retour : 0
+
+# 💬 7) Que contient le wheel ? On liste ses fichiers .py (un wheel est une archive zip).
+PS> uv run --frozen python -c "import zipfile; z=zipfile.ZipFile('dist/indusense_sprint3_starter-0.1.0-py3-none-any.whl'); print(*[n for n in z.namelist() if n.endswith('.py')], sep=chr(10))"
+indusense/__init__.py
+indusense/cli.py
+indusense/config.py
+indusense/data/__init__.py
+indusense/data/loaders.py
+indusense/features/__init__.py
+indusense/features/cleaning.py
+indusense/features/temporal.py
+indusense/models/__init__.py
+indusense/models/tabular.py
+# code retour : 0
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 1) 34 lignes ajoutees, 4 modifiees : les 4 commandes du job quality (+ --frozen) et le nouveau job build.
+# 💬 2) YAML valide : 2 jobs [quality, build], build.needs = quality, les 4 commandes quality ont --frozen,
+# 💬    build enchaine checkout -> setup-python -> setup-uv -> uv build -> upload-artifact (code de la fiche TD 24).
+# 💬 3) dist/ est ignore par la regle ligne 43 de .gitignore : le wheel ne sera jamais commite par erreur.
+# 💬 4-5) uv build produit le wheel (.whl, installable) ET le .tar.gz (sdist = archive des sources).
+# 💬    py3-none-any = Python 3 pur, sans code compile, valable sur tout OS : c'est ce que la CI publiera (path: dist/*.whl).
+# 💬 7) Le wheel embarque bien features/cleaning.py (extension M23) : le packaging suit [tool.hatch] packages = src/indusense.
+# 💬 LIMITE : on a verifie la SYNTAXE et l'etape 'uv build' en local ; seule une vraie execution GitHub Actions
+# 💬    (push + pull request) prouvera que needs: et upload-artifact fonctionnent.

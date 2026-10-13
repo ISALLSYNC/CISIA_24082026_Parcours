@@ -1,0 +1,32 @@
+﻿# Preuve : M30 - retries de 'store' : on ne reessaie QUE le transitoire
+# Date : 2026-10-13 11:14
+# Branche : ismael-sall @ 77ec91f (+ predict_flow.py, pas encore commite)
+
+# 💬 Design M29 (docs/flow_design.md) : store = retries 3, backoff 5/15/45 s, uniquement sur erreur TRANSITOIRE.
+# 💬 Implementation : retry_condition_fn=_is_transient -> vrai seulement pour sqlalchemy OperationalError.
+
+# 💬 A) INDUSENSE_DB_URL ABSENTE = erreur DETERMINISTE. Attendu : echec IMMEDIAT, AUCUN 'Retry'.
+PS> uv run --frozen python -m indusense.flows.predict_flow
+11:14:31.887 | ERROR   | Task run 'store-6fd' - Finished in state Failed("Task run encountered an exception RuntimeError: INDUSENSE_DB_URL absente : définir l'URL de la base cible.")
+11:14:32.383 | ERROR   | Flow run 'sociable-oryx' - Encountered exception during execution: RuntimeError("INDUSENSE_DB_URL absente : définir l'URL de la base cible.")
+    before, after = store(preds)
+  File "C:\Users\issal\CISIA_24082026_Parcours\src\indusense\flows\predict_flow.py", line 203, in store
+    raise RuntimeError(f"{DB_URL_ENV} absente : définir l'URL de la base cible.")
+RuntimeError: INDUSENSE_DB_URL absente : définir l'URL de la base cible.
+11:14:32.491 | INFO    | Flow run 'sociable-oryx' - Finished in state Failed("Flow run encountered an exception: RuntimeError: INDUSENSE_DB_URL absente : définir l'URL de la base cible.")
+# code retour : 1 | duree : 29 s
+
+# 💬 B) BASE INJOIGNABLE (port 5999 ferme, identifiants factices) = erreur TRANSITOIRE. connect_timeout=3 (TEST seulement : sans lui, chaque tentative attend ~130 s sur ce poste, cf. 1er essai interrompu). Attendu : 3 'Retry' (5 s, 15 s, 45 s) puis echec.
+PS> uv run --frozen python -m indusense.flows.predict_flow
+11:15:11.591 | INFO    | Task run 'store-393' - Task run failed with exception: OperationalError('(psycopg.errors.ConnectionTimeout) connection timeout expired') - Retry 1/3 will start 5 second(s) from now
+11:15:19.628 | INFO    | Task run 'store-393' - Task run failed with exception: OperationalError('(psycopg.errors.ConnectionTimeout) connection timeout expired') - Retry 2/3 will start 15 second(s) from now
+11:15:37.663 | INFO    | Task run 'store-393' - Task run failed with exception: OperationalError('(psycopg.errors.ConnectionTimeout) connection timeout expired') - Retry 3/3 will start 45 second(s) from now
+11:16:25.704 | ERROR   | Task run 'store-393' - Task run failed with exception: OperationalError('(psycopg.errors.ConnectionTimeout) connection timeout expired') - Retries are exhausted
+  File "C:\Users\issal\CISIA_24082026_Parcours\src\indusense\flows\predict_flow.py", line 217, in store
+sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired
+11:16:25.891 | ERROR   | Task run 'store-393' - Finished in state Failed('Task run encountered an exception OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired\n(Background on this error at: https://sqlalche.me/e/20/e3q8)')
+11:16:25.991 | ERROR   | Flow run 'warm-magpie' - Encountered exception during execution: OperationalError('(psycopg.errors.ConnectionTimeout) connection timeout expired')
+    before, after = store(preds)
+11:16:26.062 | INFO    | Flow run 'warm-magpie' - Finished in state Failed('Flow run encountered an exception: OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired\n(Background on this error at: https://sqlalche.me/e/20/e3q8)')
+# code retour : 1 | duree : 113 s
+

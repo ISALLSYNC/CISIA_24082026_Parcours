@@ -1,0 +1,217 @@
+﻿# Preuve : M29 etape 0 - fusion du jalon 07 (2 conflits resolus)
+# Date : 2026-10-12 11:58
+# Branche : ismael-sall @ 098c8ae (avant fusion)
+
+# 💬 PREALABLES (pas-a-pas) : stack Compose du M28 arretee (docker compose down, volume garde) ; travail commite ; Docker Desktop actif.
+# 💬 SIMULATION : 2 conflits. ci.yml (le jalon remet la CI d'origine) et tests/test_smoke_compose.py (le jalon n'a que le SQUELETTE vide du M28) :
+# 💬 RESOLUTION : garder MA version (ours) pour LES DEUX : M24 (--frozen + build) et mes 3 smoke tests du M28.
+
+# 💬 1) Branche de sauvegarde.
+PS> git branch sauvegarde/ismael-sall/20261012-115852
+
+# code retour : 0
+
+# 💬 2) Recuperer le jalon 07.
+PS> git fetch origin jalon/07
+From https://github.com/thomasfesq/CISIA_24082026_Parcours
+ * branch            jalon/07   -> FETCH_HEAD
+# code retour : 0
+
+# 💬 2b) Commit recupere.
+PS> git rev-parse --short FETCH_HEAD
+e3ee0b5
+# code retour : 0
+
+# 💬 3) Fusion : attendu = 2 conflits (ci.yml, test_smoke_compose.py).
+PS> git merge --no-ff --no-edit -m "Merge branch 'jalon/07' of https://github.com/thomasfesq/CISIA_24082026_Parcours into ismael-sall" FETCH_HEAD
+Auto-merging .github/workflows/ci.yml
+CONFLICT (content): Merge conflict in .github/workflows/ci.yml
+Auto-merging .gitignore
+Auto-merging scripts/demo_versioning.py
+Auto-merging tests/test_smoke_compose.py
+CONFLICT (content): Merge conflict in tests/test_smoke_compose.py
+Automatic merge failed; fix conflicts and then commit the result.
+# code retour : 1
+
+# 💬 3b) Fichiers en conflit.
+PS> git diff --name-only --diff-filter=U
+.github/workflows/ci.yml
+tests/test_smoke_compose.py
+# code retour : 0
+
+# 💬 4) ci.yml et test_smoke_compose.py : MA version (ours).
+PS> git checkout --ours -- .github/workflows/ci.yml tests/test_smoke_compose.py
+
+# code retour : 0
+
+# 💬 5) Marquer comme resolu.
+PS> git add -- .github/workflows/ci.yml tests/test_smoke_compose.py
+
+# code retour : 0
+
+# 💬 6) Plus de conflit ? (aucune sortie attendue)
+PS> git diff --name-only --diff-filter=U
+
+# code retour : 0
+
+# 💬 6b) Aucun marqueur oublie ? (aucune sortie attendue)
+PS> findstr /n /c:"<<<<<<<" /c:">>>>>>>" .github\workflows\ci.yml tests\test_smoke_compose.py
+
+# code retour : 1
+
+# 💬 7) ci.yml garde --frozen et build ?
+PS> findstr /n /c:"run: uv sync --frozen" /c:"build:" /c:"needs: quality" .github\workflows\ci.yml
+60:        run: uv sync --frozen --extra dev
+82:  build:
+83:    # [PÉDAGOGIE] GARDE — `needs: quality` : build ne démarre que si quality est vert. On ne
+85:    needs: quality
+# code retour : 0
+
+# 💬 8) Apports Prefect du jalon arrives ?
+PS> cmd /c dir /b scripts\demo_prefect_idempotence.py docs\flow_design.md
+demo_prefect_idempotence.py
+flow_design.md
+# code retour : 0
+
+# 💬 8b) Mes 3 smoke tests du M28 sont-ils conserves ?
+PS> findstr /n /c:"def test_" tests\test_smoke_compose.py
+47:def test_health_returns_200() -> None:
+52:def test_predict_without_key_returns_401() -> None:
+58:def test_predict_with_key_returns_200() -> None:
+# code retour : 0
+
+# 💬 8c) flows/pipeline.py (annonce par la fiche jalon) est-il present ?
+PS> cmd /c if exist flows\pipeline.py (echo present) else (echo ABSENT)
+ABSENT
+# code retour : 0
+
+# 💬 9) Marqueur de jalon (attendu 07-j4-matin-m29-m30).
+PS> findstr /b /c:"# Jalon actuel" FORMATION\JALON_ACTUEL.md
+# Jalon actuel : 07-j4-matin-m29-m30
+# code retour : 0
+
+# 💬 10) Script officiel de verification du jalon 07.
+PS> powershell -ExecutionPolicy Bypass -File .\scripts\formation\verifier_jalon.ps1 -Jalon 07
+Uninstalled 30 packages in 9.87s
+ - blinker==1.9.0
+ - contourpy==1.3.3
+ - cycler==0.12.1
+ - databricks-sdk==0.119.0
+ - flask==3.1.3
+ - flask-cors==6.0.5
+ - fonttools==4.63.0
+ - google-auth==2.55.1
+ - graphene==3.4.3
+ - graphql-core==3.2.11
+ - graphql-relay==3.2.0
+ - huey==3.0.3
+ - importlib-metadata==9.0.0
+ - itsdangerous==2.2.0
+ - kiwisolver==1.5.0
+ - matplotlib==3.11.0
+ - mlflow==3.14.0
+ - mlflow-skinny==3.14.0
+ - mlflow-tracing==3.14.0
+ - opentelemetry-sdk==1.43.0
+ - opentelemetry-semantic-conventions==0.64b0
+ - pillow==12.2.0
+ - prettytable==3.18.0
+ - pyasn1==0.6.3
+ - pyasn1-modules==0.4.2
+ - skops==0.14.0
+ - sqlparse==0.5.5
+ - waitress==3.0.2
+ - werkzeug==3.1.8
+ - zipp==4.1.0
+............................sss...                                       [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\issal\CISIA_24082026_Parcours\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:152: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    tolerance=pd.Timedelta(minutes=tolerance_minutes),
+
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:169: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    window = pd.Timedelta(hours=window_hours)
+
+tests/test_logs_no_leak.py: 802 warnings
+  C:\Users\issal\CISIA_24082026_Parcours\.venv\Lib\site-packages\joblib\numpy_pickle.py:207: DeprecationWarning: Setting the shape on a NumPy array has been deprecated in NumPy 2.5.
+  As an alternative, you can create a new view using np.reshape (with copy=False if needed).
+    array.shape = self.shape
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+31 passed, 3 skipped, 807 warnings in 12.82s
+All checks passed!
+Jalon verifie : jalon/07
+# code retour : 0
+
+# 💬 11) Reinstaller l'extra mlops.
+PS> uv sync --frozen --extra dev --extra mlops
+Installed 30 packages in 31.29s
+ + blinker==1.9.0
+ + contourpy==1.3.3
+ + cycler==0.12.1
+ + databricks-sdk==0.119.0
+ + flask==3.1.3
+ + flask-cors==6.0.5
+ + fonttools==4.63.0
+ + google-auth==2.55.1
+ + graphene==3.4.3
+ + graphql-core==3.2.11
+ + graphql-relay==3.2.0
+ + huey==3.0.3
+ + importlib-metadata==9.0.0
+ + itsdangerous==2.2.0
+ + kiwisolver==1.5.0
+ + matplotlib==3.11.0
+ + mlflow==3.14.0
+ + mlflow-skinny==3.14.0
+ + mlflow-tracing==3.14.0
+ + opentelemetry-sdk==1.43.0
+ + opentelemetry-semantic-conventions==0.64b0
+ + pillow==12.2.0
+ + prettytable==3.18.0
+ + pyasn1==0.6.3
+ + pyasn1-modules==0.4.2
+ + skops==0.14.0
+ + sqlparse==0.5.5
+ + waitress==3.0.2
+ + werkzeug==3.1.8
+ + zipp==4.1.0
+# code retour : 0
+
+# 💬 12) Toute la suite (stack arretee : mes 3 smoke tests doivent etre SAUTES).
+PS> uv run --frozen pytest -q -p no:warnings -rs
+............................sss...                                       [100%]
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_smoke_compose.py:47: stack Compose non démarrée
+SKIPPED [1] tests\test_smoke_compose.py:52: stack Compose non démarrée
+SKIPPED [1] tests\test_smoke_compose.py:58: stack Compose non démarrée
+31 passed, 3 skipped in 16.31s
+# code retour : 0
+
+# 💬 13) ruff.
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+# 💬 13b) black.
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+33 files would be left unchanged.
+# code retour : 0
+
+# 💬 14) Contenu du commit de fusion.
+PS> git status --short
+M  FORMATION/GUIDE_MULTIPLATEFORME_APPRENANT.md
+M  FORMATION/JALONS/07-j4-matin-m29-m30.md
+M  FORMATION/JALON_ACTUEL.md
+A  docs/flow_design.md
+A  scripts/demo_prefect_idempotence.py
+# code retour : 0
+

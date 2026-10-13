@@ -1,0 +1,66 @@
+﻿# Preuve : M24 preuve finale
+# Date : 2026-09-28 19:42
+# Branche : ismael-sall @ 3ebe4bb
+
+# 💬 BUT : verifier EN UNE FOIS, sur l'etat final du M24, les commandes de la 'Preuve finale visee' du pas-a-pas R2 :
+# 💬   uv run --frozen pytest -q / ruff check . / black --check . / pre-commit run --all-files + uv.lock inchange + 0 secret.
+# 💬 'code retour : 0' = reussite.
+
+# 💬 1) Environnement conforme au lock (dev + mlops).
+PS> uv sync --frozen --extra dev --extra mlops
+Checked 175 packages in 87ms
+# code retour : 0
+
+# 💬 2) Tous les tests (-p no:warnings masque les 4 DeprecationWarning connus, sans changer le verdict).
+PS> uv run --frozen pytest -q -p no:warnings
+.............                                                            [100%]
+13 passed in 1.72s
+# code retour : 0
+
+# 💬 3) Linter.
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+# 💬 4) Formatage (verifie sans modifier).
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+15 files would be left unchanged.
+# code retour : 0
+
+# 💬 5) Les 3 hooks sur tout le projet (ruff, black, gitleaks = 0 secret).
+PS> uv run --frozen pre-commit run --all-files
+ruff.....................................................................Passed
+black....................................................................Passed
+Detect hardcoded secrets.................................................Passed
+# code retour : 0
+
+# 💬 6) Le lock n'a pas bouge (0 = aucune difference).
+PS> git diff --exit-code -- uv.lock
+
+# code retour : 0
+
+# 💬 7) DVC coherent (fichiers, cache, remote).
+PS> uv run --frozen dvc status
+Data and pipelines are up to date.
+# code retour : 0
+
+# 💬 7b)
+PS> uv run --frozen dvc status -c
+Cache and remote 'localstore' are in sync.
+# code retour : 0
+
+# 💬 8) Les livrables attendus existent-ils ?
+PS> cmd /c dir /b versioning_strategy.md metrics.json params.yaml data\gold\gold_dataset.csv.dvc artifacts\models\rf.joblib.dvc
+versioning_strategy.md
+metrics.json
+params.yaml
+gold_dataset.csv.dvc
+rf.joblib.dvc
+# code retour : 0
+
+# 💬 9) Arbre de travail propre ?
+PS> git status --short
+
+# code retour : 0
+

@@ -1,0 +1,92 @@
+﻿# Preuve : M29 TP socle - flow 'hello' (+ retry visible avec la demo --flaky)
+# Date : 2026-10-12 12:58
+# Branche : ismael-sall @ ab6c24e (+ src/indusense/flows/ cree, pas encore commite)
+
+# 💬 Profil local force en debut de script : PREFECT_PROFILE=ephemeral (+ telemetrie desactivee).
+
+# 💬 1) Fichiers crees.
+PS> cmd /c dir /b src\indusense\flows
+hello.py
+__init__.py
+# code retour : 0
+
+# 💬 2) Le flow 'hello' (commande du pas-a-pas). Attendu : pong:indusense + run loggue, etat Completed.
+PS> uv run --frozen python -m indusense.flows.hello
+12:59:13.009 | INFO    | prefect - Starting temporary server on http://127.0.0.1:8071
+See https://docs.prefect.io/v3/concepts/server#how-to-guides for more information on running a dedicated Prefect server.
+12:59:43.366 | INFO    | Flow run 'military-asp' - Beginning flow run 'military-asp' for flow 'hello-indusense'
+12:59:43.625 | INFO    | Task run 'ping-dc4' - Finished in state Completed()
+12:59:43.629 | INFO    | Flow run 'military-asp' - Résultat de la task ping : pong:indusense
+12:59:44.428 | INFO    | Flow run 'military-asp' - Finished in state Completed()
+12:59:44.463 | INFO    | prefect - Stopping temporary server on http://127.0.0.1:8071
+pong:indusense
+# code retour : 0
+
+# 💬 3) RETRY VISIBLE (fiche TD 29 : la demo --flaky doit rendre au moins un retry observable avant le succes).
+PS> uv run --frozen python scripts/demo_prefect_idempotence.py --flaky
+13:00:14.016 | INFO    | prefect - Starting temporary server on http://127.0.0.1:8350
+See https://docs.prefect.io/v3/concepts/server#how-to-guides for more information on running a dedicated Prefect server.
+13:00:26.793 | INFO    | Flow run 'indigo-ladybug' - Beginning flow run 'indigo-ladybug' for flow 'indusense-predict-demo'
+13:00:27.099 | INFO    | Task run 'ingest-a7b' - ingest : 12 moments à prédire (4 machines x 3)
+13:00:27.109 | INFO    | Task run 'ingest-a7b' - Finished in state Completed()
+13:00:27.680 | INFO    | Task run 'predict_batch-c63' - predict : 12 prédictions calculées
+13:00:27.686 | INFO    | Task run 'predict_batch-c63' - Finished in state Completed()
+13:00:27.702 | INFO    | Task run 'store-b81' - Task run failed with exception: RuntimeError('panne transitoire simulée de la base - Prefect va réessayer') - Retry 1/2 will start 1 second(s) from now
+13:00:28.734 | INFO    | Task run 'store-b81' - store : 12 prédictions traitées | lignes en base 0 -> 12 (nouvelles : 12)
+13:00:28.743 | INFO    | Task run 'store-b81' - Finished in state Completed()
+13:00:28.747 | INFO    | Flow run 'indigo-ladybug' - FLOW terminé : 12 lignes en base -> 12 nouvelle(s) ligne(s)
+13:00:28.893 | INFO    | Flow run 'indigo-ladybug' - Finished in state Completed()
+
+=== predictions.db : 12 lignes ===
+  MACH-01  2025-02-01T00:00:00  proba=0.0400  ok
+  MACH-01  2025-02-01T01:00:00  proba=0.0400  ok
+  MACH-01  2025-02-01T02:00:00  proba=0.0400  ok
+  MACH-02  2025-02-01T00:00:00  proba=0.3850  ok
+  MACH-02  2025-02-01T01:00:00  proba=0.3750  ok
+  MACH-02  2025-02-01T02:00:00  proba=0.3650  ok
+  MACH-03  2025-02-01T00:00:00  proba=0.3350  ok
+  MACH-03  2025-02-01T01:00:00  proba=0.3350  ok
+  MACH-03  2025-02-01T02:00:00  proba=0.3550  ok
+  MACH-04  2025-02-01T00:00:00  proba=0.2650  ok
+  MACH-04  2025-02-01T01:00:00  proba=0.2700  ok
+  MACH-04  2025-02-01T02:00:00  proba=0.2500  ok
+
+Vue visuelle -> C:\Users\issal\CISIA_24082026_Parcours\predictions.html
+(ouvre-la dans un navigateur ; elle se rafraîchit toute seule)
+13:00:28.930 | INFO    | prefect - Stopping temporary server on http://127.0.0.1:8350
+# code retour : 0
+
+# 💬 4) Qualite : ruff sur le nouveau code.
+PS> uv run --frozen ruff check src/indusense/flows
+All checks passed!
+# code retour : 0
+
+# 💬 4b) black.
+PS> uv run --frozen black --check src/indusense/flows
+All done! ✨ 🍰 ✨
+2 files would be left unchanged.
+# code retour : 0
+
+# 💬 5) La demo a-t-elle cree des fichiers (base SQLite) ? Sont-ils ignores par Git ?
+PS> git status --short
+?? predictions.db
+?? predictions.html
+?? src/indusense/flows/
+# code retour : 0
+
+
+# 💬 6) CORRECTION : predictions.db et predictions.html (generes par la demo) n'etaient pas ignores -> ajoutes au .gitignore.
+PS> git check-ignore -v predictions.db predictions.html
+.gitignore:71:predictions.db	predictions.db
+.gitignore:72:predictions.html	predictions.html
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 - FLOW 'hello' : 'Starting temporary server on http://127.0.0.1:8071' (mode ephemeral : serveur LOCAL temporaire, arrete a la fin)
+# 💬   -> run nomme 'military-asp' du flow 'hello-indusense' -> task 'ping' Completed -> log 'Resultat de la task ping : pong:indusense'
+# 💬   -> flow 'Finished in state Completed()' -> affiche pong:indusense. ATTENDU ATTEINT (pong:indusense + run loggue).
+# 💬 - RETRY VISIBLE (--flaky) : la task store echoue ('panne transitoire simulee de la base - Prefect va reessayer'),
+# 💬   'Retry 1/2 will start 1 second(s) from now', puis REUSSIT au 2e essai ('lignes en base 0 -> 12'). Flow Completed.
+# 💬   -> c'est exactement le cas ou un retry est PERTINENT : une erreur TRANSITOIRE sur une ressource EXTERNE (la base).
+# 💬 - La demo enchaine 3 tasks ingest -> predict_batch -> store (12 predictions : 4 machines x 3 moments) dans predictions.db.
+# 💬 - Les noms de runs ('military-asp', 'indigo-ladybug') sont generes automatiquement par Prefect.
+# 💬 - ruff et black propres sur le nouveau code.

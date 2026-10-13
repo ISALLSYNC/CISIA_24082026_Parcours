@@ -1,0 +1,37 @@
+﻿# Preuve : M23 TP 3 - normalisation des IDs machine
+# Date : 2026-09-28 14:13
+# Branche : ismael-sall @ 779e224
+
+# Prediction faite AVANT execution (par moi, guide pas a pas) : ['MACH-01', 'MACH-01', 'MACH-06', 'MACH-02']
+
+PS> uv run python -c "from indusense.data.loaders import normalize_machine_id as n; ids = ("MACH-01", "MACH_01", "M-06", "M-2"); print([n(raw) for raw in ids])"
+['MACH-01', 'MACH-01', 'MACH-06', 'MACH-02']
+
+PS> uv run pytest tests/test_loaders.py -v -k normalize_machine_id
+============================= test session starts =============================
+platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\issal\CISIA_24082026_Parcours\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\issal\CISIA_24082026_Parcours
+configfile: pyproject.toml
+collecting ... collected 8 items / 2 deselected / 6 selected
+
+tests/test_loaders.py::test_normalize_machine_id_variants[MACH-01-MACH-01] PASSED [ 16%]
+tests/test_loaders.py::test_normalize_machine_id_variants[MACH_01-MACH-01] PASSED [ 33%]
+tests/test_loaders.py::test_normalize_machine_id_variants[M-06-MACH-06] PASSED [ 50%]
+tests/test_loaders.py::test_normalize_machine_id_variants[M-2-MACH-02] PASSED [ 66%]
+tests/test_loaders.py::test_normalize_machine_id_variants[M_07-MACH-07] PASSED [ 83%]
+tests/test_loaders.py::test_normalize_machine_id_without_number_raises PASSED [100%]
+
+======================= 6 passed, 2 deselected in 1.34s =======================
+
+PS> uv run python -c "from indusense.data.loaders import normalize_machine_id as n; print(n("MACH-123")); n("MACH-XX")"
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from indusense.data.loaders import normalize_machine_id as n; print(n("MACH-123")); n("MACH-XX")
+                                                                                        ~^^^^^^^^^^^
+  File "C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py", line 54, in normalize_machine_id
+    raise ValueError(f"machine_id sans numero : {raw!r}")
+ValueError: machine_id sans numero : 'MACH-XX'
+MACH-123
+
+# Note : le dernier bloc se termine volontairement en erreur (cas d'echec attendu). MACH-123 -> MACH-123 (:02d = 2 chiffres MINIMUM, pas maximum) ; MACH-XX -> ValueError (fail fast). L'ordre d'affichage (erreur avant MACH-123) vient de la mise en tampon de stdout, pas de l'ordre d'execution.

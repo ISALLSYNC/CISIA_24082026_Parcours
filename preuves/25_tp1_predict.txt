@@ -1,0 +1,54 @@
+﻿# Preuve : M25 TP 1 - Endpoints & schemas : POST /predict-tabular avec payload.json et la cle X-API-Key
+# Date : 2026-09-29 11:07
+# Branche : ismael-sall @ 53c8544
+
+# 💬 BUT : faire une VRAIE prediction et verifier toute la chaine :
+# 💬   cle X-API-Key -> contrat Pydantic (>= 7 releves, bornes) -> features temporelles -> modele RF -> reponse au contrat de sortie.
+# 💬 PREDICTION (avant execution) : HTTP 200, decision = 'ok' (seuil API 0.5 + modele faible sur le futur -> alerte peu probable).
+
+# 💬 1) Le serveur est-il toujours la et pret ? (attendu 200 / ready)
+PS> GET /ready
+HTTP 200 {"status":"ready","model_version":"0.1.0"}
+
+# 💬 2) Le corps de la requete : payload.json (contenu exact envoye).
+PS> Get-Content payload.json
+{
+  "machine_id": "MACH-07",
+  "readings": [
+    {"timestamp": "2025-02-01T00:00:00", "temperature": 50, "pressure_bar": 195.0},
+    {"timestamp": "2025-02-01T01:00:00", "temperature": 51, "pressure_bar": 195.5},
+    {"timestamp": "2025-02-01T02:00:00", "temperature": 52, "pressure_bar": 196.0},
+    {"timestamp": "2025-02-01T03:00:00", "temperature": 53, "pressure_bar": 196.5},
+    {"timestamp": "2025-02-01T04:00:00", "temperature": 54, "pressure_bar": 197.0},
+    {"timestamp": "2025-02-01T05:00:00", "temperature": 55, "pressure_bar": 197.5},
+    {"timestamp": "2025-02-01T06:00:00", "temperature": 56, "pressure_bar": 198.0},
+    {"timestamp": "2025-02-01T07:00:00", "temperature": 57, "pressure_bar": 198.5}
+  ]
+}
+   -> machine_id = MACH-07 ; nombre de releves = 8 (minimum exige : 7)
+
+# 💬 3) La cle : aucune INDUSENSE_API_KEY dans .env -> valeur par defaut de config.py ('dev-key', cle de DEVELOPPEMENT publique, pas un secret).
+PS> Select-String src/indusense/config.py -Pattern 'api_key'
+config.py:60: api_key: str = "dev-key"
+
+# 💬 4) L'APPEL : POST /predict-tabular, en-tete X-API-Key, corps JSON = payload.json.
+PS> Invoke-WebRequest -Method Post -Uri http://127.0.0.1:8000/predict-tabular -Headers @{'X-API-Key'='dev-key'} -ContentType 'application/json' -Body (Get-Content -Raw payload.json)
+HTTP 200 | duree ~ 127 ms | Content-Type: application/json | X-Request-ID: 2677ec75-3d10-4183-8373-475ce551e12d
+Corps de la reponse :
+{"machine_id":"MACH-07","proba_panne":0.075,"decision":"ok","model_version":"0.1.0","threshold":0.5}
+
+# 💬 5) La reponse respecte-t-elle le contrat de sortie (PredictionResponse) ?
+   champs recus : machine_id, proba_panne, decision, model_version, threshold
+   proba_panne entre 0 et 1 ? True (valeur 0.075)
+   decision dans {ok, alerte} ? True (valeur ok)
+   regle de decision : proba_panne >= threshold -> 'alerte' ; ici 0.075 >= 0.5 ? False -> attendu 'ok', recu 'ok'
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 - HTTP 200 en ~127 ms : toute la chaine fonctionne (cle acceptee, contrat valide, features, modele, reponse).
+# 💬 - proba_panne = 0.075 : le modele estime 7,5 % de risque de panne pour MACH-07 sur la fenetre suivante.
+# 💬 - decision = 'ok' car 0.075 < threshold 0.5 (seuil de config.py, PAS le 0.975 de model_metadata.json).
+# 💬 - model_version = 0.1.0 = version du PACKAGE (model_metadata.json -> package_version), pas la version MLflow.
+# 💬 - X-Request-ID present : chaque reponse porte un identifiant unique (middleware, TP 3).
+# 💬 - PREDICTION CONFIRMEE : 200 + 'ok'.
+# 💬 - LIMITE : 0.075 n'est pas une probabilite 'fiable' : le modele fait moins bien que le hasard sur le futur (M24,
+# 💬   ROC-AUC 0.25 en split temporel). L'API marche techniquement ; la QUALITE du modele est un autre sujet (Model Card).
