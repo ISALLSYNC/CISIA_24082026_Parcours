@@ -2021,6 +2021,23 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 - **Correction** : déjà en place dans `load_incidents` ([loaders.py:93](src/indusense/data/loaders.py#L93)) : `pd.to_datetime(date + " " + time)`.
 - **Ma reformulation** *(version corrigée avec Claude Code, ma 1ʳᵉ formulation confondait l'heure de l'incident avec le délai entre relevés)* : « Oublier l'heure place l'incident à minuit : la fenêtre "panne" recule et marque des heures saines à la place des vraies heures avant la panne. Le nombre de pannes peut rester le même, mais les étiquettes sont fausses, donc le modèle apprend sur de mauvaises données. »
 
+**TP socle — mode PostgreSQL (preuve dans Compose)** *(mode principal du pas-à-pas)*
+
+📎 **Preuves brutes** : [preuves/30_p4_pg_preflight_build.txt](preuves/30_p4_pg_preflight_build.txt) (préflight + build) · [preuves/30_tp_postgres_idempotence.txt](preuves/30_tp_postgres_idempotence.txt) (2 runs)
+
+| Étape | Commande | Résultat |
+|---|---|---|
+| Base **neuve** isolée | `COMPOSE_PROJECT_NAME=cisia_m30_20261013_113546` + `docker compose up -d --wait db` | `db` **healthy** (27 s), volume neuf, données du M28 intactes ; Prometheus / Grafana **non démarrés** (ressources) |
+| Image reconstruite | `docker compose build api` | `indusense-api:v1.0` en **234 s** ; `predict_flow.py` présent dans l'image |
+| Run 1 **dans le service `api`** (données montées en lecture seule) | `docker compose run --rm --no-deps … api python -m indusense.flows.predict_flow` | `base=postgresql` · lignes **0 → 4** |
+| Run 2 | idem | lignes **4 → 4** → « **IDEMPOTENT (0 nouvelle ligne)** » |
+| Contrôles `psql` | `count(*)` · doublons · types · contenu | `count1 = count2 = 4` · **0 doublon** · `prediction_ts` = `timestamp without time zone`, `created_at` = `timestamp with time zone` · `created_at` = instant du run 1 |
+
+- **Mêmes résultats qu'en SQLite** (mêmes populations `joined_*` / `gold_*`, mêmes probabilités) → le **même code** et le **même SQL d'upsert** fonctionnent sur les deux bases.
+- *Incident 1 (de mon fait)* : `uv sync --frozen` **sans extras** (commande du pas-à-pas recopiée telle quelle) a **désinstallé 42 paquets** du `.venv` local (pytest, ruff, black, pre-commit, mlflow…). Réparé aussitôt par `uv sync --frozen --extra dev --extra mlops` ; `uv.lock` inchangé. 🔑 Toujours garder les extras.
+- *Incident 2* : 1ᵉʳ essai des 2 runs → `Timed out while attempting to connect to ephemeral Prefect API server`. Le mini-serveur Prefect démarre en plus de **20 s** (délai par défaut) dans le conteneur sur ce poste. Correctif **pour les runs seulement** : `-e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=120`. La base était restée vide → preuve valide.
+- **Écart** : 4 lignes au lieu de **15** (jeu complet absent), comme en SQLite.
+
 - Ce que j'ai fait : … / Ma preuve : … (2 runs → 0 doublon, `count(*)` stable) / Compétence(s) : C6 / Difficulté : …
 
 ### J5 — mer. 02/09
