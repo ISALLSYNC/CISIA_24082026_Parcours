@@ -351,6 +351,8 @@
 - **Preuve CI GitHub** : faite sur **mon fork** (`ISALLSYNC`) plutôt que sur le dépôt du formateur, faute de savoir si les apprenants doivent y pousser. → À confirmer avec le formateur que la PR #1 du fork convient comme preuve.
 - **Jalon 02 lancé sur ma décision** (« On peut le lancer ») après la pré-vérification sans conflit ; signal formateur à confirmer. Branche de secours : `sauvegarde/ismael-sall/20260928-154713`.
 - **Prérequis Sprint 2 (scénario B)** : un contrat I/O **d'exemple** est disponible ([docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json](docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json)), mais ses valeurs sont illustratives. → À confirmer avec le formateur : le scénario B me concerne-t-il ? Quel est le **seuil réel** du modèle du dépôt ? Où sont la model card v1 et le contrat validé ?
+- **M30 — jeu complet** : introuvable (dépôt, AELION non vérifié, mon autre projet = autre format). → Où le récupérer ? Sans lui, la preuve M30 donnera `count == 4` et non 15.
+- **M30 — fuseau de la pression** : `load_pressure` convertit les 384 lignes `+01:00` en UTC (−1 h) → 380 doublons `(machine, timestamp)`. → Bug ou piège volontaire ? (loader non modifié)
 
 **Module 24 — CI/CD, tests & versioning** · *C6* · *(terminé — 28/09/2026)*
 
@@ -1941,7 +1943,27 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 - Machine : i5-5300U (2 cœurs) · 15,7 Go RAM · Docker 4 CPU / ~8 Go. PostgreSQL est léger (≈ 15 lignes à écrire) ; le coût réel est la **reconstruction de l'image** → développer d'abord sur SQLite jetable, reconstruire seulement pour la preuve.
 - Pour libérer des ressources : arrêt (`docker stop`, sans suppression) des conteneurs de mon autre projet (`C:\Users\issal\Indusense\.docker` : `docker-db-1`, `docker-admin-1`). Relance : `docker start docker-db-1 docker-admin-1`.
 
-**Module 30 — Implémentation du flow** · *C6*
+**Module 30 — Implémentation du flow** · *C6 · C7*
+
+**P0 — Audit des données brutes avant d'implémenter** *(hors titres du pas-à-pas : préalable imposé par l'absence du jeu complet)*
+
+📎 **Preuve brute** : [preuves/30_p0_audit_raw.txt](preuves/30_p0_audit_raw.txt)
+
+- **Décision** : le **jeu complet** (15 machines, 66 800 températures, panne 4,7802 %) est **hors dépôt** et introuvable pour l'instant. Mon dossier `C:\Users\issal\Indusense\datas` est un **autre univers** (télémétrie fusionnée, gold par fenêtres 1 h / 6 h) : incompatible avec les loaders. → On **développe sur `data/raw`** (échantillon, byte-identique à `data/sample`) en passant par les **4 tasks** ; partir du **gold** a été écarté car il court-circuite `ingest` et `feature`.
+- **Ce que contient `data/raw`** :
+
+| Fichier | Lignes | Format | Identifiants bruts → normalisés |
+|---|---|---|---|
+| `capteurs_temperature.csv` | 1 920 | `;` | `MACH-01` → `MACH-01` |
+| `capteurs_pression.tsv` | 1 920 | tabulation | `MACH_01` → `MACH-01` |
+| `releves_incidents.csv` | 8 | `,` + `date` / `time` séparées | `M-01`, `M-1` → `MACH-01` |
+| `machine.sql` | référentiel | SQL | **15 machines** (les capteurs n'en couvrent que **4**) |
+
+  Période 26/08 → 14/09/2025, pas horaire, **0 valeur vide**, incidents **pseudonymisés** (`OP-1001`, `BADGE1001`).
+- ⚠️ **Anomalie trouvée (point « fuseau horaire : à contrôler » du M23)** : **384 / 1 920** lignes de pression portent `+01:00`. `load_pressure` ([loaders.py:79](src/indusense/data/loaders.py#L79)) les convertit en **UTC (−1 h)**, les autres restent telles quelles → **380 doublons** `(machine, timestamp)` et **384 trous de 2 h**. Ex. : `05:00+01:00` → `04:00`, collision avec la vraie mesure de 04:00.
+  - *Impact M30* : faible (`merge_asof` *nearest* ±90 min joint quand même), mais certaines températures reçoivent la pression de l'heure voisine.
+  - *Choix* : **loader non modifié** (logique fournie par le cours ; chiffres de référence calculés avec) → **question au formateur** : bug ou piège volontaire ?
+
 - Ce que j'ai fait : … / Ma preuve : … (2 runs → 0 doublon, `count(*)` stable) / Compétence(s) : C6 / Difficulté : …
 
 ### J5 — mer. 02/09
