@@ -1929,6 +1929,18 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 - **Vérification** : `pre-commit run --all-files` → ruff, black, gitleaks **Passed**, aucun fichier modifié · `ruff check .` et `black --check .` toujours propres → **hook, projet et CI d'accord**.
 - 🔑 **À retenir** : un hook n'est utile que s'il donne **le même verdict que la CI** ; sinon il bloque à tort (ou laisse passer à tort). Note : ruff récent signale l'id `ruff` comme « *legacy alias* » de `ruff-check` (fonctionne, renommage possible plus tard).
 
+**Hors TP — glossaire détaillé du sprint (13/10/2026)**
+
+- **Quoi** : [docs/glossaire_detaille_sprint3.md](docs/glossaire_detaille_sprint3.md) — 172 termes classés par module (outils transverses, M23 → M34, Game Day, métriques), chacun avec **définition · rôle · exemple**.
+- **Sources** : pas-à-pas R2, `prerequis_express_et_glossaire_sprint3.md`, `memo_metriques_sans_confusion.md`. Exemples M23-M29 = **notre travail réel** ; exemples M30 → J6 = ceux du cours, marqués 📘 (rien d'inventé).
+- **Aide IA reçue** : glossaire **rédigé par Claude Code** à partir des supports du cours et de mon travail, à ma demande. **À relire et savoir réexpliquer avec mes mots.**
+
+**Préparation M30 — choix du backend (13/10/2026)**
+
+- Le pas-à-pas présente **PostgreSQL dans Compose** comme mode principal et **SQLite sur l'hôte** comme repli. Les deux exigent le **jeu complet** (`INDUSENSE_DATA_DIR`), **absent du dépôt** → à récupérer avant la preuve finale.
+- Machine : i5-5300U (2 cœurs) · 15,7 Go RAM · Docker 4 CPU / ~8 Go. PostgreSQL est léger (≈ 15 lignes à écrire) ; le coût réel est la **reconstruction de l'image** → développer d'abord sur SQLite jetable, reconstruire seulement pour la preuve.
+- Pour libérer des ressources : arrêt (`docker stop`, sans suppression) des conteneurs de mon autre projet (`C:\Users\issal\Indusense\.docker` : `docker-db-1`, `docker-admin-1`). Relance : `docker start docker-db-1 docker-admin-1`.
+
 **Module 30 — Implémentation du flow** · *C6*
 - Ce que j'ai fait : … / Ma preuve : … (2 runs → 0 doublon, `count(*)` stable) / Compétence(s) : C6 / Difficulté : …
 
