@@ -1964,6 +1964,43 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
   - *Impact M30* : faible (`merge_asof` *nearest* ±90 min joint quand même), mais certaines températures reçoivent la pression de l'heure voisine.
   - *Choix* : **loader non modifié** (logique fournie par le cours ; chiffres de référence calculés avec) → **question au formateur** : bug ou piège volontaire ?
 
+**TP socle — predict & store (upsert) + preuve d'idempotence** *(pas-à-pas R2 ; ici en mode développement SQLite)*
+
+📎 **Preuve brute** : [preuves/30_tp_sqlite_idempotence.txt](preuves/30_tp_sqlite_idempotence.txt)
+
+- **Code** : [src/indusense/flows/predict_flow.py](src/indusense/flows/predict_flow.py) — code **montré et validé par moi avant écriture**, commenté `[PÉDAGOGIE]`. Détail des choix dans la section « Implémentation (M30) » de [docs/flow_design.md](docs/flow_design.md).
+
+| Task | Ce qu'elle fait | Réutilise (lib testée) |
+|---|---|---|
+| `ingest` | Lit les 3 sources, normalise les ids, joint `merge_asof(by="machine")`, fabrique `panne` | `load_*`, `build_dataset` |
+| `feature` | Lags + moyennes glissantes sans fuite, retire les lignes incomplètes | `add_temporal_features` |
+| `predict` | Dernière ligne de chaque machine → `proba_panne` + `decision` (seuil 0,5) | `load_model`, `predict_proba`, `select_features` |
+| `store` | **Upsert** dans `predictions` (clé `(machine, prediction_ts)`) ; seule task avec retries | SQLAlchemy |
+
+- **Base** : SQLite **neuve** sous `$env:TEMP` (jamais l'ancien `predictions.db` du dépôt) ; URL lue dans `INDUSENSE_DB_URL`, **jamais journalisée**.
+- **Résultat** :
+
+| Run | Logs clés | Lignes en base |
+|---|---|---|
+| 1 | `joined_rows=1920 joined_panne_rate=0.10416667` · `gold_rows=1896 gold_panne_rate=0.10548523` · 4 machines scorées, 0 alerte | **0 → 4** |
+| 2 | mêmes populations | **4 → 4** → « **IDEMPOTENT (0 nouvelle ligne)** » |
+
+  `count1 = count2 = 4` · **0 doublon** sur `(machine, prediction_ts)` · `created_at` garde l'instant du **run 1** (non écrasé).
+- **Écart avec l'attendu du pas-à-pas** : 4 lignes au lieu de **15**, 10,4 % / 10,5 % au lieu de 4,78 % / 4,81 % → **population différente** (échantillon `data/raw`, 4 machines), pas un bug. Les taux obtenus sont exactement ceux annoncés par le cours pour l'échantillon (« ≈ 10,42 % brut / ≈ 10,55 % entraînable »).
+- *Erreurs corrigées dans ma preuve* : (1) le `>` de `count(*) > 1` a été pris par `cmd` pour une **redirection** → contrôle des doublons vide ; remplacé par `!= 1`. (2) Le chemin complet de la base temporaire apparaissait alors que je l'annonçais masqué → remplacé par `<TEMP>\…`. Preuve rejouée sur une **nouvelle** base neuve.
+
+**Preuve complémentaire — les retries ne visent que le transitoire**
+
+📎 **Preuve brute** : [preuves/30_p2_retries.txt](preuves/30_p2_retries.txt)
+
+| Cas | Erreur simulée | Type | Attendu | Obtenu |
+|---|---|---|---|---|
+| A | `INDUSENSE_DB_URL` absente | **Déterministe** (« mauvais numéro ») | Échec immédiat, 0 retry | ✅ `RuntimeError`, **aucun** `Retry` |
+| B | PostgreSQL injoignable (port 5999, identifiants factices) | **Transitoire** (« ligne occupée ») | 3 retries espacés | ✅ `Retry 1/3` (5 s) → `2/3` (15 s) → `3/3` (45 s) → « Retries are exhausted » |
+
+- *Incident* : le 1ᵉʳ essai a duré **> 10 min** et a été arrêté : sur ce poste, une connexion vers un port fermé **n'est pas refusée**, elle expire après ≈ **130 s** (`ConnectionTimeout`) → 4 tentatives ≈ 10 min. Correctif **pour le test seulement** : `?connect_timeout=3` dans l'URL factice (113 s au total). Code du flow inchangé.
+- *Amélioration notée* (points ouverts de `flow_design.md`) : en production, prévoir un délai maximal de connexion dans `store`.
+
 - Ce que j'ai fait : … / Ma preuve : … (2 runs → 0 doublon, `count(*)` stable) / Compétence(s) : C6 / Difficulté : …
 
 ### J5 — mer. 02/09

@@ -45,7 +45,25 @@ flowchart LR
 
 - **Délais de retry** : 5 s / 15 s / 45 s sont ceux des contrats de la fiche TD 29 ; la démo `demo_prefect_idempotence.py` utilise 2 réessais après 1 s (pour la démonstration).
 - **Seuil de décision** : 0,5 (celui de l'API, `config.py`) ; le seuil calculé au M24 est 0,975 → à trancher avec le formateur.
-- **Base cible** : SQLite local (`predictions.db`, démo) ou PostgreSQL de la stack Compose (M28) → choix à faire au M30 (pas-à-pas : « PostgreSQL dans Compose ou SQLite sur l'hôte »).
+- **Base cible** : ~~à choisir au M30~~ → **tranché** : développement sur **SQLite** neuve (`$env:TEMP`), preuve finale sur **PostgreSQL dans Compose** (mode principal du pas-à-pas).
+- **Délai de connexion** (constaté au M30) : sans `connect_timeout`, une base qui ne répond pas bloque chaque tentative de `store` ≈ 130 s sur ce poste. Le test l'a fixé à 3 s **dans l'URL de test seulement** ; en production, prévoir un délai maximal de connexion.
+- **Jeu de données** : la preuve officielle (15 lignes, `panne` ≈ 4,7802 %) exige le jeu complet, absent du dépôt ; l'échantillon `data/raw` donne 4 lignes.
+
+## Implémentation (M30)
+
+> Code : [`src/indusense/flows/predict_flow.py`](../src/indusense/flows/predict_flow.py) — écrit le 13/10/2026, conforme au design ci-dessus.
+> Lancer : `$env:INDUSENSE_DB_URL = "<url>"` puis `uv run python -m indusense.flows.predict_flow` (profil Prefect `ephemeral`).
+
+| Élément du design | Réalisation |
+|---|---|
+| 4 tasks | `ingest` (loaders + `build_dataset`, `by="machine"`) · `feature` (`add_temporal_features` + `dropna`) · `predict` (dernière ligne par machine, seuil `settings.decision_threshold`) · `store` (upsert) — **aucune logique métier réécrite** |
+| Populations nommées | `ingest` journalise `joined_rows / joined_panne_count / joined_panne_rate` ; `feature` journalise `gold_*` ; aucune ligne source publiée |
+| Retries seulement sur `store` | `retries=3`, `retry_delay_seconds=[5, 15, 45]`, `retry_condition_fn=_is_transient` → réessaie **uniquement** `sqlalchemy.exc.OperationalError` |
+| Clé + upsert | Table `predictions`, `PRIMARY KEY (machine, prediction_ts)` ; `INSERT … ON CONFLICT (machine, prediction_ts) DO UPDATE` — **même SQL** pour SQLite et PostgreSQL ; `created_at` (UTC) non écrasé à la relance |
+| Base cible | Lue dans `INDUSENSE_DB_URL` (jamais journalisée ni passée en paramètre Prefect). `prediction_ts` adapté au pilote : ISO 8601 (SQLite) / `datetime` (PostgreSQL) |
+| Pas de cache | `cache_policy=NO_CACHE` sur les 4 tasks : chaque run relit les sources et `store` s'exécute toujours |
+
+**Preuves** : [30_tp_sqlite_idempotence.txt](../preuves/30_tp_sqlite_idempotence.txt) (2 runs → 4 → 4, 0 doublon) · [30_p2_retries.txt](../preuves/30_p2_retries.txt) (URL absente → échec immédiat ; base injoignable → 3 retries 5/15/45 s).
 
 ## Preuves attendues
 

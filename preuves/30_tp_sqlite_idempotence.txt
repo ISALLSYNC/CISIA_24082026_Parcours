@@ -1,0 +1,67 @@
+﻿# Preuve : M30 - flow predict_flow en mode SQLite (developpement) : 2 runs -> 0 doublon
+# Date : 2026-10-13 10:52
+# Branche : ismael-sall @ 77ec91f (+ src/indusense/flows/predict_flow.py, pas encore commite)
+
+# 💬 Contexte : jeu complet absent -> donnees data/raw (4 machines). Attendu : count1 == count2 == 4 (et non 15).
+# 💬 Base : SQLite NEUVE sous $env:TEMP\cisia_m30_<horodatage>\predictions_flow.db (chemin non publie ; l'ancien predictions.db du depot n'est pas ouvert).
+# 💬 Prefect : PREFECT_PROFILE=ephemeral (local, sans Cloud).
+
+# 💬 1) RUN 1 (base vide). Attendu : joined_* puis gold_* journalises, 4 machines scorees, lignes 0 -> 4.
+PS> uv run --frozen python -m indusense.flows.predict_flow
+10:53:20.659 | INFO    | Task run 'ingest-a06' - joined_rows=1920 joined_panne_count=200 joined_panne_rate=0.10416667
+10:53:20.666 | INFO    | Task run 'ingest-a06' - Finished in state Completed()
+10:53:20.718 | INFO    | Task run 'feature-262' - gold_rows=1896 gold_panne_count=200 gold_panne_rate=0.10548523
+10:53:20.729 | INFO    | Task run 'feature-262' - Finished in state Completed()
+10:53:20.995 | INFO    | Task run 'predict-c07' - predict : 4 machines scorées | seuil=0.5 | alertes=0
+10:53:21.000 | INFO    | Task run 'predict-c07' - Finished in state Completed()
+10:53:21.042 | INFO    | Task run 'store-f57' - store : 4 prédictions | base=sqlite | lignes 0 -> 4 (nouvelles : 4)
+10:53:21.061 | INFO    | Task run 'store-f57' - Finished in state Completed()
+10:53:21.065 | INFO    | Flow run 'nice-cicada' - FLOW terminé : 4 lignes en base -> 4 nouvelle(s) ligne(s)
+10:53:21.557 | INFO    | Flow run 'nice-cicada' - Finished in state Completed()
+# code retour : 0
+
+# 💬 2) count1
+PS> uv run --frozen python -c "import sqlite3, sys; cx = sqlite3.connect(sys.argv[1]); print(cx.execute(\"select count(*) from predictions\").fetchone()[0])" "<TEMP>\cisia_m30_<horodatage>\predictions_flow.db"
+4
+# code retour : 0
+
+# 💬 3) RUN 2 (meme base, memes donnees). Attendu : lignes 4 -> 4, verdict IDEMPOTENT.
+PS> uv run --frozen python -m indusense.flows.predict_flow
+10:54:00.768 | INFO    | Task run 'ingest-beb' - joined_rows=1920 joined_panne_count=200 joined_panne_rate=0.10416667
+10:54:00.779 | INFO    | Task run 'ingest-beb' - Finished in state Completed()
+10:54:00.865 | INFO    | Task run 'feature-52f' - gold_rows=1896 gold_panne_count=200 gold_panne_rate=0.10548523
+10:54:00.888 | INFO    | Task run 'feature-52f' - Finished in state Completed()
+10:54:01.175 | INFO    | Task run 'predict-3ea' - predict : 4 machines scorées | seuil=0.5 | alertes=0
+10:54:01.184 | INFO    | Task run 'predict-3ea' - Finished in state Completed()
+10:54:01.201 | INFO    | Task run 'store-658' - store : 4 prédictions | base=sqlite | lignes 4 -> 4 (nouvelles : 0)
+10:54:01.227 | INFO    | Task run 'store-658' - Finished in state Completed()
+10:54:01.233 | INFO    | Flow run 'valiant-stork' - FLOW terminé : 4 lignes en base -> IDEMPOTENT (0 nouvelle ligne)
+10:54:01.675 | INFO    | Flow run 'valiant-stork' - Finished in state Completed()
+# code retour : 0
+
+# 💬 4) count2
+PS> uv run --frozen python -c "import sqlite3, sys; cx = sqlite3.connect(sys.argv[1]); print(cx.execute(\"select count(*) from predictions\").fetchone()[0])" "<TEMP>\cisia_m30_<horodatage>\predictions_flow.db"
+4
+# code retour : 0
+
+# 💬 5) Doublons sur la cle (machine, prediction_ts). Attendu : 0.
+PS> uv run --frozen python -c "import sqlite3, sys; cx = sqlite3.connect(sys.argv[1]); print(cx.execute(\"select count(*) from (select machine, prediction_ts from predictions group by 1, 2 having count(*) != 1)\").fetchone()[0])" "<TEMP>\cisia_m30_<horodatage>\predictions_flow.db"
+0
+# code retour : 0
+
+# 💬 6) Contenu de la table (created_at = instant du RUN 1 : non ecrase par le run 2).
+PS> uv run --frozen python -c "import sqlite3, sys; cx = sqlite3.connect(sys.argv[1]); [print(r) for r in cx.execute(\"select machine, prediction_ts, round(proba_panne, 4), decision, created_at from predictions order by machine\")]" "<TEMP>\cisia_m30_<horodatage>\predictions_flow.db"
+('MACH-01', '2025-09-14T23:00:00', 0.07, 'ok', '2026-10-13T08:53:21.010153+00:00')
+('MACH-02', '2025-09-14T23:00:00', 0.1, 'ok', '2026-10-13T08:53:21.010153+00:00')
+('MACH-03', '2025-09-14T23:00:00', 0.02, 'ok', '2026-10-13T08:53:21.010153+00:00')
+('MACH-04', '2025-09-14T23:00:00', 0.045, 'ok', '2026-10-13T08:53:21.010153+00:00')
+# code retour : 0
+
+# 💬 VERDICT : count1=4 count2=4 -> IDEMPOTENT, population attendue (4 machines) OK
+
+# 💬 7) L'ancien predictions.db du depot n'a pas ete modifie ; uv.lock inchange.
+PS> git status --short
+?? preuves/30_tp_sqlite_idempotence.txt
+?? src/indusense/flows/predict_flow.py
+# code retour : 0
+
