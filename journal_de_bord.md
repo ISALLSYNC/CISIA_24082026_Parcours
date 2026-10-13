@@ -2019,7 +2019,7 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 - **Pourquoi mon « baisse » était faux** : la fenêtre est **déplacée, pas raccourcie** (toujours 25 points horaires). Sur l'échantillon, aucune fenêtre ne chevauche une autre ni ne sort de la période → 8 × 25 = 200 dans les deux cas. Sur le **jeu complet**, chevauchements et bords font bouger le taux (≈ 4,89 % au lieu de 4,78 %, « +73 FP » selon les fiches).
 - 🔑 **À retenir** : un taux de panne inchangé **ne prouve pas** que les étiquettes sont justes — ici le bug est **totalement silencieux**. Même famille que `merge_asof` sans `by` (M29) et que la fuite temporelle (M23).
 - **Correction** : déjà en place dans `load_incidents` ([loaders.py:93](src/indusense/data/loaders.py#L93)) : `pd.to_datetime(date + " " + time)`.
-- **Ma reformulation** : …
+- **Ma reformulation** *(version corrigée avec Claude Code, ma 1ʳᵉ formulation confondait l'heure de l'incident avec le délai entre relevés)* : « Oublier l'heure place l'incident à minuit : la fenêtre "panne" recule et marque des heures saines à la place des vraies heures avant la panne. Le nombre de pannes peut rester le même, mais les étiquettes sont fausses, donc le modèle apprend sur de mauvaises données. »
 
 - Ce que j'ai fait : … / Ma preuve : … (2 runs → 0 doublon, `count(*)` stable) / Compétence(s) : C6 / Difficulté : …
 
