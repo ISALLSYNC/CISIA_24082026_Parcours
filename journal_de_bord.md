@@ -2229,6 +2229,26 @@ Construite question par question ; **mes réponses** et les corrections reçues 
 - *Incident* : le vérificateur fait `uv sync --frozen --extra dev` **sans** `mlops` → **MLflow retiré** du `.venv`. Réparé par `uv sync --frozen --extra dev --extra mlops`. 🔑 Après chaque vérificateur de jalon, revérifier les extras.
 - Apports du jalon : `docs/slo.md`, `docs/runbook.md`, `docs/TP_drift.md`, dashboard Grafana `indusense_drift.json`, `scripts/export_drift_metrics.py`, `src/indusense/monitoring/`, `perf/locustfile.py`, et **`data/drift_source/`**.
 - 🎉 **`data/drift_source/` = le jeu complet** qui manquait depuis le M29 (synthétique, opérateurs pseudonymisés) : **66 800** températures · **1 175 non jointes (1,76 %)** · `joined_rows=65625`, panne **0,04780190** · gold **64 625**, **4,81 %** · **15 machines** → chiffres de référence du cours retrouvés. → Permet de rejouer la **preuve officielle du M30** (15 lignes) et de refermer l'écart du M29.
+
+**Ouverture + préflight** *(pas-à-pas R2)* · preuve : [`preuves/33_p1_ouverture_cibles_up.txt`](preuves/33_p1_ouverture_cibles_up.txt)
+
+- Stack complète `docker compose up -d --build --wait` (473 s : reconstruction de l'image) → `api` / `db` healthy, Prometheus et Grafana démarrés. Exporteur drift lancé sur l'hôte (`scripts/export_drift_metrics.py`, port 9109).
+- **2 cibles UP** dans Prometheus : `indusense-api` (`api:8000/metrics`) et `indusense-drift` (`host.docker.internal:9109`).
+- Constats : `/metrics` regroupait les codes (`status="2xx"`) et n'avait **aucune** métrique `indusense_` → c'est le TP socle. L'exporteur publie PSI F2 = **6,834** (protocole du dépôt fil rouge) et non 6,845 (miroir) : autre population / référence, comme l'annonce le cours.
+- Le `locustfile.py` d'AELION (`PERFORMANCE_ET_DIVERS`) **n'est pas sur mon poste** ; le dépôt contient un `perf/locustfile.py` homonyme → à trancher à l'étape de charge.
+
+**TP socle — métriques custom** · preuve : [`preuves/33_p2_metriques_custom.txt`](preuves/33_p2_metriques_custom.txt) · code : [`src/indusense/api/main.py`](src/indusense/api/main.py) (**montré et validé par moi avant écriture**)
+
+| Modification | Rôle |
+|---|---|
+| `Gauge indusense_model_loaded` : 0 avant chargement, 1 après succès, 0 si échec, 0 à l'arrêt | Readiness visible dans Prometheus |
+| `Counter indusense_predictions_total`, label **`decision`** (jamais `machine_id`) | Compter les prédictions sans exploser la cardinalité ni exposer de donnée métier |
+| `Instrumentator(should_group_status_codes=False)` | Isoler les 401 (sinon « 4xx ») pour l'alerte du M34 |
+
+- Contrôles : ruff (1 erreur I001 d'ordre des imports, corrigée) / black propres · **42 passed** (les 3 smoke Compose tournent, stack démarrée) · image `api` reconstruite (307 s).
+- **Résultats** : `indusense_model_loaded 1.0` · `/ready` 200 · prédiction avec clé → 200 puis `indusense_predictions_total{decision="ok"} 1.0` · sans clé → `http_requests_total{…status="401"} 1.0` **isolé**.
+- **Ma prédiction** : avant toute prédiction, le compteur vaudrait **A (0)** ❌ → il n'avait **aucune valeur** (seulement `# HELP` / `# TYPE`) : une série à label ne **naît** qu'à sa première utilisation (`{decision="alerte"}` n'existe toujours pas). 🔑 En PromQL, une série absente donne « pas de données », pas 0 → d'où le `or … 0` de la requête de readiness.
+- `indusense_predictions_created` : ajoutée automatiquement par la bibliothèque (heure de création de la série).
 - Ce que j'ai fait : … / Ma preuve : … (`/metrics` scrapeable · cible `indusense-api` **UP** au scrape · requête **PromQL p95** de latence + taux 5xx · 5 SLI/SLO) / Compétence(s) : C6, C8 / Difficulté : …
 
 **Module 34 — Dashboards & runbooks (Grafana)** · *C6 · C8*

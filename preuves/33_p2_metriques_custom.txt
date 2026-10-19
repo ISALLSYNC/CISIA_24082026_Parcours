@@ -1,0 +1,30 @@
+﻿# Preuve : M33 - TP socle : jauge indusense_model_loaded, compteur indusense_predictions_total, 401 isoles
+# Date : 2026-10-19 13:57
+# Branche : ismael-sall @ 2c5afa1 (+ src/indusense/api/main.py modifie, image api reconstruite)
+
+# 💬 MA PREDICTION : avant toute prediction, indusense_predictions_total vaudra -> A (0).
+
+# 💬 1) /metrics AVANT toute prediction (lignes indusense_ et /predict-tabular)
+# HELP indusense_model_loaded 1 si le modèle tabulaire est chargé, 0 sinon
+# TYPE indusense_model_loaded gauge
+indusense_model_loaded 1.0
+# HELP indusense_predictions_total Prédictions tabulaires servies, par décision
+# TYPE indusense_predictions_total counter
+
+# 💬 2) POST /predict-tabular AVEC cle -> HTTP 200 : {"machine_id":"MACH-07","proba_panne":0.075,"decision":"ok","model_version":"0.1.0","threshold":0.5}
+# 💬 3) POST /predict-tabular SANS cle -> HTTP 401
+
+# 💬 4) /metrics APRES
+# HELP indusense_model_loaded 1 si le modèle tabulaire est chargé, 0 sinon
+# TYPE indusense_model_loaded gauge
+indusense_model_loaded 1.0
+# HELP indusense_predictions_total Prédictions tabulaires servies, par décision
+# TYPE indusense_predictions_total counter
+indusense_predictions_total{decision="ok"} 1.0
+# HELP indusense_predictions_created Prédictions tabulaires servies, par décision
+# TYPE indusense_predictions_created gauge
+indusense_predictions_created{decision="ok"} 1.7924110698481545e+09
+http_requests_total{handler="/predict-tabular",method="POST",status="200"} 1.0
+http_requests_total{handler="/predict-tabular",method="POST",status="401"} 1.0
+
+# 💬 5) /ready -> HTTP 200

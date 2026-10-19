@@ -80,6 +80,10 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, UploadFile
 # plus loin, pour attacher un identifiant de requête à chaque ligne de log.
 from loguru import logger
 
+# [PÉDAGOGIE] MÉTRIQUES MÉTIER (M33) — Gauge = valeur qui monte ET descend ; Counter = ne fait
+# [PÉDAGOGIE]           que monter (on lit son rythme avec rate() en PromQL).
+from prometheus_client import Counter, Gauge
+
 # `Instrumentator` (de prometheus-fastapi-instrumentator) : un outil qui ajoute
 # AUTOMATIQUEMENT des métriques à l'API (nombre de requêtes, latences, codes de
 # réponse…) et les expose sur une route /metrics au format attendu par
@@ -122,6 +126,20 @@ from indusense.features.temporal import add_temporal_features
 #   - `select_features` : isole les colonnes à donner au modèle (retire la cible).
 from indusense.models.tabular import predict_proba, select_features
 
+# [PÉDAGOGIE] READINESS OBSERVABLE (M33) — 1 si le modèle est chargé, 0 sinon. Prometheus la lit
+# [PÉDAGOGIE]           sur /metrics : on voit « l'API tourne mais ne peut pas prédire » sans
+# [PÉDAGOGIE]           appeler /ready. Déclarée UNE fois, au niveau du module.
+MODEL_LOADED = Gauge("indusense_model_loaded", "1 si le modèle tabulaire est chargé, 0 sinon")
+
+# [PÉDAGOGIE] COMPTEUR MÉTIER (M33) — prédictions servies, étiquetées par `decision` (2 valeurs :
+# [PÉDAGOGIE]           ok / alerte). JAMAIS `machine_id` en label : explosion du nombre de séries
+# [PÉDAGOGIE]           (cardinalité) ET exposition d'une donnée métier (M26).
+PREDICTIONS_TOTAL = Counter(
+    "indusense_predictions_total",
+    "Prédictions tabulaires servies, par décision",
+    ["decision"],
+)
+
 
 # -----------------------------------------------------------------------------
 #  LIFESPAN : ce qu'on fait au DÉMARRAGE et à l'ARRÊT de l'application.
@@ -136,6 +154,8 @@ from indusense.models.tabular import predict_proba, select_features
 # [PÉDAGOGIE] l'effet de bord annoncé.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # [PÉDAGOGIE] M33 — avant toute tentative : « pas encore prêt ».
+    MODEL_LOADED.set(0)
     # On tente de charger le modèle UNE FOIS, au démarrage du serveur.
     # [PÉDAGOGIE] ERREUR — cette frontière distingue le chemin nominal de la stratégie explicite
     # [PÉDAGOGIE] de récupération.
@@ -146,6 +166,8 @@ async def lifespan(app: FastAPI):
         #   - `settings.model_dir`         : dossier où trouver le modèle.
         #   - `settings.decision_threshold`: seuil de décision configuré.
         store._BUNDLE = store.load_bundle(settings.model_dir, settings.decision_threshold)
+        # [PÉDAGOGIE] M33 — chargement réussi : le modèle peut servir.
+        MODEL_LOADED.set(1)
         # On trace dans les logs que tout s'est bien passé.
         logger.info("Modèle chargé")
     except FileNotFoundError:
@@ -153,14 +175,18 @@ async def lifespan(app: FastAPI):
         # on ne fait PAS planter le serveur : il démarre quand même, mais sans
         # modèle. On laisse `_BUNDLE` à None...
         store._BUNDLE = None
+        # [PÉDAGOGIE] M33 — chargement échoué : la jauge reste observable à 0.
+        MODEL_LOADED.set(0)
         # ...et on prévient via un avertissement. Conséquence : /ready répondra
         # 503 (pas prêt) tant qu'aucun modèle n'est disponible. Démarrer malgré
         # tout permet par exemple aux sondes /health de fonctionner.
         logger.warning("Aucun modèle — /ready renverra 503")
     # `yield` = « le démarrage est terminé, l'application tourne maintenant ».
     # Tout ce qui serait écrit APRÈS ce yield s'exécuterait à l'arrêt (nettoyage,
-    # fermeture de connexions…). Ici on n'a rien de spécial à faire à l'arrêt.
+    # fermeture de connexions…).
     yield
+    # [PÉDAGOGIE] M33 — à l'arrêt : l'API ne sert plus, la jauge retombe à 0.
+    MODEL_LOADED.set(0)
 
 
 # -----------------------------------------------------------------------------
@@ -184,7 +210,11 @@ app = FastAPI(title="InduSense API", version="0.1.0", lifespan=lifespan)
 #     métriques sur la route GET /metrics. `include_in_schema=False` cache cette
 #     route technique de la documentation Swagger (elle ne concerne pas les
 #     utilisateurs « métier », seulement les outils de supervision).
-Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+#   - [PÉDAGOGIE] M33 — `should_group_status_codes=False` : 401, 404, 422 restent DISTINCTS
+#     (sinon tout est regroupé en « 4xx ») ; indispensable pour l'alerte « pic de 401 » du M34.
+Instrumentator(should_group_status_codes=False).instrument(app).expose(
+    app, endpoint="/metrics", include_in_schema=False
+)
 
 
 # -----------------------------------------------------------------------------
@@ -402,6 +432,12 @@ def predict_tabular(
     #     attendu par le schéma de réponse (et propre à sérialiser en JSON).
     proba = float(predict_proba(bundle.model, X)[0])
 
+    # La DÉCISION : si la proba atteint/dépasse le seuil -> "alerte", sinon "ok".
+    # C'est ici qu'une probabilité (nombre) devient une recommandation lisible.
+    decision = "alerte" if proba >= bundle.threshold else "ok"
+    # [PÉDAGOGIE] M33 — +1 dans la catégorie de la décision (label `decision`, jamais `machine_id`).
+    PREDICTIONS_TOTAL.labels(decision=decision).inc()
+
     # On construit et renvoie la réponse, conforme au schéma `PredictionResponse` :
     # [PÉDAGOGIE] SORTIE — cette valeur constitue le contrat remis à l'appelant ; son type et son
     # [PÉDAGOGIE] sens doivent rester stables.
@@ -411,9 +447,8 @@ def predict_tabular(
         machine_id=payload.machine_id,
         # La probabilité de panne calculée.
         proba_panne=proba,
-        # La DÉCISION : si la proba atteint/dépasse le seuil -> "alerte", sinon "ok".
-        # C'est ici qu'une probabilité (nombre) devient une recommandation lisible.
-        decision="alerte" if proba >= bundle.threshold else "ok",
+        # La décision calculée (et comptée) juste au-dessus.
+        decision=decision,
         # La version du modèle (traçabilité).
         model_version=bundle.version,
         # Le seuil utilisé (transparence sur la règle de décision).
