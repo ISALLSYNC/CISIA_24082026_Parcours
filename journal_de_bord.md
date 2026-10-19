@@ -2124,6 +2124,23 @@ Constats transverses :
 - Un PSI élevé ne prouve pas une dégradation (fenêtres 2 et janvier) ; un PSI faible ne prouve pas
   que tout va bien (fenêtre 3).
 
+*Contre-épreuve de référence (pas-à-pas miroir, 10h30-10h50)* · preuve : [`preuves/31_03_contre_epreuve_reference.txt`](preuves/31_03_contre_epreuve_reference.txt)
+
+- **Ma prédiction** : janvier contre la référence `haute` → **A (PSI reste fort ≈ 6)** ❌ — résultat **B**.
+
+| Comparaison | Relevés (réf. / fenêtre) | PSI température | PSI pression | Verdict |
+|---|---|---|---|---|
+| janvier vs `normale` | 32 177 / 11 155 | **6,213** | 0,002 | dérive forte |
+| janvier vs **`haute`** | 11 156 / 11 155 | **0,001** | 0,001 | **OK RAS** |
+| fenêtre 2 vs `normale` (toutes machines) | 32 177 / 8 842 | **6,845** | 0,025 | dérive forte |
+| fenêtre 2 vs `normale`, **MACH-03 seule** | 2 181 / 459 | **19,469** | 0,094 | dérive forte |
+
+- **Lecture** : janvier est une campagne de forte charge ; comparé à une référence **de forte charge**, il lui est identique (0,001). Le 6,213 mesurait un **changement de régime**, pas une anomalie → **fausse alerte due à la référence**. À l'inverse, la dérive de capteur (fenêtre 2) **reste** forte, et encore plus nette machine par machine (MACH-03 : 19,5) → une référence par régime **ne masque pas** une vraie dérive.
+- KS signale encore la pression (janvier vs `haute`, p = 0,004) pour un PSI de 0,001 : significatif, sans intérêt métier.
+- Chiffres conformes au pas-à-pas R2 et au PDF détaillé du 13/10 (6,213 / 0,001).
+- *Transparence* : rejouer janvier et fenêtre 2 contre `normale` a réécrit leurs CSV du miroir, avec des valeurs **identiques** (calcul déterministe) ; la preuve `31_02` est intacte.
+- *Ma reformulation* : …
+
 **Module 32 — Drift report + alerting (JSON + SQLite)** · *C3 · C8* · travail réparti entre J4 après-midi et J5 matin
 - Ce que j'ai fait : … / Ma preuve : … (`reports\drift_report_f2.json` lisible · une ligne SQLite `drift_events` · saine→0 · +8 °C→1 · relance→0 · **11 passed**, sans Evidently) / Compétence(s) : C3, C8 / Difficulté : …
 
