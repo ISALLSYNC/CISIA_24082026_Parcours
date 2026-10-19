@@ -1,0 +1,36 @@
+﻿# Preuve : M32 - tests du miroir et contrat de branchement (pas-a-pas miroir, 11h15-12h05)
+# Date : 2026-10-19 11:11
+# Parcours @ ae40430 | execution dans C:\CISIA\tp_drift_indusense
+
+# 💬 Attendu : test_alerting_demo vert, suite complete = 11 passed.
+
+PS C:\CISIA\tp_drift_indusense> uv run python -m pytest .\tests\test_alerting_demo.py -q -p no:cacheprovider
+...                                                                      [100%]
+3 passed in 5.57s
+# code retour : 0
+
+PS C:\CISIA\tp_drift_indusense> uv run python -m pytest .\tests -q -p no:cacheprovider
+...........                                                              [100%]
+============================== warnings summary ===============================
+tests/test_drift_indusense.py: 264 warnings
+  C:\CISIA\tp_drift_indusense\.venv\Lib\site-packages\joblib\numpy_pickle.py:207: DeprecationWarning: Setting the shape on a NumPy array has been deprecated in NumPy 2.5.
+  As an alternative, you can create a new view using np.reshape (with copy=False if needed).
+    array.shape = self.shape
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+11 passed, 264 warnings in 11.17s
+# code retour : 0
+
+PS C:\CISIA\tp_drift_indusense> Select-String -LiteralPath .\scripts\alerting_demo.py -Pattern 'drift_events','cooldown_hours','INSERT INTO'
+alerting_demo.py:20: """Preuve M32 autonome : rapport PSI/KS, drift_events et cooldown 0 -> 1 -> 0.
+alerting_demo.py:49: CREATE TABLE IF NOT EXISTS drift_events (
+alerting_demo.py:83: # [PÉDAGOGIE] CONTRAT — entrées : connection, feature, now, cooldown_hours ; preuve : prouver le
+alerting_demo.py:89: cooldown_hours: int = 6,
+alerting_demo.py:93: "SELECT max(detected_at) FROM drift_events WHERE feature = ?", (feature,)
+alerting_demo.py:104: return now - last_at >= timedelta(hours=cooldown_hours)
+alerting_demo.py:109: # [PÉDAGOGIE] CONTRAT — entrées : connection, report, now, cooldown_hours ; preuve : prouver le
+alerting_demo.py:115: cooldown_hours: int = 6,
+alerting_demo.py:132: if not should_alert(connection, feature, now, cooldown_hours):
+alerting_demo.py:137: "INSERT INTO drift_events(detected_at, feature, psi) VALUES (?, ?, ?)",
+alerting_demo.py:192: "SELECT detected_at, feature, psi, status FROM drift_events ORDER BY id"
+alerting_demo.py:195: print(f"drift_events={len(rows)}")

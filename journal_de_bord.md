@@ -2157,6 +2157,12 @@ Constats transverses :
 - **Résultat** : `sequence=0 -> 1 -> 0` · `drift_events=1` (`temperature`, PSI 6,845) · rapport `reports/drift_report_f2.json` : `temperature` drift **true** · `pressure_bar` drift **false** (KS p = 4e-07 mais PSI 0,025 : le PSI décide) · `_global` drift **true**.
 - 🔑 **Le dernier 0 ne signifie pas que la dérive a disparu** (PSI toujours 6,8) : il prouve le **cooldown** — on prévient **une fois**, puis on laisse le temps d'agir, sans spammer.
 
+*Tests et contrat de branchement (pas-à-pas miroir, 11h15-12h05)* · preuve : [`preuves/32_02_tests_contrat.txt`](preuves/32_02_tests_contrat.txt)
+
+- `test_alerting_demo.py` → **3 passed** · suite complète du miroir → **11 passed** ✅ (264 `DeprecationWarning` de `joblib` avec NumPy 2.5 : avertissements, pas des échecs).
+- **Contrat de l'anti-spam** dans `alerting_demo.py` : table `drift_events` (l. 49) → dernière alerte de la feature `SELECT max(detected_at)` (l. 93) → règle `now - last_at >= cooldown_hours` (l. 104) → si autorisé, `INSERT INTO drift_events` (l. 137).
+- **Branchement visé dans le flow** : `ingest → features → predict → drift_check → store/report → notify` — `drift_check` après `predict` (rapport PSI/KS), `store/report` écrit le JSON et `drift_events`, `notify` n'alerte que si **seuil ET cooldown** le permettent.
+
 **Module 32 — Drift report + alerting (JSON + SQLite)** · *C3 · C8* · travail réparti entre J4 après-midi et J5 matin
 - Ce que j'ai fait : … / Ma preuve : … (`reports\drift_report_f2.json` lisible · une ligne SQLite `drift_events` · saine→0 · +8 °C→1 · relance→0 · **11 passed**, sans Evidently) / Compétence(s) : C3, C8 / Difficulté : …
 
