@@ -2308,6 +2308,15 @@ Construits question par question ; **mes réponses** et les corrections reçues 
 | ROC-AUC | chiffre | `indusense_drift_roc_auc` | < 0,5 = classement inversé (fenêtre 3) |
 
 - **Lire Grafana** : période et rafraîchissement en haut à droite · un panneau = une requête PromQL sur la période choisie · survol = valeur exacte · menu ⋮ → **Edit** (requête et seuils) / **Inspect → Data** · « No data » → vérifier d'abord la période, puis la requête.
+- **Ma prédiction** : couleur de la barre PSI température F2 vs `normale` (6,83) → « orange » ❌ → **rouge** (seuils réels du panneau : vert < 0,10 · orange 0,10-0,25 · rouge ≥ 0,25) ; pression (0,025) → **verte**. *Piège* : le panneau a un **max à 1** → 6,83 et 11,03 donnent deux barres pleines identiques : lire le chiffre et la couleur, pas la longueur.
+- `evaluate_drift --fenetre 2 --reference normale` relancé : PSI 6,834 / 0,025 ; seuil gelé **0,04** et rappel **0,738** (protocole du dépôt fil rouge, ≠ miroir 0,05 / 0,784). Le script a réécrit `reports/drift/suivi_fenetres.csv` (ligne déplacée, dernières décimales) **sans changer les valeurs** → fichier restauré (`git restore`) pour ne pas commiter un faux changement.
+
+**TP socle — mon dashboard SLO** · livrable : [`monitoring/grafana/provisioning/dashboards/indusense_slo.json`](monitoring/grafana/provisioning/dashboards/indusense_slo.json) (= l'export JSON demandé)
+
+- Choix « **le plus simple** » : fichier JSON déposé dans le dossier de **provisionnement** → Grafana le charge seul, versionné dans Git, importable. Source de données non nommée → Prometheus par défaut (comme le dashboard fourni).
+- **8 panneaux en 3 rangées**, chacun repris de `docs/slo.md` avec ses seuils : **Service** (SLO 1 disponibilité · SLO 2 p95 · SLO 3 5xx · taux de 401) · **Modèle** (modèle chargé × scrape · prédictions par décision) · **Données** (SLO 4 PSI janvier vs `haute` · SLO 5 collecte drift).
+- **Vérification** : provisionné (`provisioned=True`, 8 panneaux) ; valeurs : disponibilité 0,9965 · p95 **NaN** (aucune requête en 5 min = SLI absent) · 5xx 0 · 401 0 · modèle **1** · PSI janvier/haute **0,001** · collecte drift 0,979 (remonte depuis le démarrage tardif de l'exporteur).
+- *Incident (de mon fait)* : j'avais changé le mot de passe admin à la 1ʳᵉ connexion ; la boucle de vérification de Claude Code a réessayé 12 fois → **compte temporairement bloqué** par Grafana (anti force brute). Mot de passe remis à `admin` **avec mon accord** (`grafana cli admin reset-admin-password`), puis une seule tentative → accès OK. 🔑 S'arrêter au premier refus d'authentification.
 - Ce que j'ai fait : … / Ma preuve : … (dashboard v1 exporté **JSON** importable ≥ 3 panels · 2 alertes Grafana avec `for:` · **runbook joué** jusqu'à résolution) / Compétence(s) : C6, C8 / Difficulté : …
 
 ### J6 — jeu. 03/09 — Journée Game Day « Opération lundi matin »
