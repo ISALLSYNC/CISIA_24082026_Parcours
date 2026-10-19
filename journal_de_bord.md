@@ -2141,6 +2141,22 @@ Constats transverses :
 - *Transparence* : rejouer janvier et fenêtre 2 contre `normale` a réécrit leurs CSV du miroir, avec des valeurs **identiques** (calcul déterministe) ; la preuve `31_02` est intacte.
 - *Ma reformulation* : …
 
+**Module 32 — Rapport de drift + alerting** · *C3 · C8*
+
+*Rapport JSON et anti-spam (pas-à-pas miroir, 10h50-11h15)* · preuve : [`preuves/32_01_rapport_json_cooldown.txt`](preuves/32_01_rapport_json_cooldown.txt)
+
+- **Le scénario** (`alerting_demo.py`, base SQLite en mémoire) : 3 contrôles successifs avec 2 règles — **seuil** PSI > 0,25 et **cooldown** de 6 h par feature.
+
+| Contrôle | Données | Heure | Règle qui décide | Alerte |
+|---|---|---|---|---|
+| 1 | fenêtre 1, saine (PSI 0,002) | 09h00 | seuil non franchi | **0** |
+| 2 | fenêtre 2, +8 °C (PSI 6,845) | 09h00 | seuil franchi, aucune alerte récente | **1** |
+| 3 | fenêtre 2, toujours en dérive | 10h00 | dernière alerte il y a 1 h < 6 h → cooldown | **0** |
+
+- **Ma prédiction** : d'abord « je ne sais pas », puis raisonnée contrôle par contrôle → **`0 → 1 → 0`, 1 ligne** ✅.
+- **Résultat** : `sequence=0 -> 1 -> 0` · `drift_events=1` (`temperature`, PSI 6,845) · rapport `reports/drift_report_f2.json` : `temperature` drift **true** · `pressure_bar` drift **false** (KS p = 4e-07 mais PSI 0,025 : le PSI décide) · `_global` drift **true**.
+- 🔑 **Le dernier 0 ne signifie pas que la dérive a disparu** (PSI toujours 6,8) : il prouve le **cooldown** — on prévient **une fois**, puis on laisse le temps d'agir, sans spammer.
+
 **Module 32 — Drift report + alerting (JSON + SQLite)** · *C3 · C8* · travail réparti entre J4 après-midi et J5 matin
 - Ce que j'ai fait : … / Ma preuve : … (`reports\drift_report_f2.json` lisible · une ligne SQLite `drift_events` · saine→0 · +8 °C→1 · relance→0 · **11 passed**, sans Evidently) / Compétence(s) : C3, C8 / Difficulté : …
 
