@@ -2056,12 +2056,73 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 - **Aide IA reçue** : Claude Code a audité les données, écrit `predict_flow.py` (**code montré et validé par moi avant écriture**), les scripts de preuve et la documentation ; il a diagnostiqué les incidents (désinstallation par `uv sync` sans extras — de son fait —, délai Prefect dans le conteneur, connexion de ≈ 130 s, runs fantômes). **J'ai choisi** le backend, la stratégie (`data/raw` plutôt que le gold), les prédictions du piège et l'abandon du test. **Je dois savoir réexpliquer : clé naturelle + upsert, pourquoi seul `store` réessaie et seulement sur `OperationalError`, pourquoi le flow tourne dans le service `api` (`db:5432`), pourquoi 4 lignes et pas 15, pourquoi un taux identique ne prouve pas des étiquettes justes.**
 - **Difficultés / questions** : jeu complet introuvable · anomalie de fuseau de `load_pressure` · seuil 0,5 vs 0,975 · QCM J4 absent — voir la liste « Difficultés / questions » (section M23).
 
-### J5 — mer. 02/09
+### J5 — lun. 19/10/2026 *(date prévue dans le modèle : 02/09)*
 
 *(Matin : M31-M32, **passe 2 InduSense dans le miroir officiel `tp_drift_indusense`**. Après-midi : M33 puis M34 et clôture du bloc technique.)*
 
 **Module 31 — Data drift & métriques** · *C3 · C8* · travail réparti entre J4 après-midi et J5 matin
 - Ce que j'ai fait : … / Ma preuve nominale J5 : … (miroir `tp_drift_indusense` : fenêtre 2 +8 °C → PSI température **≈ 6,845** · fenêtre 3 → rappel **≈ 0,053** avec PSI muet · suite **11 passed**) / Extension éventuelle, à étiqueter : … (`docs/TP_drift.md` : 6,834 / 0,092 / 8 tests ; simulation : ≈ 3,32) / Compétence(s) : C3, C8 / Difficulté : …
+
+**Déroulé M31 — 19/10/2026**
+
+*Mise en place (jalon 09)*
+- Mise à niveau `jalon/09` : 4 conflits (`ci.yml`, `.pre-commit-config.yaml`, `pyproject.toml`,
+  `tests/test_smoke_compose.py`) résolus en gardant mon travail M24-M30 ; seul apport réel du jalon
+  repris : l'exclusion `FORMATION/EXERCICES` de ruff. Sauvegarde : `sauvegarde/ismael-sall/20261019-100954`.
+- Ajout de `exclude: ^FORMATION/EXERCICES/` dans pre-commit : sans lui, le hook black de pré-push
+  reformatait les fichiers du TP fourni (pre-commit passe les fichiers explicitement, il ignore
+  l'`extend-exclude` de `pyproject.toml`).
+- `verifier_jalon.ps1 -Jalon 09` : **31 passed, 3 skipped**, ruff et black OK, « Jalon verifie ».
+- TP copié dans le chemin court `C:\CISIA\tp_drift_indusense` (garde-fou Windows du jalon).
+  Préflight : Python 3.13.15, **11 passed**.
+
+*09h10 — Modèle, référence et protocole* · preuve : [`preuves/31_01_train_model.txt`](preuves/31_01_train_model.txt)
+
+| Élément | Valeur |
+|---|---|
+| Modèle | `HistGradientBoostingClassifier(random_state=42)`, 10 features capteurs (température, pression + moyennes 6 h/24 h, écart-type 24 h, delta 6 h) |
+| Population de train | 34 131 lignes, août → novembre 2025 |
+| Validation | **temporelle**, décembre 2025, 11 187 lignes · prévalence panne 5,04 % |
+| PR-AUC / ROC-AUC | 0,267 (base 0,050) / 0,816 |
+| Coûts | FN = 5 000 € · FP = 200 € |
+| Seuil gelé | **0,05** (théorique 200 / 5 200 ≈ 0,038) |
+| Au seuil | rappel 0,771 · précision 0,130 · taux d'alerte 29,86 % |
+
+Protocole de lecture : tout PSI sera noté avec sa **population** (fenêtre), sa **référence**
+(`normale` ou `haute`) et son **binning** (10 bins figés sur la référence).
+
+*09h50 — Ronde des quatre fenêtres* · preuve : [`preuves/31_02_ronde_4_fenetres.txt`](preuves/31_02_ronde_4_fenetres.txt)
+
+Référence `normale` = 32 177 relevés · 10 bins figés sur la référence · seuil gelé 0,05.
+
+| Fenêtre | Relevés | PSI température | PSI pression | Taux de panne | Taux d'alerte | Rappel | Précision | ROC-AUC |
+|---|---|---|---|---|---|---|---|---|
+| 1 — témoin | 8 842 | 0,002 | 0,025 | 5,03 % | 30,38 % | 0,771 | 0,128 | 0,826 |
+| 2 — capteur +8 °C | 8 842 | **6,845** | 0,025 | 5,03 % | 32,87 % | 0,784 | 0,120 | 0,821 |
+| 3 — concept drift | 8 842 | 0,002 | 0,025 | 5,09 % | 30,38 % | **0,053** | **0,009** | **0,205** |
+| janvier — campagne | 11 155 | **6,213** | 0,002 | 5,24 % | 29,65 % | 0,728 | 0,129 | 0,806 |
+
+Une phrase par cas :
+- **Fenêtre 1, témoin** : PSI ≤ 0,025 et métriques identiques à la validation : c'est le bruit de
+  fond normal, rien à signaler.
+- **Fenêtre 2, dérive de capteur** : le PSI température explose (6,845) mais le modèle tient
+  (rappel 0,784), car il s'appuie surtout sur des écarts et des deltas qu'un décalage constant de
+  +8 °C ne change pas. Le capteur ment pour autant : contrôle et étalonnage physiques d'abord.
+- **Fenêtre 3, concept drift** : les entrées sont identiques (PSI 0,002) mais le rappel s'effondre à
+  0,053 (24 pannes vues sur 450) et la ROC-AUC tombe sous le hasard (0,205). Seul un KPI avec
+  labels le révèle.
+- **Janvier, changement de régime** : PSI température fort (6,213) alors que les performances sont
+  normales (rappel 0,728). C'est une campagne haute charge planifiée, pas une panne : une fausse
+  alerte due à une mauvaise référence.
+
+Constats transverses :
+- Le taux d'alerte reste entre 29,7 % et 32,9 % dans les quatre cas : il ne distingue aucune des
+  trois situations anormales.
+- KS signale `pressure_bar` (p = 4e-07) dans les fenêtres 1 à 3 pour un PSI de seulement 0,025 :
+  avec 32 177 relevés contre 8 842, KS est significatif sur des écarts sans intérêt métier. Le PSI
+  décide, KS confirme.
+- Un PSI élevé ne prouve pas une dégradation (fenêtres 2 et janvier) ; un PSI faible ne prouve pas
+  que tout va bien (fenêtre 3).
 
 **Module 32 — Drift report + alerting (JSON + SQLite)** · *C3 · C8* · travail réparti entre J4 après-midi et J5 matin
 - Ce que j'ai fait : … / Ma preuve : … (`reports\drift_report_f2.json` lisible · une ligne SQLite `drift_events` · saine→0 · +8 °C→1 · relance→0 · **11 passed**, sans Evidently) / Compétence(s) : C3, C8 / Difficulté : …

@@ -1,0 +1,67 @@
+# Preuve : M31 - ronde des 4 fenetres (reference normale)
+# Date : 2026-10-19 10:17
+# Dossier : C:\CISIA\tp_drift_indusense
+
+PS> uv run python .\scripts\drift_lab.py --fenetre 1 --reference normale
+
+=== Fenêtre 1 vs référence normale (32177 vs 8842 relevés, 10 bins) ===
+     feature   psi ks_pvalue verdict
+pressure_bar 0.025  4.39e-07  OK RAS
+ temperature 0.002  9.05e-03  OK RAS
+
+PS> uv run python .\scripts\evaluate_fenetre.py --fenetre 1
+
+=== Fenêtre 1 — 8842 relevés · seuil gelé 0.05 ===
+  Taux de panne réel   : 5.03%
+  Taux d'alerte modèle : 30.38%
+  Confusion [TN FP / FN TP] : [6054 2343 / 102 343]
+  Rappel 0.771 · Précision 0.128 · Accuracy 0.723
+  PR-AUC 0.272 · ROC-AUC 0.826
+
+PS> uv run python .\scripts\drift_lab.py --fenetre 2 --reference normale
+
+=== Fenêtre 2 vs référence normale (32177 vs 8842 relevés, 10 bins) ===
+     feature   psi ks_pvalue         verdict
+ temperature 6.845  0.00e+00 !! dérive forte
+pressure_bar 0.025  4.39e-07          OK RAS
+
+PS> uv run python .\scripts\evaluate_fenetre.py --fenetre 2
+
+=== Fenêtre 2 — 8842 relevés · seuil gelé 0.05 ===
+  Taux de panne réel   : 5.03%
+  Taux d'alerte modèle : 32.87%
+  Confusion [TN FP / FN TP] : [5840 2557 / 96 349]
+  Rappel 0.784 · Précision 0.120 · Accuracy 0.700
+  PR-AUC 0.260 · ROC-AUC 0.821
+
+PS> uv run python .\scripts\drift_lab.py --fenetre 3 --reference normale
+
+=== Fenêtre 3 vs référence normale (32177 vs 8842 relevés, 10 bins) ===
+     feature   psi ks_pvalue verdict
+pressure_bar 0.025  4.39e-07  OK RAS
+ temperature 0.002  9.05e-03  OK RAS
+
+PS> uv run python .\scripts\evaluate_fenetre.py --fenetre 3
+
+=== Fenêtre 3 — 8842 relevés · seuil gelé 0.05 ===
+  Taux de panne réel   : 5.09%
+  Taux d'alerte modèle : 30.38%
+  Confusion [TN FP / FN TP] : [5730 2662 / 426 24]
+  Rappel 0.053 · Précision 0.009 · Accuracy 0.651
+  PR-AUC 0.029 · ROC-AUC 0.205
+
+PS> uv run python .\scripts\drift_lab.py --fenetre janvier --reference normale
+
+=== Fenêtre janvier vs référence normale (32177 vs 11155 relevés, 10 bins) ===
+     feature   psi ks_pvalue         verdict
+ temperature 6.213  0.00e+00 !! dérive forte
+pressure_bar 0.002  7.64e-02          OK RAS
+
+PS> uv run python .\scripts\evaluate_fenetre.py --fenetre janvier
+
+=== Fenêtre janvier — 11155 relevés · seuil gelé 0.05 ===
+  Taux de panne réel   : 5.24%
+  Taux d'alerte modèle : 29.65%
+  Confusion [TN FP / FN TP] : [7688 2882 / 159 426]
+  Rappel 0.728 · Précision 0.129 · Accuracy 0.727
+  PR-AUC 0.291 · ROC-AUC 0.806
