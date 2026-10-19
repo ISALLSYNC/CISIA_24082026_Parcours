@@ -2061,7 +2061,7 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 *(Matin : M31-M32, **passe 2 InduSense dans le miroir officiel `tp_drift_indusense`**. Après-midi : M33 puis M34 et clôture du bloc technique.)*
 
 **Module 31 — Data drift & métriques** · *C3 · C8* · travail réparti entre J4 après-midi et J5 matin
-- Ce que j'ai fait : … / Ma preuve nominale J5 : … (miroir `tp_drift_indusense` : fenêtre 2 +8 °C → PSI température **≈ 6,845** · fenêtre 3 → rappel **≈ 0,053** avec PSI muet · suite **11 passed**) / Extension éventuelle, à étiqueter : … (`docs/TP_drift.md` : 6,834 / 0,092 / 8 tests ; simulation : ≈ 3,32) / Compétence(s) : C3, C8 / Difficulté : …
+- *Bilan : voir « Bilan M31 » à la fin de cette section.*
 
 **Déroulé M31 — 19/10/2026**
 
@@ -2141,6 +2141,16 @@ Constats transverses :
 - *Transparence* : rejouer janvier et fenêtre 2 contre `normale` a réécrit leurs CSV du miroir, avec des valeurs **identiques** (calcul déterministe) ; la preuve `31_02` est intacte.
 - *Ma reformulation* : …
 
+**Bilan M31**
+
+- **Ce que j'ai fait** : passe 1 **PayGuard** dans son propre dépôt (fork `ISALLSYNC/CISIA_24082026_PayGuard`, branche `ismael-sall`) : PSI, KS et table de dérive codés, audit des 3 semaines, évaluation au seuil gelé, drift spec PayGuard, réponses Q1-Q6 · passe 2 **InduSense** : jalon 09 intégré (4 conflits, mon travail M24-M30 conservé), miroir copié dans un chemin court, modèle gelé, **ronde des 4 fenêtres**, **contre-épreuve de référence**.
+- **Ma preuve nominale J5** : fenêtre 2 (+8 °C) → PSI température **6,845** avec rappel tenu (0,784) · fenêtre 3 → PSI **muet** (0,002) mais rappel **0,053** et ROC-AUC 0,205 · janvier → **6,213** contre `normale`, **0,001** contre `haute` · MACH-03 seule → 19,469 · suite du miroir **11 passed** · PayGuard **12 passed** (revérifié le 19/10).
+- **Extension** : **non jouée** (ni `docs/TP_drift.md` 6,834 / 0,092, ni simulation ≈ 3,32) — réservée au signal du formateur.
+- **Les 3 leçons** : le PSI **hurle** sous dérive capteur · il reste **muet** face au concept drift · une campagne différente exige **une référence par régime**.
+- **Compétence(s)** : C3 (surveiller un modèle en production) · C8 (mesurer, interpréter, décider)
+- **Aide IA reçue** : Claude Code a intégré le jalon 09, préparé le miroir, lancé les scripts, produit les preuves et rédigé le journal (PayGuard compris, commits co-signés). **Mes prédictions** : janvier contre `haute` → A ❌ (résultat B). **Je dois savoir réexpliquer : PSI vs KS (ampleur vs significativité), covariate vs concept drift, pourquoi citer population + référence + binning, pourquoi une référence par régime réduit les fausses alertes sans masquer une vraie dérive.**
+- **Difficultés / questions** : reformulations M31 à écrire · réponses PayGuard Q7-Q18 à terminer · garde-fou « chemin court » (fiche du jalon 09) vs « ouvrir le miroir dans Parcours » (PDF détaillé du 13/10) → travail fait dans `C:\CISIA`, rapports recopiés dans Parcours.
+
 **Module 32 — Rapport de drift + alerting** · *C3 · C8*
 
 *Rapport JSON et anti-spam (pas-à-pas miroir, 10h50-11h15)* · preuve : [`preuves/32_01_rapport_json_cooldown.txt`](preuves/32_01_rapport_json_cooldown.txt)
@@ -2182,8 +2192,14 @@ Construite question par question ; **mes réponses** et les corrections reçues 
 
 *Preuves déposées (pas-à-pas miroir, 12h05-12h30)* — les rapports produits dans la copie de travail `C:\CISIA\tp_drift_indusense\reports` sont recopiés dans [`FORMATION/EXERCICES/tp_drift_indusense/reports/`](FORMATION/EXERCICES/tp_drift_indusense/reports/) et commités, comme le demande la clôture J5 du **PDF « pas à pas détaillé » du 13/10/2026** : 6 tables de dérive (dont la paire janvier `normale` / `haute` et `MACH-03`), `drift_report_f2.json`, `suivi_fenetres.csv`, plus la drift spec. Le PDF du cours, présent dans ce dossier, n'est **pas** versionné (support, pas mon travail).
 
-**Module 32 — Drift report + alerting (JSON + SQLite)** · *C3 · C8* · travail réparti entre J4 après-midi et J5 matin
-- Ce que j'ai fait : … / Ma preuve : … (`reports\drift_report_f2.json` lisible · une ligne SQLite `drift_events` · saine→0 · +8 °C→1 · relance→0 · **11 passed**, sans Evidently) / Compétence(s) : C3, C8 / Difficulté : …
+**Bilan M32**
+
+- **Ce que j'ai fait** : produit le **rapport JSON** de dérive · prédit puis vérifié la séquence d'alertes **anti-spam** · lu le contrat de branchement dans le code · rédigé la **drift spec InduSense** question par question · déposé les rapports dans Parcours.
+- **Ma preuve** : `reports/drift_report_f2.json` lisible (`temperature` drift **true**, `pressure_bar` **false**, `_global` **true**) · **une seule** ligne `drift_events` (`temperature`, PSI 6,845) · saine → **0** · +8 °C → **1** · relance à +1 h → **0** (cooldown) · **11 passed** · **sans Evidently** (non installé dans le miroir, bonus non ouvert).
+- **Ma drift spec** : 2 références choisies selon le planning métier · calcul quotidien sur 7 jours glissants (≥ 2 000 relevés) · PSI > 0,25 décide, KS confirme · KPI **rappel** (< 0,60 alerte) · réactions par cas (capteur → maintenance, campagne → référence `haute`, concept drift → réentraînement) · hystérésis (silence jusqu'à PSI < 0,10, rappel à 7 jours) · 2 limites.
+- **Compétence(s)** : C3 (industrialiser la surveillance) · C8 (alerter sans bruit)
+- **Aide IA reçue** : Claude Code a lancé la démo et les tests, produit les preuves, proposé les questions et options de la drift spec et rédigé le document **à partir de mes choix**. **Mes prédictions** : séquence `0 → 1 → 0` ✅ (après raisonnement guidé) · fréquence horaire ❌ · taux de panne comme KPI ❌ · plancher 0,77 ❌ · réactions et limites ✅. **Je dois savoir réexpliquer : pourquoi le dernier 0 ne veut pas dire « plus de dérive », cooldown vs hystérésis, pourquoi le rappel et pas le taux de panne, pourquoi un seuil avec marge (0,60) et pas la valeur normale.**
+- **Difficultés / questions** : 264 `DeprecationWarning` de `joblib` / NumPy 2.5 dans le miroir (avertissements, pas des échecs) · branchement réel de `drift_check` dans le flow Prefect = **extension** (non faite).
 
 **Module 33 — Observabilité API (Prometheus)** · *C6 · C8*
 - Ce que j'ai fait : … / Ma preuve : … (`/metrics` scrapeable · cible `indusense-api` **UP** au scrape · requête **PromQL p95** de latence + taux 5xx · 5 SLI/SLO) / Compétence(s) : C6, C8 / Difficulté : …
