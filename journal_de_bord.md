@@ -2249,6 +2249,23 @@ Construite question par question ; **mes réponses** et les corrections reçues 
 - **Résultats** : `indusense_model_loaded 1.0` · `/ready` 200 · prédiction avec clé → 200 puis `indusense_predictions_total{decision="ok"} 1.0` · sans clé → `http_requests_total{…status="401"} 1.0` **isolé**.
 - **Ma prédiction** : avant toute prédiction, le compteur vaudrait **A (0)** ❌ → il n'avait **aucune valeur** (seulement `# HELP` / `# TYPE`) : une série à label ne **naît** qu'à sa première utilisation (`{decision="alerte"}` n'existe toujours pas). 🔑 En PromQL, une série absente donne « pas de données », pas 0 → d'où le `or … 0` de la requête de readiness.
 - `indusense_predictions_created` : ajoutée automatiquement par la bibliothèque (heure de création de la série).
+
+**TP socle — charge et PromQL** · preuve : [`preuves/33_p3_charge_locust.txt`](preuves/33_p3_charge_locust.txt)
+
+- **Charge** : `uv run --with locust==2.44.4 locust -f perf/locustfile.py --headless -u 20 -r 5 -t 30s` (Locust éphémère, `uv.lock` intact ; clé lue dans `.env`, jamais affichée). *Écart assumé* : `perf/locustfile.py` du dépôt au lieu de celui d'AELION (absent du poste).
+- **Ma prédiction** : des 429 ? → **C (quelques-uns)** ❌ → **0 échec, 0 429** : 22 requêtes en 30 s ≈ 44/min < 60/min (chaque utilisateur attend 18-22 s : le fichier est conçu pour rester sous le rate limit).
+- **Latence mesurée par Locust** : médiane **1,6 s** · moyenne 1,4 s (min 75 ms) · **p95 2,1 s** → l'API est **lente sous charge** sur ce poste (2 cœurs, Docker).
+
+| Requête PromQL | Résultat | Lecture |
+|---|---|---|
+| `histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))` | **1** | ⚠️ **sous-estimée** (voir buckets) |
+| readiness `up × indusense_model_loaded` (avec `or … 0`) | **1** | cible collectée **et** modèle chargé ✅ |
+| buckets `/predict-tabular` (cumulés) | ≤ 0,1 s : 3 · ≤ 0,5 s : 4 · ≤ 1 s : 10 · +Inf : **24** | **14 / 24** au-delà d'1 s |
+| taux de 401 / 5 min | 0 | mon unique 401 est sorti de la fenêtre |
+| taux de 5xx | **aucune donnée** | jamais de 5xx → série inexistante (« pas de données » ≠ 0) |
+| `sum(indusense_predictions_total) by (decision)` | `ok` = **23** | 22 Locust + 1 manuelle ✅ |
+
+- 🔑 **Leçon des buckets** : les buckets par défaut s'arrêtent à **1 s**. Quand plus de 5 % des requêtes dépassent la dernière borne, `histogram_quantile` renvoie **cette borne** (1 s) : la p95 réelle (**2,1 s**) est cachée. Un SLO « p95 < 1 s » paraîtrait tenu à tort → il faut des **buckets adaptés** aux latences réelles (le pas-à-pas : « le p95 PromQL est interpolé : ce n'est pas une mesure fine »).
 - Ce que j'ai fait : … / Ma preuve : … (`/metrics` scrapeable · cible `indusense-api` **UP** au scrape · requête **PromQL p95** de latence + taux 5xx · 5 SLI/SLO) / Compétence(s) : C6, C8 / Difficulté : …
 
 **Module 34 — Dashboards & runbooks (Grafana)** · *C6 · C8*
