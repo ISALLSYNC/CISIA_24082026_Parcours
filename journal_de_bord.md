@@ -2352,6 +2352,14 @@ Construits question par question ; **mes réponses** et les corrections reçues 
 - **Aide IA reçue** : Claude Code a écrit le dashboard, les règles et le runbook (**plans montrés et validés par moi**), joué et chronométré les incidents. **Mes choix** : la solution « la plus simple » (provisionnement), 300 ms pour l'alerte de latence, réinitialiser le mot de passe Grafana. **Mes prédictions** : couleur orange ❌ · Firing immédiat ❌ · 10 s ❌. **Je dois savoir réexpliquer : panel, alert rule, `for:` et l'état Pending, pourquoi le délai réel dépasse `for:`, diagnostic borné et action réversible, pourquoi une alerte peut être plus stricte que le SLO.**
 - **Difficultés / questions** : compte Grafana bloqué par mes vérifications répétées (corrigé) · alerte « p95 > 300 ms » qui sonnera sous charge sur ce poste · arrêt de l'API en 137.
 
+**Hors TP — DAT « tel que réalisé » (19/10/2026)** · livrable : [`docs/DAT_InduSense_tel_que_realise.md`](docs/DAT_InduSense_tel_que_realise.md)
+
+- **Mon choix** : un DAT décrivant **ce que j'ai réellement construit**, sur la **structure en 18 sections** du DAT de référence du cours (`DAT_InduSense_Sprint3_v1.0`, 04/09/2026), plutôt qu'une copie de la référence.
+- Contenu : statut de chaque composant (✅ réalisé · 🟡 partiel · ⬜ non réalisé), 4 schémas Mermaid de **mon** architecture (vue globale, API, flow Prefect, CI), contrats, SLO, alertes, matrice de recette **avec mes preuves**, 13 décisions d'architecture, traçabilité M23 → M34.
+- **Constat principal** : la référence décrit une cible bien plus ambitieuse que le TP (proxy NGINX/TLS, releases signées, image sans modèle, workers et deployments Prefect, Alertmanager, Blackbox, migrations Alembic, staging/production, sauvegarde). Ces éléments sont listés **non réalisés** (§3.2), sans les masquer.
+- **Écarts relevés en rédigeant** : `merge_asof` en `nearest` (référence : `backward`) · timestamps naïfs acceptés (référence : UTC obligatoire) · `/predict-image` renvoie un score **simulé** (`anomaly_score: 0.0`), interdit par la référence · seuil API 0,5 contre 0,975 du bundle.
+- *Aide IA* : rédigé par Claude Code à partir du code, des preuves et du journal ; l'affirmation sur `/predict-image` a été **revérifiée dans le code** avant publication.
+
 ### J6 — jeu. 03/09 — Journée Game Day « Opération lundi matin »
 
 **Game Day — réparer un dépôt cassé, prouver C8/C9** · *C8 · C9*
