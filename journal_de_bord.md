@@ -2330,7 +2330,27 @@ Construits question par question ; **mes réponses** et les corrections reçues 
 - **Mon choix** pour la latence : **300 ms** (consigne du pas-à-pas), plus strict que mon SLO 2 (1 s) : une alerte doit prévenir **avant** la violation. Elle sonnera sous charge sur ce poste (p95 réelle 2,1 s) → noté dans le runbook.
 - `uid: prometheus` **figé** dans `datasource.yml` : les règles désignent leur source par cet uid ; l'uid aléatoire (`PBFA97CFB590B2093`) changerait si le conteneur était recréé.
 - Grafana redémarré → source `uid=prometheus` · **4 règles** chargées, **saines**, état **Normal** (`inactive`) · dashboard SLO intact. Erreurs du journal Grafana sans rapport (plugin `xychart` en double, dossier `plugins` absent).
-- Ce que j'ai fait : … / Ma preuve : … (dashboard v1 exporté **JSON** importable ≥ 3 panels · 2 alertes Grafana avec `for:` · **runbook joué** jusqu'à résolution) / Compétence(s) : C6, C8 / Difficulté : …
+**Incidents déterministes** · preuves : [`preuves/34_incident_a_api_morte.txt`](preuves/34_incident_a_api_morte.txt) · [`preuves/34_incident_b_pic_401.txt`](preuves/34_incident_b_pic_401.txt)
+
+| Incident | Action | Pending | Firing | Réparation | Normal |
+|---|---|---|---|---|---|
+| **A — API morte** | `docker compose stop api` (T+5 s) | T+25 s | **T+85 s** | `docker compose up -d --wait api` (T+120 s) → `/health` 200, `/ready` 200 | **T+150 s** |
+| **B — pic de 401** | ~1 POST/s **sans clé** (T+2 s) | T+42 s (0,65 /s) | **T+102 s** (0,98 /s) | arrêt de la source (T+102 s) | **T+193 s** |
+
+- **Mes prédictions** : incident A → « Firing tout de suite » ❌ (**Pending** d'abord : c'est le `for: 1m`) · incident B → « ≈ 10 s » ❌ (**≈ 1 min 40** : collecte 15 s + évaluation 30 s + fenêtre `rate[1m]` + `for: 1m`).
+- Diagnostic A : `/health` injoignable · conteneur `exited (137)` · cible Prometheus **down** (« no such host »). Diagnostic B : uniquement des 401 (aucun 200, aucun 429), source = client local sans clé ; ≈ **104** réponses 401 comptées par Prometheus.
+- Constat : arrêt de l'API en **137** (tuée par Docker après 10 s, arrêt non gracieux) → à investiguer.
+- *Erreur corrigée dans ma preuve B* : le comptage côté client a échoué (tâche de fond interrompue) → remplacé par le compteur Prometheus.
+
+**Runbook joué** · livrable : [`docs/runbook.md`](docs/runbook.md) — 2 runbooks (API morte, pic de 401) au format du gabarit : alerte (nom, condition, gravité, impact métier) · **diagnostic borné** en 3 étapes · **action réversible**, retour arrière, preuve de résolution, escalade — chaque étape annotée de ce qui a été **réellement observé**. Plus : premières vérifications des 2 alertes de production, et les leçons des exercices. Aucun secret, payload ni journal complet.
+
+**Bilan M34**
+
+- **Ce que j'ai fait** : lu le dashboard de dérive fourni · provisionné **mon dashboard SLO** (8 panneaux, 3 rangées) · provisionné **4 règles d'alerte** (2 production `for: 5m`, 2 exercice `for: 1m`) et figé l'uid de la source · joué les **incidents A et B** jusqu'au retour Normal · rédigé le **runbook**.
+- **Ma preuve** : [`indusense_slo.json`](monitoring/grafana/provisioning/dashboards/indusense_slo.json) (dashboard JSON importable, ≥ 3 panneaux) · **export séparé** des règles [`34_export_regles_alerte.yaml`](preuves/34_export_regles_alerte.yaml) · règles de production p95 / 5xx conservées en `for: 5m` · incidents API morte et 401 observés en **Firing** puis **Normal** · runbook joué.
+- **Compétence(s)** : C6 (outiller l'exploitation) · C8 (alerter, réagir, prouver la résolution)
+- **Aide IA reçue** : Claude Code a écrit le dashboard, les règles et le runbook (**plans montrés et validés par moi**), joué et chronométré les incidents. **Mes choix** : la solution « la plus simple » (provisionnement), 300 ms pour l'alerte de latence, réinitialiser le mot de passe Grafana. **Mes prédictions** : couleur orange ❌ · Firing immédiat ❌ · 10 s ❌. **Je dois savoir réexpliquer : panel, alert rule, `for:` et l'état Pending, pourquoi le délai réel dépasse `for:`, diagnostic borné et action réversible, pourquoi une alerte peut être plus stricte que le SLO.**
+- **Difficultés / questions** : compte Grafana bloqué par mes vérifications répétées (corrigé) · alerte « p95 > 300 ms » qui sonnera sous charge sur ce poste · arrêt de l'API en 137.
 
 ### J6 — jeu. 03/09 — Journée Game Day « Opération lundi matin »
 

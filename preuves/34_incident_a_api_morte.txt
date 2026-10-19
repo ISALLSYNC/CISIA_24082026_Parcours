@@ -1,0 +1,25 @@
+﻿# Preuve : M34 - Incident A 'API morte' : Normal -> Pending -> Firing -> Normal
+# Date : 2026-10-19 15:28
+# Branche : ismael-sall @ d3141e6
+
+# 💬 Regle : EXERCICE - API morte (up{job="indusense-api"} < 1), for: 1m, evaluee toutes les 30 s.
+# 💬 MA PREDICTION : A (Firing tout de suite, sans etat intermediaire).
+
+[T+   0 s] etat initial : regle=inactive | up=1
+[T+   5 s] ACTION : docker compose stop api ->  Container cisia_24082026_parcours-api-1 Stopping   Container cisia_24082026_parcours-api-1 Stopped 
+[T+   5 s] regle=inactive | up=1
+[T+  25 s] regle=pending | up=0
+[T+  85 s] regle=firing | up=0
+
+# 💬 DIAGNOSTIC (runbook, etapes bornees) :
+[T+  87 s] 1) /health -> injoignable : Impossible de se connecter au serveur distant
+[T+  88 s] 2) docker compose ps api -> api exited Exited (137) About a minute ago
+[T+  88 s] 3) cible Prometheus -> down | Get "http://api:8000/metrics": dial tcp: lookup api on 127.0.0.11:53: no such host
+
+# 💬 ACTION REVERSIBLE : redemarrer le service
+[T+ 120 s] ACTION : docker compose up -d --wait api ->  Container cisia_24082026_parcours-api-1 Healthy 
+[T+ 120 s] preuve : /health -> 200 | /ready -> 200
+[T+ 120 s] regle=firing | up=1
+[T+ 150 s] regle=inactive | up=1
+
+# 💬 Lecture : 'inactive' = Normal ; 'pending' = condition vraie mais for: 1m pas encore ecoule ; 'firing' = alerte declenchee.
