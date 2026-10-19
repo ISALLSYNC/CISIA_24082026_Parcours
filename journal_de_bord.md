@@ -2163,6 +2163,23 @@ Constats transverses :
 - **Contrat de l'anti-spam** dans `alerting_demo.py` : table `drift_events` (l. 49) → dernière alerte de la feature `SELECT max(detected_at)` (l. 93) → règle `now - last_at >= cooldown_hours` (l. 104) → si autorisé, `INSERT INTO drift_events` (l. 137).
 - **Branchement visé dans le flow** : `ingest → features → predict → drift_check → store/report → notify` — `drift_check` après `predict` (rapport PSI/KS), `store/report` écrit le JSON et `drift_events`, `notify` n'alerte que si **seuil ET cooldown** le permettent.
 
+*Drift spec InduSense* · livrable : [`FORMATION/EXERCICES/tp_drift_indusense/reports/drift_spec_indusense.md`](FORMATION/EXERCICES/tp_drift_indusense/reports/drift_spec_indusense.md)
+
+Construite question par question ; **mes réponses** et les corrections reçues :
+
+| Élément | Ma réponse | Retenu |
+|---|---|---|
+| Références | « 2 », choisies par « le métier » ✅ | `normale` / `haute`, selon le régime annoncé par le planning |
+| Fréquence | B (chaque heure) ❌ — ≈ 14 relevés/h : PSI instable | **Quotidien, fenêtre glissante 7 jours, ≥ 2 000 relevés** |
+| Test et seuil | PSI > 0,25 ✅ | PSI décide (> 0,25 alerte, 0,10-0,25 surveiller), KS confirme ; PSI par machine pour localiser |
+| KPI métier | « taux de panne » ❌ — reste ≈ 5 % même en fenêtre 3 | **Rappel** |
+| Plancher du rappel | « < 0,77 » ❌ — = valeur normale, janvier (0,728) alerterait à tort | **< 0,60 alerte · 0,60-0,70 surveiller** |
+| Réactions | fenêtre 2 → B ✅ · janvier → B ✅ · fenêtre 3 → B ✅ | Capteur → maintenance (réétalonner) · campagne → référence `haute` · concept drift → équipe data (réentraîner) |
+| Anti-spam | C ✅ | Une alerte, silence jusqu'à PSI < 0,10 (hystérésis), rappel à 7 jours |
+| Limites | A et B ✅ | PSI aveugle au concept drift (labels en retard) · référence dépendante du planning |
+
+- *Aide IA* : questions et options proposées par Claude Code, document mis en forme par lui à partir de mes choix.
+
 **Module 32 — Drift report + alerting (JSON + SQLite)** · *C3 · C8* · travail réparti entre J4 après-midi et J5 matin
 - Ce que j'ai fait : … / Ma preuve : … (`reports\drift_report_f2.json` lisible · une ligne SQLite `drift_events` · saine→0 · +8 °C→1 · relance→0 · **11 passed**, sans Evidently) / Compétence(s) : C3, C8 / Difficulté : …
 
