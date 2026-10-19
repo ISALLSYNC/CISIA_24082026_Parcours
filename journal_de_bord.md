@@ -2291,6 +2291,23 @@ Construits question par question ; **mes réponses** et les corrections reçues 
 - **Difficultés / questions** : le vérificateur du jalon retire MLflow (`uv sync` sans `mlops`) · règle M34 « p95 > 300 ms » vs mon SLO 1 s et la p95 mesurée (2,1 s) → à discuter · fichiers Locust et Vision d'AELION absents.
 
 **Module 34 — Dashboards & runbooks (Grafana)** · *C6 · C8*
+
+**Ouverture — état des lieux de Grafana** *(19/10/2026, même jalon 10, aucune fusion)*
+
+- Grafana **11.1.0** (`http://localhost:3000`), compte **local** `admin` / `admin` défini dans `docker-compose.yml` (développement uniquement ; aucun compte en ligne nécessaire). Source de données **Prometheus** = `http://prometheus:9090` (**nom de service**, pas localhost).
+- **Un seul dashboard** (provisionné par le jalon) : « InduSense — dérive & métriques (TP m31) » · **aucune règle d'alerte** · `docs/runbook.md` = gabarit à remplir.
+- **Dissection du dashboard fourni** (6 panneaux, rafraîchis toutes les 15 s, alimentés par l'exporteur drift) :
+
+| Panneau | Type | Requête | Lecture |
+|---|---|---|---|
+| PSI par capteur | jauges en barres | `indusense_drift_psi` | vert < 0,10 · orange 0,10-0,25 · rouge > 0,25 |
+| Rappel panne (seuil gelé) | chiffre | `indusense_drift_rappel` | KPI métier de ma drift spec |
+| Taux d'alerte | chiffre | `indusense_drift_taux_alerte` | charge de la maintenance |
+| PSI dans le temps | courbe | `indusense_drift_psi` | alimentée à chaque `evaluate_drift` |
+| Précision des alertes | chiffre | `indusense_drift_precision` | signal précoce |
+| ROC-AUC | chiffre | `indusense_drift_roc_auc` | < 0,5 = classement inversé (fenêtre 3) |
+
+- **Lire Grafana** : période et rafraîchissement en haut à droite · un panneau = une requête PromQL sur la période choisie · survol = valeur exacte · menu ⋮ → **Edit** (requête et seuils) / **Inspect → Data** · « No data » → vérifier d'abord la période, puis la requête.
 - Ce que j'ai fait : … / Ma preuve : … (dashboard v1 exporté **JSON** importable ≥ 3 panels · 2 alertes Grafana avec `for:` · **runbook joué** jusqu'à résolution) / Compétence(s) : C6, C8 / Difficulté : …
 
 ### J6 — jeu. 03/09 — Journée Game Day « Opération lundi matin »
