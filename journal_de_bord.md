@@ -2180,6 +2180,8 @@ Construite question par question ; **mes réponses** et les corrections reçues 
 
 - *Aide IA* : questions et options proposées par Claude Code, document mis en forme par lui à partir de mes choix.
 
+*Preuves déposées (pas-à-pas miroir, 12h05-12h30)* — les rapports produits dans la copie de travail `C:\CISIA\tp_drift_indusense\reports` sont recopiés dans [`FORMATION/EXERCICES/tp_drift_indusense/reports/`](FORMATION/EXERCICES/tp_drift_indusense/reports/) et commités, comme le demande la clôture J5 du **PDF « pas à pas détaillé » du 13/10/2026** : 6 tables de dérive (dont la paire janvier `normale` / `haute` et `MACH-03`), `drift_report_f2.json`, `suivi_fenetres.csv`, plus la drift spec. Le PDF du cours, présent dans ce dossier, n'est **pas** versionné (support, pas mon travail).
+
 **Module 32 — Drift report + alerting (JSON + SQLite)** · *C3 · C8* · travail réparti entre J4 après-midi et J5 matin
 - Ce que j'ai fait : … / Ma preuve : … (`reports\drift_report_f2.json` lisible · une ligne SQLite `drift_events` · saine→0 · +8 °C→1 · relance→0 · **11 passed**, sans Evidently) / Compétence(s) : C3, C8 / Difficulté : …
 

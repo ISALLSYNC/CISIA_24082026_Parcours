@@ -1,0 +1,3 @@
+feature,psi,ks_pvalue,verdict
+temperature,19.46938619710521,1.5e-323,!! dérive forte
+pressure_bar,0.09358361097866694,0.005954312227777114,OK RAS
