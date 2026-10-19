@@ -2266,7 +2266,29 @@ Construite question par question ; **mes réponses** et les corrections reçues 
 | `sum(indusense_predictions_total) by (decision)` | `ok` = **23** | 22 Locust + 1 manuelle ✅ |
 
 - 🔑 **Leçon des buckets** : les buckets par défaut s'arrêtent à **1 s**. Quand plus de 5 % des requêtes dépassent la dernière borne, `histogram_quantile` renvoie **cette borne** (1 s) : la p95 réelle (**2,1 s**) est cachée. Un SLO « p95 < 1 s » paraîtrait tenu à tort → il faut des **buckets adaptés** aux latences réelles (le pas-à-pas : « le p95 PromQL est interpolé : ce n'est pas une mesure fine »).
-- Ce que j'ai fait : … / Ma preuve : … (`/metrics` scrapeable · cible `indusense-api` **UP** au scrape · requête **PromQL p95** de latence + taux 5xx · 5 SLI/SLO) / Compétence(s) : C6, C8 / Difficulté : …
+**5 SLI / SLO** · livrable : [`docs/slo.md`](docs/slo.md) (requêtes PromQL testées dans Prometheus)
+
+Construits question par question ; **mes réponses** et les corrections reçues :
+
+| SLO | Ma réponse | Retenu | Mesuré le 19/10 |
+|---|---|---|---|
+| 1. Disponibilité | A (90 %) ❌ — 3 jours « à l'aveugle » par mois | **≥ 99 %** sur 30 j (budget ≈ 7 h) | 0,993 ✅ |
+| 2. Latence | C (p95 < 1 s) ✅ | **p95 < 1 s**, objectif **à atteindre** | 2,1 s sous charge ❌ · NaN hors charge (SLI absent) |
+| 3. Erreurs 5xx | B (< 5 %) ❌ — incohérent avec 99 % et l'alerte M34 | **< 1 %** | 0 ✅ |
+| 4. Dérive (choix C) | ✅ | PSI température < 0,25 (fenêtre courante, référence du régime), 29 j / 30 | janvier vs `haute` 0,001 ✅ |
+| 5. Collecte (choix D) | ✅ | `up{job="indusense-drift"}` ≥ 99 % | 0,958 ❌ (exporteur lancé après la stack) |
+
+- *Correction de ma rédaction* : la 1ʳᵉ requête du SLO 4 (`max` sans filtre `fenetre`) mélangeait toutes les fenêtres de l'exporteur (11,03) → filtre `fenetre` ajouté (0,001).
+- Document : utilité métier, tableau **SLI absent / SLI mauvais**, limites (buckets ≤ 1 s → SLO 2 non mesurable sans buckets supplémentaires ; une seule instance).
+
+**Bilan M33**
+
+- **Ce que j'ai fait** : intégré le jalon 10 (jeu complet découvert → preuve officielle M30 rejouée) · démarré la stack et l'exporteur drift · ajouté la jauge **`indusense_model_loaded`**, le compteur **`indusense_predictions_total`** (label `decision`) et l'isolement des codes HTTP · test de charge Locust · requêtes PromQL p95 et readiness · rédigé **5 SLO**.
+- **Ma preuve** : `/metrics` scrapeable · **2 cibles UP** (`indusense-api`, `indusense-drift`) · `indusense_model_loaded 1` avec `/ready` 200 · 401 isolé · readiness PromQL = **1** · p95 PromQL = **1** (sous-estimée ; réelle 2,1 s) · taux 5xx = 0 (avec `or vector(0)`) · `docs/slo.md` · **42 passed**, CI verte.
+- **Écart assumé** : `perf/locustfile.py` du dépôt au lieu de celui d'AELION (absent du poste) · laboratoire Vision non joué (`lab.py`, `test_lab.py` à demander au formateur).
+- **Compétence(s)** : C6 (instrumenter un service) · C8 (mesurer, fixer des objectifs)
+- **Aide IA reçue** : Claude Code a intégré le jalon, écrit l'instrumentation (**code montré et validé par moi avant écriture**), lancé la charge et les requêtes, rédigé `slo.md` à partir de mes choix. **Mes prédictions** : compteur avant prédiction → A (0) ❌ · des 429 → C ❌ · SLO : 3 réponses sur 5 corrigées. **Je dois savoir réexpliquer : counter / gauge / histogram, cardinalité et pourquoi pas `machine_id`, SLI vs SLO vs budget d'erreur, pourquoi la p95 PromQL plafonne à 1 s, pourquoi « pas de données » ≠ 0.**
+- **Difficultés / questions** : le vérificateur du jalon retire MLflow (`uv sync` sans `mlops`) · règle M34 « p95 > 300 ms » vs mon SLO 1 s et la p95 mesurée (2,1 s) → à discuter · fichiers Locust et Vision d'AELION absents.
 
 **Module 34 — Dashboards & runbooks (Grafana)** · *C6 · C8*
 - Ce que j'ai fait : … / Ma preuve : … (dashboard v1 exporté **JSON** importable ≥ 3 panels · 2 alertes Grafana avec `for:` · **runbook joué** jusqu'à résolution) / Compétence(s) : C6, C8 / Difficulté : …
