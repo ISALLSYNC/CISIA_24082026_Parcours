@@ -2141,8 +2141,7 @@ Constats transverses :
 - *Transparence* : rejouer janvier et fenêtre 2 contre `normale` a réécrit leurs CSV du miroir, avec des valeurs **identiques** (calcul déterministe) ; la preuve `31_02` est intacte.
 - *Ma reformulation* : …
 
- est ou?
- **Bilan M31**
+**Bilan M31**
 
 - **Ce que j'ai fait** : passe 1 **PayGuard** dans son propre dépôt (fork `ISALLSYNC/CISIA_24082026_PayGuard`, branche `ismael-sall`) : PSI, KS et table de dérive codés, audit des 3 semaines, évaluation au seuil gelé, drift spec PayGuard, réponses Q1-Q6 · passe 2 **InduSense** : jalon 09 intégré (4 conflits, mon travail M24-M30 conservé), miroir copié dans un chemin court, modèle gelé, **ronde des 4 fenêtres**, **contre-épreuve de référence**.
 - **Ma preuve nominale J5** : fenêtre 2 (+8 °C) → PSI température **6,845** avec rappel tenu (0,784) · fenêtre 3 → PSI **muet** (0,002) mais rappel **0,053** et ROC-AUC 0,205 · janvier → **6,213** contre `normale`, **0,001** contre `haute` · MACH-03 seule → 19,469 · suite du miroir **11 passed** · PayGuard **12 passed** (revérifié le 19/10).
