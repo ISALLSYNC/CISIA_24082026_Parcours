@@ -2141,7 +2141,8 @@ Constats transverses :
 - *Transparence* : rejouer janvier et fenêtre 2 contre `normale` a réécrit leurs CSV du miroir, avec des valeurs **identiques** (calcul déterministe) ; la preuve `31_02` est intacte.
 - *Ma reformulation* : …
 
-**Bilan M31**
+ est ou?
+ **Bilan M31**
 
 - **Ce que j'ai fait** : passe 1 **PayGuard** dans son propre dépôt (fork `ISALLSYNC/CISIA_24082026_PayGuard`, branche `ismael-sall`) : PSI, KS et table de dérive codés, audit des 3 semaines, évaluation au seuil gelé, drift spec PayGuard, réponses Q1-Q6 · passe 2 **InduSense** : jalon 09 intégré (4 conflits, mon travail M24-M30 conservé), miroir copié dans un chemin court, modèle gelé, **ronde des 4 fenêtres**, **contre-épreuve de référence**.
 - **Ma preuve nominale J5** : fenêtre 2 (+8 °C) → PSI température **6,845** avec rappel tenu (0,784) · fenêtre 3 → PSI **muet** (0,002) mais rappel **0,053** et ROC-AUC 0,205 · janvier → **6,213** contre `normale`, **0,001** contre `haute` · MACH-03 seule → 19,469 · suite du miroir **11 passed** · PayGuard **12 passed** (revérifié le 19/10).
@@ -2202,6 +2203,23 @@ Construite question par question ; **mes réponses** et les corrections reçues 
 - **Difficultés / questions** : 264 `DeprecationWarning` de `joblib` / NumPy 2.5 dans le miroir (avertissements, pas des échecs) · branchement réel de `drift_check` dans le flow Prefect = **extension** (non faite).
 
 **Module 33 — Observabilité API (Prometheus)** · *C6 · C8*
+
+**Charge le jalon 10 — AVANT M33** *(pas-à-pas R2)* · preuve : [`preuves/33_p0_fusion_jalon10.txt`](preuves/33_p0_fusion_jalon10.txt)
+
+- Sauvegarde `sauvegarde/ismael-sall/20261019-122008`, puis fusion **manuelle** sans validation (`git merge --no-commit`) pour examiner les **4 conflits** :
+
+| Fichier | Différence réelle | Choix |
+|---|---|---|
+| `docker-compose.yml` | Jalon : +6 lignes `extra_hosts: host.docker.internal:host-gateway` sur Prometheus (pour joindre l'exporteur drift de l'hôte, port 9109) | **Jalon** |
+| `.github/workflows/ci.yml` | Inchangé par le formateur depuis le jalon 09 ; retirerait mon job `build` | **Ma version** |
+| `.pre-commit-config.yaml` | Inchangé depuis le jalon 09 ; retirerait mes revs alignés et l'exclusion | **Ma version** |
+| `tests/test_smoke_compose.py` | Inchangé depuis le jalon 09 ; remplacerait mes smoke tests M28 | **Ma version** |
+
+- Contrôles **avant** validation : 0 conflit · **39 passed**, 3 skipped (+8 tests `test_drift_monitoring.py` du jalon) · ruff / black propres · `docker compose config -q` OK · `uv.lock` inchangé. Fusion validée **avec mon accord** : `75ac714`.
+- `verifier_jalon.ps1 -Jalon 10` → **« Jalon verifie : jalon/10 »**.
+- *Incident* : le vérificateur fait `uv sync --frozen --extra dev` **sans** `mlops` → **MLflow retiré** du `.venv`. Réparé par `uv sync --frozen --extra dev --extra mlops`. 🔑 Après chaque vérificateur de jalon, revérifier les extras.
+- Apports du jalon : `docs/slo.md`, `docs/runbook.md`, `docs/TP_drift.md`, dashboard Grafana `indusense_drift.json`, `scripts/export_drift_metrics.py`, `src/indusense/monitoring/`, `perf/locustfile.py`, et **`data/drift_source/`**.
+- 🎉 **`data/drift_source/` = le jeu complet** qui manquait depuis le M29 (synthétique, opérateurs pseudonymisés) : **66 800** températures · **1 175 non jointes (1,76 %)** · `joined_rows=65625`, panne **0,04780190** · gold **64 625**, **4,81 %** · **15 machines** → chiffres de référence du cours retrouvés. → Permet de rejouer la **preuve officielle du M30** (15 lignes) et de refermer l'écart du M29.
 - Ce que j'ai fait : … / Ma preuve : … (`/metrics` scrapeable · cible `indusense-api` **UP** au scrape · requête **PromQL p95** de latence + taux 5xx · 5 SLI/SLO) / Compétence(s) : C6, C8 / Difficulté : …
 
 **Module 34 — Dashboards & runbooks (Grafana)** · *C6 · C8*

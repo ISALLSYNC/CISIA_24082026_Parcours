@@ -1,0 +1,52 @@
+﻿# Preuve : fusion du jalon 10 (J5 apres-midi, M33-M34) + decouverte du jeu complet
+# Date : 2026-10-19 12:26
+# Branche : ismael-sall
+
+# 💬 1) Sauvegarde avant fusion : sauvegarde/ismael-sall/20261019-122008 -> a0652ee
+# 💬 2) git merge --no-commit --no-ff origin/jalon/10 (847442b) -> 4 conflits :
+
+| Fichier | Difference reelle | Choix |
+|---|---|---|
+| docker-compose.yml | jalon : +6 lignes extra_hosts host.docker.internal:host-gateway (Prometheus -> exporteur drift :9109) | theirs (jalon) |
+| .github/workflows/ci.yml | jalon inchange depuis jalon/09 ; retirerait mon job build | ours |
+| .pre-commit-config.yaml | jalon inchange depuis jalon/09 ; retirerait mes revs alignes + exclusion | ours |
+| tests/test_smoke_compose.py | jalon inchange depuis jalon/09 ; remplacerait mes smoke tests M28 | ours |
+
+# 💬 3) Controles avant validation :
+PS> git diff --name-only --diff-filter=U
+
+# code retour : 0
+
+PS> uv run --frozen pytest -q -p no:warnings
+....................................sss...                               [100%]
+39 passed, 3 skipped in 12.13s
+# code retour : 0
+
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+41 files would be left unchanged.
+# code retour : 0
+
+PS> docker compose config -q
+
+# code retour : 0
+
+# docker compose config -q 4) Commit de fusion : 75ac714 (parents a0652ee 847442b) Merge jalon/10 : conserver le travail M24-M32, prendre le raccord host.docker.internal de Prometheus
+
+# docker compose config -q 5) verifier_jalon.ps1 -Jalon 10 -> 'Jalon verifie : jalon/10' (39 passed, 3 skipped, ruff OK).
+# docker compose config -q    INCIDENT : le verificateur fait 'uv sync --frozen --extra dev' sans mlops -> mlflow retire du .venv.
+# docker compose config -q    Repare par : uv sync --frozen --extra dev --extra mlops (mlflow/dvc/pytest/prefect presents ; uv.lock inchange).
+
+# docker compose config -q 6) data/drift_source = JEU COMPLET ? (lecture seule, loaders du projet)
+PS> uv run --frozen indusense check-data --data-dir data/drift_source
+2026-10-19 12:26:46.536 | INFO     | indusense.data.loaders:build_dataset:160 - merge_asof: 1175 rows without pressure under +/-90 min dropped (1.76%)
+rows=64625
+machines=15
+panne_rate=0.0481
+# code retour : 0
+# docker compose config -q Mesure complementaire : temperatures=66800 | joined_rows=65625 | non joints=1175 (1.76%) | machines=15 | joined_panne_rate=0.04780190
+# docker compose config -q -> chiffres de reference du cours retrouves (M29 1,76 % ; M30 65 625 / 4,7802 % ; gold 64 625 / 4,81 % ; 15 machines).
