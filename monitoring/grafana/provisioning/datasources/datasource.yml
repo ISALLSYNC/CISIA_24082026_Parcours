@@ -26,6 +26,10 @@ datasources:
   # [PÉDAGOGIE] IDENTITÉ — ce nom doit permettre de retrouver rapidement la preuve dans
   # [PÉDAGOGIE] l'interface.
   - name: Prometheus          # nom affiche dans Grafana
+    # [PÉDAGOGIE] UID FIGÉ (M34) — les règles d'alerte provisionnées désignent leur source par cet
+    # [PÉDAGOGIE]           identifiant ; sans lui, Grafana en génère un au hasard, qui change si
+    # [PÉDAGOGIE]           le conteneur est recréé, et les règles cassent sans prévenir.
+    uid: prometheus
     # [PÉDAGOGIE] CLÉ `type` — ce champ déclaratif participe au contrat de configuration.
     type: prometheus          # type de source
     # [PÉDAGOGIE] CLÉ `access` — ce champ déclaratif participe au contrat de configuration.

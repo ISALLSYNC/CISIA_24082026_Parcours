@@ -2317,6 +2317,19 @@ Construits question par question ; **mes réponses** et les corrections reçues 
 - **8 panneaux en 3 rangées**, chacun repris de `docs/slo.md` avec ses seuils : **Service** (SLO 1 disponibilité · SLO 2 p95 · SLO 3 5xx · taux de 401) · **Modèle** (modèle chargé × scrape · prédictions par décision) · **Données** (SLO 4 PSI janvier vs `haute` · SLO 5 collecte drift).
 - **Vérification** : provisionné (`provisioned=True`, 8 panneaux) ; valeurs : disponibilité 0,9965 · p95 **NaN** (aucune requête en 5 min = SLI absent) · 5xx 0 · 401 0 · modèle **1** · PSI janvier/haute **0,001** · collecte drift 0,979 (remonte depuis le démarrage tardif de l'exporteur).
 - *Incident (de mon fait)* : j'avais changé le mot de passe admin à la 1ʳᵉ connexion ; la boucle de vérification de Claude Code a réessayé 12 fois → **compte temporairement bloqué** par Grafana (anti force brute). Mot de passe remis à `admin` **avec mon accord** (`grafana cli admin reset-admin-password`), puis une seule tentative → accès OK. 🔑 S'arrêter au premier refus d'authentification.
+
+**TP socle — règles d'alerte** · définition : [`monitoring/grafana/provisioning/alerting/rules.yml`](monitoring/grafana/provisioning/alerting/rules.yml) · **export séparé** (depuis Grafana) : [`preuves/34_export_regles_alerte.yaml`](preuves/34_export_regles_alerte.yaml)
+
+| Règle | Condition | `for:` | Absence de données | Lien |
+|---|---|---|---|---|
+| PROD — latence | p95 `/predict-tabular` **> 300 ms** | **5m** | OK (pas de trafic) | SLO 2 |
+| PROD — erreurs | 5xx **> 1 %** | **5m** | OK (`or vector(0)`) | SLO 3 |
+| EXERCICE — API morte | `up{job="indusense-api"}` **< 1** | **1m** | **Alerting** (cible perdue = aveugle) | SLO 1, incident A |
+| EXERCICE — pic de 401 | taux de 401 **> 0,1 / s** | **1m** | OK (`or vector(0)`) | M26, incident B |
+
+- **Mon choix** pour la latence : **300 ms** (consigne du pas-à-pas), plus strict que mon SLO 2 (1 s) : une alerte doit prévenir **avant** la violation. Elle sonnera sous charge sur ce poste (p95 réelle 2,1 s) → noté dans le runbook.
+- `uid: prometheus` **figé** dans `datasource.yml` : les règles désignent leur source par cet uid ; l'uid aléatoire (`PBFA97CFB590B2093`) changerait si le conteneur était recréé.
+- Grafana redémarré → source `uid=prometheus` · **4 règles** chargées, **saines**, état **Normal** (`inactive`) · dashboard SLO intact. Erreurs du journal Grafana sans rapport (plugin `xychart` en double, dossier `plugins` absent).
 - Ce que j'ai fait : … / Ma preuve : … (dashboard v1 exporté **JSON** importable ≥ 3 panels · 2 alertes Grafana avec `for:` · **runbook joué** jusqu'à résolution) / Compétence(s) : C6, C8 / Difficulté : …
 
 ### J6 — jeu. 03/09 — Journée Game Day « Opération lundi matin »
