@@ -2,8 +2,8 @@
 
 > **But** : relire chaque terme important du TP avec sa **définition**, son **rôle** (à quoi il sert dans le projet) et un **exemple**.
 > **Sources** : `pas_a_pas_apprenant_sprint3_AELION_20260928_R2.md`, `prerequis_express_et_glossaire_sprint3.md`, `memo_metriques_sans_confusion.md`, et le travail réel consigné dans `journal_de_bord.md`.
-> **Lecture des exemples** : sans marque = vécu dans **notre** TP (M23 → M29) · 📘 = exemple **tiré du cours**, module pas encore réalisé (M30 → J6).
-> Rédigé le 13/10/2026.
+> **Lecture des exemples** : sans marque = vécu dans **notre** TP (M23 → M32) · 📘 = exemple **tiré du cours**, module pas encore réalisé (M33 → J6).
+> Rédigé le 13/10/2026 · mis à jour le 19/10/2026 (M30, M31-M32 réalisés : exemples réels et nouveaux termes).
 
 ---
 
@@ -182,40 +182,52 @@
 
 ---
 
-## 8. M30 — Implémentation du flow 📘
+## 8. M30 — Implémentation du flow
 
 | Terme | Définition | Rôle | Exemple |
 |---|---|---|---|
-| **Idempotence** | Rejouer une opération ne change pas le résultat. | Relancer un pipeline sans créer de doublons. | 📘 2 runs → `count1 == count2 == 15`. |
-| **Clé naturelle** | Colonnes qui identifient une ligne de façon métier. | Base de l'upsert. | `(machine, prediction_ts)`. |
-| **Upsert** | Insérer **ou** mettre à jour si la clé existe. | Garantir l'idempotence. | `INSERT … ON CONFLICT (machine, prediction_ts) DO UPDATE`. |
-| **Table `predictions`** | Table qui historise les prédictions. | Garder la trace de ce que le modèle a dit. | Démo jalon 07 : `predictions.db` (SQLite). |
-| **SQLite** | Base de données dans un simple fichier, sans serveur. | Repli M30 sur le PC ; aussi registre MLflow et `drift_events`. | 📘 base neuve sous `$env:TEMP`. |
-| **SQLAlchemy / psycopg** | Bibliothèque d'accès aux bases / pilote PostgreSQL. | Écrire dans la base depuis Python. | Déjà verrouillés dans `uv.lock`. |
-| **ISO 8601 (`isoformat`)** | Format texte standard de date-heure. | SQLite n'accepte pas un `pandas.Timestamp` brut. | 📘 `pd.Timestamp(value).isoformat()`. |
-| **`prediction_ts` vs `created_at`** | Heure métier **sans** fuseau / instant d'audit **avec** fuseau. | Ne pas mélanger temps métier et temps technique. | 📘 règle du pas-à-pas M30. |
-| **Piège « cible date seule »** | La cible `panne` calculée sur la date sans l'heure (minuit). | Fausse le taux de panne. | 📘 4,89 % au lieu de **4,7802 %** → recombiner `date` + `time`. |
-| **Population** | L'ensemble exact de lignes sur lequel on calcule un chiffre. | Un pourcentage n'a de sens qu'avec son dénominateur. | 📘 `joined_rows=65625` (4,78 %) ≠ `gold_rows=64625` (4,81 %). |
-| **`COMPOSE_PROJECT_NAME`** | Nom de projet Compose. | Isoler une base neuve des volumes existants. | 📘 `cisia_m30_<horodatage>`. |
+| **Idempotence** | Rejouer une opération ne change pas le résultat. | Relancer un pipeline sans créer de doublons. | 2 runs → lignes **0 → 4** puis **4 → 4** « IDEMPOTENT », en SQLite **et** en PostgreSQL (15 attendues avec le jeu complet). |
+| **Clé naturelle** | Colonnes qui identifient une ligne de façon métier. | Base de l'upsert. | `PRIMARY KEY (machine, prediction_ts)` de la table `predictions`. |
+| **Upsert** | Insérer **ou** mettre à jour si la clé existe. | Garantir l'idempotence. | `INSERT … ON CONFLICT (machine, prediction_ts) DO UPDATE` — même SQL pour SQLite et PostgreSQL ; `created_at` non écrasé à la relance. |
+| **Table `predictions`** | Table qui historise les prédictions. | Garder la trace de ce que le modèle a dit. | 4 lignes (MACH-01 à 04) écrites par `predict_flow.py` ; contrôlées avec `psql` (0 doublon). |
+| **SQLite** | Base de données dans un simple fichier, sans serveur. | Base de développement du M30 ; aussi registre MLflow et `drift_events`. | Base **neuve** sous `$env:TEMP\cisia_m30_<horodatage>`, jamais l'ancien `predictions.db`. |
+| **SQLAlchemy / psycopg** | Bibliothèque d'accès aux bases / pilote PostgreSQL. | Écrire dans la base depuis Python, quelle que soit la base. | `create_engine(os.environ["INDUSENSE_DB_URL"])` dans `store` ; `engine.dialect.name` → `sqlite` ou `postgresql`. |
+| **ISO 8601 (`isoformat`)** | Format texte standard de date-heure. | SQLite n'accepte pas un `pandas.Timestamp` brut. | `_ts_for_driver` : `isoformat()` pour SQLite, `to_pydatetime()` pour PostgreSQL. |
+| **`prediction_ts` vs `created_at`** | Heure métier **sans** fuseau / instant d'audit **avec** fuseau. | Ne pas mélanger temps métier et temps technique. | En base PostgreSQL : `timestamp without time zone` / `timestamp with time zone`. |
+| **Piège « cible date seule »** | La cible `panne` calculée sur la date sans l'heure (incident placé à minuit). | Fausse les étiquettes, parfois **sans changer le taux**. | Échantillon : taux **identique** (10,42 %) mais **192 / 1 920** étiquettes fausses ; jeu complet : 4,89 % au lieu de 4,7802 %. |
+| **Population** | L'ensemble exact de lignes sur lequel on calcule un chiffre. | Un pourcentage n'a de sens qu'avec son dénominateur. | Logs du flow : `joined_rows=1920` (10,42 %) ≠ `gold_rows=1896` (10,55 %). |
+| **`COMPOSE_PROJECT_NAME`** | Nom de projet Compose. | Isoler une base neuve des volumes existants. | `cisia_m30_20261013_113546` : volume `pgdata` neuf, données du M28 intactes. |
+| **`retry_condition_fn`** | Fonction que Prefect consulte avant de réessayer une task. | Ne réessayer **que** les erreurs transitoires. | `_is_transient` : vrai seulement pour `OperationalError` → URL absente = échec immédiat ; base injoignable = 3 retries (5 / 15 / 45 s). |
+| **`cache_policy=NO_CACHE`** | Désactive le cache des résultats d'une task Prefect. | Une task à effet de bord doit **toujours** s'exécuter. | Sur les 4 tasks du flow, `store` en particulier. |
+| **Délai de connexion (`connect_timeout`)** | Temps maximal d'attente d'une connexion à la base. | Éviter qu'une base muette bloque longtemps. | Sur ce poste, port fermé → ≈ 130 s par tentative ; `?connect_timeout=3` dans l'URL de test. |
+| **Délai de démarrage Prefect** | Temps laissé au serveur temporaire (`ephemeral`) pour démarrer. | Éviter un échec avant même le flow. | Dans le conteneur : 20 s dépassés → `PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=120`. |
+| **Serveur / tableau de bord Prefect** | Serveur local qui conserve l'historique des runs et l'affiche. | Observabilité : runs, graphe des tasks, logs, paramètres. | `prefect server start --host 127.0.0.1 --port 4200` → runs `massive-quail` (0 → 4), `lumpy-elephant` (4 → 4). |
+| **Run fantôme** | Run resté « RUNNING » alors que son processus a été tué. | À nettoyer pour garder un historique fiable. | 3 runs (tests de retries interrompus) passés en **Cancelled** via l'API. |
 
 ---
 
-## 9. M31-M32 — Data drift & alerting 📘
+## 9. M31-M32 — Data drift & alerting
 
 | Terme | Définition | Rôle | Exemple |
 |---|---|---|---|
-| **Data drift** | Les données de production s'éloignent de celles d'entraînement. | Détecter qu'un modèle risque de se dégrader. | 📘 fenêtre F2 « capteur +8 °C ». |
-| **Covariate drift** | P(X) change : la distribution des entrées bouge. | Détectable **sans** labels. | 📘 F2 → PSI 6,845. |
-| **Concept drift** | P(y\|X) change : la relation entrée → panne change. | Nécessite des labels ; le PSI peut rester muet. | 📘 F3 : PSI muet, rappel effondré à 0,053. |
-| **PSI** | Population Stability Index : ampleur d'un écart de distribution. | Mesurer le drift. | < 0,1 RAS · 0,1-0,25 surveiller · > 0,25 dérive forte. |
-| **KS** | Test de Kolmogorov-Smirnov : significativité de l'écart. | Compléter le PSI. | 📘 p ≈ 0 sous dérive. |
-| **Référence / binning** | Distribution de comparaison / découpage en intervalles pour le PSI. | Un PSI se cite **toujours** avec population + référence + binning. | 📘 janvier : 6,213 vs référence normale, 0,001 vs référence haute. |
-| **Evidently** | Bibliothèque de rapports de drift. | Extension optionnelle, **pas** dans le miroir. | 📘 rapport HTML, sur consigne seulement. |
-| **Miroir autonome** | Petit projet séparé (son propre `uv.lock`) pour le TP drift. | Travailler sans dépendre du dépôt fil rouge. | 📘 `tp_drift_indusense` → 11 passed. |
-| **Rapport JSON de drift** | Résultat du calcul de drift en fichier JSON. | Lisible par l'humain et la machine. | 📘 `reports\drift_report_f2.json`. |
-| **`drift_events`** | Table SQLite qui trace chaque alerte de drift. | Historiser les alertes. | 📘 une seule ligne écrite. |
-| **Cooldown** | Délai minimal entre deux alertes. | Ne pas spammer. | 📘 `alerting_demo.py`. |
-| **Hystérésis** | On ne réarme l'alerte que quand la situation est clairement revenue à la normale. | Éviter le clignotement. | 📘 `sequence=0 -> 1 -> 0`. |
+| **Data drift** | Les données de production s'éloignent de celles d'entraînement. | Détecter qu'un modèle risque de se dégrader. | Fenêtre 2 « capteur +8 °C » du miroir InduSense ; semaine 2 « Vente Flash » de PayGuard. |
+| **Covariate drift** | P(X) change : la distribution des entrées bouge. | Détectable **sans** labels. | Fenêtre 2 → PSI température **6,845**, mais rappel tenu (0,784). |
+| **Concept drift** | P(y\|X) change : la relation entrée → panne change. | Nécessite des labels ; le PSI peut rester muet. | Fenêtre 3 : PSI **0,002**, rappel **0,053** (24 pannes vues sur 450), ROC-AUC 0,205. |
+| **PSI** | Population Stability Index : ampleur d'un écart de distribution. | Mesurer — et **décider** — le drift. | < 0,1 RAS · 0,1-0,25 surveiller · > 0,25 dérive forte (seuil d'alerte de ma drift spec). |
+| **KS** | Test de Kolmogorov-Smirnov : significativité de l'écart. | **Confirmer**, pas décider. | Pression : p = 4e-07 pour un PSI de 0,025 → « significatif » sans intérêt métier (grands effectifs). |
+| **Référence / binning** | Distribution de comparaison / découpage en intervalles pour le PSI. | Un PSI se cite **toujours** avec population + référence + binning. | 10 intervalles figés sur la référence `normale` (32 177 relevés). |
+| **Référence par régime** | Une référence distincte pour chaque mode de fonctionnement, choisie selon le planning métier. | Éviter les fausses alertes sans masquer une vraie dérive. | Janvier (campagne) : **6,213** vs `normale` → **0,001** vs `haute` ; fenêtre 2 reste en dérive forte. |
+| **Segmentation par machine** | Calculer le PSI machine par machine. | **Localiser** l'équipement en cause. | Fenêtre 2, MACH-03 seule : PSI **19,469**. |
+| **Fenêtre glissante / taille minimale** | Période récente sur laquelle on calcule, recalculée régulièrement ; effectif en dessous duquel on ne conclut pas. | Concilier réactivité et fiabilité du PSI. | Ma drift spec : calcul **quotidien sur 7 jours** (≈ 2 400 relevés), **≥ 2 000** ; pas horaire (≈ 14 relevés). |
+| **Seuil gelé** | Seuil de décision fixé une fois pour toutes sur la validation. | Mesurer honnêtement la production (on ne le rechoisit pas sur les données à évaluer). | Miroir : **0,05** (coûts FN 5 000 € / FP 200 €) ; PayGuard : fixé par `train_model.py`. |
+| **Evidently** | Bibliothèque de rapports de drift. | Extension optionnelle, **pas** dans le miroir. | Non installée, bonus non ouvert : `drift_lab.py` fait le travail (« repli maison »). |
+| **Miroir autonome** | Petit projet séparé (son propre `uv.lock`) pour le TP drift. | Travailler sans dépendre du dépôt fil rouge. | `tp_drift_indusense` (copié dans `C:\CISIA`) → **11 passed** ; PayGuard (dépôt séparé) → **12 passed**. |
+| **Rapport JSON de drift** | Résultat du calcul de drift en fichier JSON. | Lisible par l'humain et la machine. | `drift_report_f2.json` : `temperature` drift **true**, `pressure_bar` **false**, `_global` **true**. |
+| **`drift_events`** | Table SQLite qui trace chaque alerte de drift. | Historiser les alertes. | **Une seule** ligne : `temperature`, PSI 6,845. |
+| **Cooldown** | Délai minimal entre deux alertes sur une même feature. | Ne pas spammer. | `sequence=0 -> 1 -> 0` : la relance à +1 h (< 6 h) n'alerte pas — **la dérive n'a pas disparu**. |
+| **Hystérésis** | On ne réarme l'alerte que quand la situation est clairement revenue à la normale. | Éviter le clignotement. | Ma drift spec : une alerte, puis silence **jusqu'à PSI < 0,10**, rappel à 7 jours. |
+| **Drift spec** | Document qui fige quoi comparer, avec quoi, à quelle fréquence, quand alerter et que faire. | Rendre la surveillance non arbitraire. | `reports/drift_spec_indusense.md` (6 sections) ; `drift_spec_payguard.md`. |
+| **KPI technique vs KPI métier** | Indicateur sur les données (PSI, KS) vs sur le résultat pour le métier (rappel, précision, taux d'alerte). | Le second voit ce que le premier ne voit pas. | KPI métier de ma spec : **rappel < 0,60** → alerte ; le taux de panne (≈ 5 % partout) ne détecte rien. |
 
 ---
 
@@ -270,7 +282,7 @@
 | **TP / FP / FN / TN** | Vrai positif / fausse alerte / panne manquée / vrai négatif (la panne = classe positive). | Base de toutes les métriques de classification. | FN = panne réelle non détectée ; FP = fausse alerte. Le choix du seuil arbitre entre les deux selon les coûts métier. |
 | **Accuracy** | (TP + TN) / total. | Trompeuse avec des classes rares. | Prédire toujours « pas de panne » donne une bonne accuracy et un rappel nul. |
 | **Précision** | TP / (TP + FP) : parmi les alertes, combien sont de vraies pannes. | Mesurer les fausses alertes. | — |
-| **Rappel (recall)** | TP / (TP + FN) : parmi les pannes, combien sont détectées. | Mesurer les pannes manquées. | 📘 rappel F3 = 0,053 sous concept drift. |
+| **Rappel (recall)** | TP / (TP + FN) : parmi les pannes, combien sont détectées. | Mesurer les pannes manquées. | Rappel fenêtre 3 = 0,053 sous concept drift (miroir InduSense). |
 | **PR-AUC** | Aire sous la courbe précision-rappel. | Métrique adaptée aux classes rares. | Benchmark Marine (encadré distinct) : PR-AUC ≈ 0,62. |
 | **MAE / RMSE / MBE / MAPE** | Erreurs de régression : absolue moyenne / quadratique / biais signé / relative en %. | Évaluer une prédiction numérique ; ne pas les confondre. | Mémo : MBE = 0 n'implique **pas** une prédiction parfaite. |
 | **Prévalence / taux de panne** | Part de lignes en panne dans une population donnée. | Toujours nommer la population. | Starter 10,55 % · jointure complète 4,78 % · gold complet 4,81 %. |
