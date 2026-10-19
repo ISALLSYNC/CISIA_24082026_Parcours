@@ -351,7 +351,7 @@
 - **Preuve CI GitHub** : faite sur **mon fork** (`ISALLSYNC`) plutôt que sur le dépôt du formateur, faute de savoir si les apprenants doivent y pousser. → À confirmer avec le formateur que la PR #1 du fork convient comme preuve.
 - **Jalon 02 lancé sur ma décision** (« On peut le lancer ») après la pré-vérification sans conflit ; signal formateur à confirmer. Branche de secours : `sauvegarde/ismael-sall/20260928-154713`.
 - **Prérequis Sprint 2 (scénario B)** : un contrat I/O **d'exemple** est disponible ([docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json](docs/CONTRAT_IO_EXEMPLE_FICTIF_J1.json)), mais ses valeurs sont illustratives. → À confirmer avec le formateur : le scénario B me concerne-t-il ? Quel est le **seuil réel** du modèle du dépôt ? Où sont la model card v1 et le contrat validé ?
-- **M30 — jeu complet** : introuvable (dépôt, AELION non vérifié, mon autre projet = autre format). → Où le récupérer ? Sans lui, la preuve M30 donnera `count == 4` et non 15.
+- ~~**M30 — jeu complet** : introuvable (dépôt, AELION non vérifié, mon autre projet = autre format). → Où le récupérer ? Sans lui, la preuve M30 donnera `count == 4` et non 15.~~ → ✅ **Résolu le 19/10** : livré par le jalon 10 (`data/drift_source/`) ; preuve officielle M30 rejouée (15 lignes, 4,7802 %) et résidu M29 de 1,76 % retrouvé.
 - **M30 — fuseau de la pression** : `load_pressure` convertit les 384 lignes `+01:00` en UTC (−1 h) → 380 doublons `(machine, timestamp)`. → Bug ou piège volontaire ? (loader non modifié)
 
 **Module 24 — CI/CD, tests & versioning** · *C6* · *(terminé — 28/09/2026)*
@@ -1918,7 +1918,7 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 - **Mes preuves** : `pong:indusense` (run Completed) · `Retry 1/2 … ` puis succès · 1 440 / 1 920 lignes contaminées sans `by` vs 0,00 % non joint avec · [docs/flow_design.md](docs/flow_design.md) · 31 tests verts.
 - **Compétence(s)** : C6 (implémenter) · C7 (architecture : concevoir un pipeline et ses contrats)
 - **Aide IA reçue** : Claude Code a fusionné le jalon, vérifié la configuration Prefect, écrit le script de démonstration de la fuite, écrit `hello.py` et le brouillon du design **à partir de cahiers des charges et du code existant** (montrés et **validés par moi**), produit les preuves. **J'ai fait les prédictions** du piège data. **Je dois savoir réexpliquer : task / flow / run, retries et backoff, transitoire vs déterministe, idempotence par clé + upsert, pourquoi `by="machine"`, pourquoi seul `store` réessaie.**
-- **Difficultés / questions** : écart 1,76 % (jeu complet absent du dépôt) · `flows/pipeline.py` à créer (référence au jalon 08) · délais de retry et seuil à trancher.
+- **Difficultés / questions** : écart 1,76 % (jeu complet absent du dépôt) — ✅ **levé le 19/10** : `1175 rows … dropped (1.76%)` sur le jeu complet du jalon 10 · `flows/pipeline.py` à créer (référence au jalon 08) · délais de retry et seuil à trancher.
 
 **Incident hors TP — push bloqué par le hook pre-commit (12/10/2026)**
 
@@ -2051,7 +2051,17 @@ pd.merge_asof(temp, pres, on="timestamp", by="machine", direction="nearest",
 
 - **Ce que j'ai fait** : audité les sources brutes (anomalie de fuseau trouvée sur la pression) · implémenté le flow **`ingest → feature → predict → store`** conforme au design du M29, sans réécrire de logique métier · prouvé l'**idempotence** en **SQLite** puis en **PostgreSQL dans Compose** (2 runs → `count(*)` stable, 0 doublon) · prouvé que les **retries ne visent que le transitoire** · joué le **piège « date seule »** (prédictions 1 juste / 1 fausse) · ouvert le **tableau de bord Prefect** local.
 - **Mes preuves** : `0 → 4` puis `4 → 4 IDEMPOTENT` (SQLite et PostgreSQL) · 0 doublon (`psql`) · URL absente → échec immédiat ; base injoignable → `Retry 1/3 (5 s)`, `2/3 (15 s)`, `3/3 (45 s)` · 192 / 1 920 étiquettes fausses à taux identique (date seule) · 31 tests verts, ruff / black propres.
-- **Écart assumé** : **4** lignes et **10,42 % / 10,55 %** au lieu de **15** lignes et **4,78 % / 4,81 %** → population = échantillon `data/raw` (jeu complet absent). Les taux obtenus sont ceux que le cours annonce pour l'échantillon.
+- **Écart assumé** *(13/10)* : **4** lignes et **10,42 % / 10,55 %** au lieu de **15** lignes et **4,78 % / 4,81 %** → population = échantillon `data/raw` (jeu complet absent). Les taux obtenus sont ceux que le cours annonce pour l'échantillon.
+- ✅ **Écart levé le 19/10** : le jalon 10 apporte le jeu complet (`data/drift_source/`). **Preuve officielle** rejouée en mode PostgreSQL, base neuve `cisia_m30_officiel_20261019_132226`, jeu complet monté en lecture seule — voir [preuves/30_preuve_officielle_jeu_complet.txt](preuves/30_preuve_officielle_jeu_complet.txt) :
+
+| Attendu (pas-à-pas R2) | Obtenu |
+|---|---|
+| `joined_rows=65625 joined_panne_count=3137 joined_panne_rate=0.04780190` | identique ✅ |
+| `gold_rows=64625 gold_panne_count=3109 gold_panne_rate=0.04810832` | identique ✅ |
+| Résidu de jointure ≈ 1,76 % (M29) | `1175 rows … dropped (1.76%)` ✅ |
+| `count1 == count2 == 15` · 0 doublon | **0 → 15** puis **15 → 15** « IDEMPOTENT » · 0 doublon ✅ |
+
+  Une prédiction par machine (MACH-01 à MACH-15, au 26/02/2026 23:00). Image non reconstruite : `predict_flow.py` inchangé depuis son build du 13/10.
 - **Compétence(s)** : C6 (implémenter un pipeline orchestré) · C7 (architecture : contrats de tasks, idempotence, gestion d'erreurs)
 - **Aide IA reçue** : Claude Code a audité les données, écrit `predict_flow.py` (**code montré et validé par moi avant écriture**), les scripts de preuve et la documentation ; il a diagnostiqué les incidents (désinstallation par `uv sync` sans extras — de son fait —, délai Prefect dans le conteneur, connexion de ≈ 130 s, runs fantômes). **J'ai choisi** le backend, la stratégie (`data/raw` plutôt que le gold), les prédictions du piège et l'abandon du test. **Je dois savoir réexpliquer : clé naturelle + upsert, pourquoi seul `store` réessaie et seulement sur `OperationalError`, pourquoi le flow tourne dans le service `api` (`db:5432`), pourquoi 4 lignes et pas 15, pourquoi un taux identique ne prouve pas des étiquettes justes.**
 - **Difficultés / questions** : jeu complet introuvable · anomalie de fuseau de `load_pressure` · seuil 0,5 vs 0,975 · QCM J4 absent — voir la liste « Difficultés / questions » (section M23).
