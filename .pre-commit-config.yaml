@@ -12,6 +12,10 @@
 # [PÉDAGOGIE]           guident la lecture sans changer l'exécution.
 # [PÉDAGOGIE] ============================================================================
 
+# [PÉDAGOGIE] EXCLUSION (M31, 19/10/2026) — les TPs autonomes de FORMATION/EXERCICES ont leur propre
+# [PÉDAGOGIE]           pyproject/uv.lock : pre-commit passe les fichiers explicitement aux hooks,
+# [PÉDAGOGIE]           donc l'extend-exclude de pyproject.toml ne suffit pas à les protéger.
+exclude: ^FORMATION/EXERCICES/
 # [PÉDAGOGIE] CLÉ `repos` — ce champ déclaratif participe au contrat de configuration.
 repos:
   # [PÉDAGOGIE] CLÉ `repo` — ce champ déclaratif participe au contrat de configuration.
