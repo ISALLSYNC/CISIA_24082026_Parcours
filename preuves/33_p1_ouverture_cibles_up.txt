@@ -1,0 +1,62 @@
+﻿# Preuve : M33 - ouverture : stack complete + exporteur drift -> 2 cibles UP
+# Date : 2026-10-19 13:48
+# Branche : ismael-sall @ 2c5afa1
+
+# 💬 docker compose up -d --build --wait -> api/db healthy, prometheus/grafana up (473 s : reconstruction de l'image)
+PS> docker compose ps
+SERVICE      STATUS                   PORTS
+api          Up 3 minutes (healthy)   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+db           Up 3 minutes (healthy)   5432/tcp
+grafana      Up 3 minutes             0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+prometheus   Up 3 minutes             0.0.0.0:9090->9090/tcp, [::]:9090->9090/tcp
+
+# 💬 Exporteur drift lance sur l'hote : uv run --frozen python scripts/export_drift_metrics.py (port 9109)
+PS> curl.exe -fsS http://localhost:9109/metrics | Select-String '^indusense_drift'
+indusense_drift_psi{feature="pressure_bar",fenetre="1",reference="normale"} 0.0251933350844102
+indusense_drift_psi{feature="temperature",fenetre="1",reference="normale"} 0.0021566732188905
+indusense_drift_psi{feature="temperature",fenetre="2",reference="haute"} 11.031047777573589
+indusense_drift_psi{feature="pressure_bar",fenetre="2",reference="haute"} 0.0079898270145305
+indusense_drift_psi{feature="temperature",fenetre="2",reference="normale"} 6.8338021117845305
+indusense_drift_psi{feature="pressure_bar",fenetre="2",reference="normale"} 0.0251933350844102
+indusense_drift_psi{feature="temperature",fenetre="janvier",reference="haute"} 0.0010391435391037
+indusense_drift_psi{feature="pressure_bar",fenetre="janvier",reference="haute"} 0.0009364859217624
+indusense_drift_psi{feature="temperature",fenetre="janvier",reference="normale"} 5.252667701136787
+indusense_drift_psi{feature="pressure_bar",fenetre="janvier",reference="normale"} 0.1613073076652888
+indusense_drift_ks_pvalue{feature="pressure_bar",fenetre="1",reference="normale"} 1.1546419315332646e-07
+indusense_drift_ks_pvalue{feature="temperature",fenetre="1",reference="normale"} 0.0221753721065106
+indusense_drift_ks_pvalue{feature="temperature",fenetre="2",reference="haute"} 0.0
+indusense_drift_ks_pvalue{feature="pressure_bar",fenetre="2",reference="haute"} 3.642339337552572e-07
+indusense_drift_ks_pvalue{feature="temperature",fenetre="2",reference="normale"} 0.0
+indusense_drift_ks_pvalue{feature="pressure_bar",fenetre="2",reference="normale"} 1.1546419315332646e-07
+indusense_drift_ks_pvalue{feature="temperature",fenetre="janvier",reference="haute"} 0.9315004409510113
+indusense_drift_ks_pvalue{feature="pressure_bar",fenetre="janvier",reference="haute"} 0.0181068605068754
+indusense_drift_ks_pvalue{feature="temperature",fenetre="janvier",reference="normale"} 1.511393774803419e-242
+indusense_drift_ks_pvalue{feature="pressure_bar",fenetre="janvier",reference="normale"} 3.7545846592123705e-10
+indusense_drift_rappel{fenetre="1"} 0.7533039647577092
+indusense_drift_rappel{fenetre="2"} 0.737885462555066
+indusense_drift_rappel{fenetre="janvier"} 0.75
+indusense_drift_precision{fenetre="1"} 0.1123521681997371
+indusense_drift_precision{fenetre="2"} 0.1175851175851175
+indusense_drift_precision{fenetre="janvier"} 0.1022727272727272
+indusense_drift_taux_alerte{fenetre="1"} 0.348523013510419
+indusense_drift_taux_alerte{fenetre="2"} 0.3261964735516373
+indusense_drift_taux_alerte{fenetre="janvier"} 0.3582089552238806
+indusense_drift_taux_panne{fenetre="1"} 0.0519807648271124
+indusense_drift_taux_panne{fenetre="2"} 0.0519807648271124
+indusense_drift_taux_panne{fenetre="janvier"} 0.0488466757123473
+indusense_drift_pr_auc{fenetre="1"} 0.2360388464339304
+indusense_drift_pr_auc{fenetre="2"} 0.2287540839993017
+indusense_drift_pr_auc{fenetre="janvier"} 0.1704250213592581
+indusense_drift_roc_auc{fenetre="1"} 0.7912595235055013
+indusense_drift_roc_auc{fenetre="2"} 0.792795787311924
+indusense_drift_roc_auc{fenetre="janvier"} 0.7816016801394833
+
+# 💬 Cibles Prometheus (http://localhost:9090/api/v1/targets)
+  indusense-api    UP    http://api:8000/metrics
+  indusense-drift  UP    http://host.docker.internal:9109/metrics
+
+# 💬 /metrics de l'API : codes regroupes (status="2xx") et aucune metrique indusense_ -> a faire dans le TP socle
+http_requests_total{handler="/metrics",method="GET",status="2xx"} 13.0
+http_requests_total{handler="/health",method="GET",status="2xx"} 6.0
+
+# 💬 Note : PSI F2 = 6,834 (protocole du depot fil rouge) vs 6,845 (miroir) : populations/references differentes, cf. pas-a-pas R2.

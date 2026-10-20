@@ -1,0 +1,65 @@
+﻿# Preuve : M23 extension - clean_sensor_data (fiche TD 23)
+# Date : 2026-09-28 15:36
+# Branche : ismael-sall @ 6ecfa39 (+ cleaning.py et test_cleaning.py non encore commites)
+
+# Prediction faite AVANT execution : ligne 1 (MACH-01) -> 10.0 (guide) ; ligne 3 (MACH-02) -> 30.0 (seul) ; sans groupby -> 20.0 (mediane de 10 et 30)
+
+PS> uv run pytest tests/test_cleaning.py -v
+============================= test session starts =============================
+platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\issal\CISIA_24082026_Parcours\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\issal\CISIA_24082026_Parcours
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+tests/test_cleaning.py::test_clean_sensor_data_imputes_by_machine PASSED [100%]
+
+============================== 1 passed in 1.62s ==============================
+# code retour : 0
+
+PS> uv run ruff check .
+All checks passed!
+# code retour : 0
+
+PS> uv run black --check src/indusense/features/cleaning.py tests/test_cleaning.py
+All done! ✨ 🍰 ✨
+2 files would be left unchanged.
+# code retour : 0
+
+PS> uv run pytest -q
+.............                                                            [100%]
+13 passed in 1.86s
+# code retour : 0
+
+PS> uv run python demo_groupby.py
+machine   avant  AVEC groupby (projet)  SANS groupby
+MACH-01   10.0                   10.0          10.0
+MACH-01    nan                   10.0          20.0
+MACH-02   30.0                   30.0          30.0
+MACH-02    nan                   30.0          20.0
+
+Ligne 1 (MACH-01) : avec groupby = 10.0 | sans groupby = 20.0 <- mediane de [10, 30] : valeur empruntee a MACH-02
+# code retour : 0
+
+# 💬 demo_groupby.py = script jetable hors depot (compare avec / sans groupby). Code ci-dessous pour rejouer :
+"""Demo M23 extension : imputation avec et sans groupby (aucun fichier du projet modifie)."""
+
+import pandas as pd
+
+from indusense.features.cleaning import clean_sensor_data
+
+df = pd.DataFrame(
+    {
+        "machine": ["MACH-01", "MACH-01", "MACH-02", "MACH-02"],
+        "temperature": [10.0, None, 30.0, None],
+        "pressure_bar": [100.0, 102.0, 200.0, None],
+    }
+)
+out = clean_sensor_data(df)
+sans_groupby = df["temperature"].fillna(df["temperature"].median())
+print("machine   avant  AVEC groupby (projet)  SANS groupby")
+for i in range(len(df)):
+    print(f"{df.machine[i]}  {df.temperature[i]!s:>5}  {out.temperature[i]:>21}  {sans_groupby[i]:>12}")
+print()
+print("Ligne 1 (MACH-01) : avec groupby =", out.loc[1, "temperature"],
+      "| sans groupby =", sans_groupby[1], "<- mediane de [10, 30] : valeur empruntee a MACH-02")

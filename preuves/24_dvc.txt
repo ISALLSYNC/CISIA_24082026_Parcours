@@ -1,0 +1,197 @@
+# Preuve : M24 - DVC : versionner le Gold et le modele (fiche TD 24, etape 4)
+# Date : 2026-09-28 17:27
+# Branche : ismael-sall @ e5e42e6
+
+# 💬 PRINCIPE : Git garde le code + un petit POINTEUR .dvc ; DVC garde le GROS fichier dans un remote.
+# 💬 Remote = dossier local HORS du depot : ..\dvc-store (a cote de CISIA_24082026_Parcours).
+# 💬 Controle prealable : aucun test ne lit data/gold ni artifacts/models -> la CI ne cassera pas.
+
+# 💬 0) Reinstaller l'extra mlops (retire lors de la CI rejouee en local) ; lock inchange.
+PS> uv sync --frozen --extra dev --extra mlops
+Installed 48 packages in 23.67s
+ + alembic==1.18.5
+ + anyio==4.14.1
+ + blinker==1.9.0
+ + cachetools==7.1.4
+ + cloudpickle==3.1.2
+ + contourpy==1.3.3
+ + cycler==0.12.1
+ + databricks-sdk==0.119.0
+ + docker==7.1.0
+ + fastapi==0.138.1
+ + flask==3.1.3
+ + flask-cors==6.0.5
+ + fonttools==4.63.0
+ + google-auth==2.55.1
+ + graphene==3.4.3
+ + graphql-core==3.2.11
+ + graphql-relay==3.2.0
+ + greenlet==3.5.3
+ + h11==0.16.0
+ + huey==3.0.3
+ + importlib-metadata==9.0.0
+ + itsdangerous==2.2.0
+ + jinja2==3.1.6
+ + kiwisolver==1.5.0
+ + mako==1.3.12
+ + markupsafe==3.0.3
+ + matplotlib==3.11.0
+ + mlflow==3.14.0
+ + mlflow-skinny==3.14.0
+ + mlflow-tracing==3.14.0
+ + opentelemetry-api==1.43.0
+ + opentelemetry-proto==1.43.0
+ + opentelemetry-sdk==1.43.0
+ + opentelemetry-semantic-conventions==0.64b0
+ + pillow==12.2.0
+ + prettytable==3.18.0
+ + protobuf==6.33.6
+ + pyarrow==24.0.0
+ + pyasn1==0.6.3
+ + pyasn1-modules==0.4.2
+ + skops==0.14.0
+ + sqlalchemy==2.0.51
+ + sqlparse==0.5.5
+ + starlette==1.3.1
+ + uvicorn==0.49.0
+ + waitress==3.0.2
+ + werkzeug==3.1.8
+ + zipp==4.1.0
+# code retour : 0
+
+# 💬 0b) Preflight de la fiche : echoue franchement si l'outil manque.
+PS> uv run --frozen dvc --version
+3.67.1
+# code retour : 0
+
+# 💬 1) Initialiser DVC : cree le dossier .dvc/ (config + cache) et .dvcignore.
+PS> uv run --frozen dvc init
+Initialized DVC repository.
+
+You can now commit the changes to git.
+
++---------------------------------------------------------------------+
+|                                                                     |
+|        DVC has enabled anonymous aggregate usage analytics.         |
+|     Read the analytics documentation (and how to opt-out) here:     |
+|             <https://dvc.org/doc/user-guide/analytics>              |
+|                                                                     |
++---------------------------------------------------------------------+
+
+What's next?
+------------
+- Check out the documentation: <https://dvc.org/doc>
+- Get help and share ideas: <https://dvc.org/chat>
+- Star us on GitHub: <https://github.com/treeverse/dvc>
+# code retour : 0
+
+# 💬 2) Creer le dossier du remote a cote du depot (pas dedans).
+PS> New-Item -ItemType Directory -Force -Path ..\dvc-store
+existe : True
+
+# 💬 2b) Declarer ce dossier comme remote par defaut (-d), nomme localstore (-f = ecraser s'il existe deja).
+PS> uv run --frozen dvc remote add -d -f localstore ..\dvc-store
+Setting 'localstore' as a default remote.
+# code retour : 0
+
+# 💬 3) Git arrete de SUIVRE les 2 fichiers (--cached = ils restent sur le disque). Obligatoire avant dvc add.
+PS> git rm --cached -- data/gold/gold_dataset.csv artifacts/models/rf.joblib
+rm 'artifacts/models/rf.joblib'
+rm 'data/gold/gold_dataset.csv'
+# code retour : 0
+
+# 💬 3b) Les fichiers sont-ils toujours sur le disque ?
+gold present : True · modele present : True
+
+# 💬 4) DVC prend en charge les 2 fichiers : empreinte md5, copie dans .dvc/cache, pointeurs .dvc et .gitignore local.
+PS> uv run --frozen dvc add data/gold/gold_dataset.csv artifacts/models/rf.joblib
+
+To track the changes with git, run:
+
+	git add 'artifacts\models\rf.joblib.dvc' 'artifacts\models\.gitignore' 'data\gold\gold_dataset.csv.dvc' 'data\gold\.gitignore'
+
+To enable auto staging, run:
+
+	dvc config core.autostage true
+# code retour : 0
+
+# 💬 5) Envoyer les fichiers vers le remote ..\dvc-store.
+PS> uv run --frozen dvc push
+2 files pushed
+# code retour : 0
+
+# 💬 6) Qu'est-ce que Git voit maintenant ?
+PS> git status --short
+A  .dvc/.gitignore
+AM .dvc/config
+A  .dvcignore
+D  artifacts/models/rf.joblib
+D  data/gold/gold_dataset.csv
+?? artifacts/models/.gitignore
+?? artifacts/models/rf.joblib.dvc
+?? data/gold/.gitignore
+?? data/gold/gold_dataset.csv.dvc
+# code retour : 0
+
+# 💬 7) DVC : fichiers et cache coherents ? (attendu : a jour)
+PS> uv run --frozen dvc status
+Data and pipelines are up to date.
+# code retour : 0
+
+# 💬 7b) Comparaison avec le remote (-c = cloud).
+PS> uv run --frozen dvc status -c
+Cache and remote 'localstore' are in sync.
+# code retour : 0
+
+# 💬 8) Contenu des pointeurs (ce sont CES petits fichiers que Git versionnera).
+PS> Get-Content artifacts/models/rf.joblib.dvc
+outs:
+- md5: 2779890061870d6a08d6efdf733da094
+  size: 4965817
+  hash: md5
+  path: rf.joblib
+
+PS> Get-Content data/gold/gold_dataset.csv.dvc
+outs:
+- md5: 637be8d3825023160de0980761c9a9e8
+  size: 287704
+  hash: md5
+  path: gold_dataset.csv
+
+# 💬 9) Config DVC (le remote est enregistre dans .dvc/config, versionne par Git).
+PS> Get-Content .dvc/config
+[core]
+    remote = localstore
+['remote "localstore"']
+    url = ../../dvc-store
+
+# 💬 10) .gitignore crees par dvc add (Git doit ignorer les gros fichiers).
+PS> Get-Content data/gold/.gitignore
+/gold_dataset.csv
+PS> Get-Content artifacts/models/.gitignore
+/rf.joblib
+
+# 💬 11) Git ignore-t-il bien les 2 fichiers (malgre la regle '!artifacts/models/rf.joblib' du .gitignore racine) ?
+PS> git check-ignore -v artifacts/models/rf.joblib data/gold/gold_dataset.csv
+artifacts/models/.gitignore:1:/rf.joblib	artifacts/models/rf.joblib
+data/gold/.gitignore:1:/gold_dataset.csv	data/gold/gold_dataset.csv
+# code retour : 0
+
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 0) mlops reinstalle (48 paquets), DVC 3.67.1 disponible.
+# 💬 1) dvc init : cree .dvc/ (config, cache) et .dvcignore. DVC annonce des statistiques d'usage ANONYMES activees
+# 💬    par defaut (desactivables : dvc config core.analytics false).
+# 💬 2) Remote localstore = ..\dvc-store. Dans .dvc/config il s'ecrit ../../dvc-store : chemin RELATIF au dossier .dvc/,
+# 💬    donc il designe bien ..\dvc-store depuis la racine du depot. Aucun chemin C:\ en dur : portable.
+# 💬 3) git rm --cached : Git ne suit plus les 2 fichiers ('D' = supprime de l'INDEX), mais ils sont toujours sur le disque (True/True).
+# 💬 4) dvc add : cree 2 pointeurs .dvc + 2 .gitignore locaux.
+# 💬 5) dvc push : '2 files pushed' -> les 2 fichiers sont copies dans ..\dvc-store.
+# 💬 6) git status : 'A' = nouveaux fichiers DVC prepares, 'D' = les 2 gros fichiers sortent de Git, '??' = pointeurs et .gitignore a ajouter.
+# 💬 7) dvc status 'up to date' + dvc status -c 'in sync' : fichiers, cache ET remote coherents.
+# 💬 8) Un pointeur = 4 infos : md5 (empreinte), size (octets), hash (algorithme), path. Modele 4 965 817 octets, Gold 287 704 octets.
+# 💬    Si le modele change, son md5 change, donc le pointeur change : Git versionne la VERSION, DVC stocke le CONTENU.
+# 💬 11) Les .gitignore locaux crees par DVC l'emportent sur la regle '!artifacts/models/rf.joblib' du .gitignore racine
+# 💬    (le .gitignore le plus proche du fichier a priorite) : Git ignore bien les 2 gros fichiers.
+# 💬 LIMITE : l'historique Git garde les ANCIENNES versions de rf.joblib et du Gold (commits precedents) ; seules les
+# 💬    versions futures passent par DVC. Le remote est sur ce PC seulement : le fork GitHub aura les pointeurs, pas les fichiers.

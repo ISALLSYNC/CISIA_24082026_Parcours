@@ -59,3 +59,14 @@ build/
 # [PÉDAGOGIE] EXCLUSION — ce motif retire un artefact généré, local ou sensible du périmètre
 # [PÉDAGOGIE] concerné.
 !artifacts/models/model_metadata.json
+
+# [PÉDAGOGIE] M24 — MLflow local : la base SQLite du serveur et le dossier des artefacts sont
+# [PÉDAGOGIE] régénérés à chaque session ; ils ne doivent pas entrer dans Git.
+mlflow.db
+mlruns/
+mlartifacts/
+
+# [PÉDAGOGIE] M29-M30 — démo Prefect : base SQLite et page de visualisation régénérées à chaque
+# [PÉDAGOGIE] exécution de scripts/demo_prefect_idempotence.py ; elles n'entrent pas dans Git.
+predictions.db
+predictions.html

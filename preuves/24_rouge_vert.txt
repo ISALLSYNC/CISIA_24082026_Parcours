@@ -1,0 +1,87 @@
+﻿# Preuve : M24 - cycle ROUGE -> VERT (casse volontaire puis reparation, en local)
+# Date : 2026-09-28 16:42
+# Branche : ismael-sall @ d46b8a0
+
+# 💬 BUT : montrer qu'un test attrape une regression, et que la reparation le fait reverdir.
+# 💬 CASSE CHOISIE : retirer le shift(1) de temporal.py ligne 59 = recreer la FUITE de donnees du M23 TP 2.
+# 💬 PREDICTION (avant execution) : test_temporal_features_do_not_use_current_value echoue avec 25.0 au lieu de 15.0 ;
+# 💬 les 12 autres tests restent verts. Aucun commit du code casse.
+
+# 💬 0) Etat de depart : arbre propre, suite verte.
+PS> uv run --frozen pytest -q -p no:warnings
+.............                                                            [100%]
+13 passed in 1.29s
+# code retour : 0
+
+# 💬 1) CASSE : on retire .shift(1) (la moyenne glissante inclut maintenant la mesure courante).
+PS> git diff -- src/indusense/features/temporal.py
+diff --git a/src/indusense/features/temporal.py b/src/indusense/features/temporal.py
+index c70ab4f..b26f6d7 100644
+--- a/src/indusense/features/temporal.py
++++ b/src/indusense/features/temporal.py
+@@ -56,7 +56,7 @@ def add_temporal_features(
+         # [PÉDAGOGIE] un invariant stable.
+         for window in windows:
+             df[f"{col}_roll{window}_mean"] = grouped.transform(
+-                lambda series, window=window: series.shift(1).rolling(window).mean()
++                lambda series, window=window: series.rolling(window).mean()
+             )
+     # [PÉDAGOGIE] SORTIE — cette valeur constitue le contrat remis à l'appelant ; son type et son
+     # [PÉDAGOGIE] sens doivent rester stables.
+
+# 💬 2) ROUGE : la CI (etape Tests) echouerait ici.
+PS> uv run --frozen pytest -q -p no:warnings
+..........F..                                                            [100%]
+================================== FAILURES ===================================
+_______________ test_temporal_features_do_not_use_current_value _______________
+
+    def test_temporal_features_do_not_use_current_value():
+        df = pd.DataFrame(
+            {
+                "machine": ["MACH-01"] * 4,
+                "timestamp": pd.date_range("2025-01-01", periods=4, freq="h"),
+                "temperature": [10.0, 20.0, 30.0, 40.0],
+                "pressure_bar": [195.0, 196.0, 197.0, 198.0],
+            }
+        )
+        out = add_temporal_features(df, value_cols=("temperature",), lags=(1,), windows=(2,))
+    
+        # [PÉDAGOGIE] ORACLE — l'assertion compare le résultat observé au contrat attendu par ce test.
+        assert out["temperature_lag1"].isna().iloc[0]
+        # [PÉDAGOGIE] ORACLE — l'assertion compare le résultat observé au contrat attendu par ce test.
+>       assert out["temperature_roll2_mean"].iloc[2] == 15.0
+E       assert np.float64(25.0) == 15.0
+
+tests\test_temporal.py:43: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_temporal.py::test_temporal_features_do_not_use_current_value
+1 failed, 12 passed in 2.10s
+# code retour : 1
+
+# 💬 3) REPARATION : restaurer le fichier tel qu'il est dans le dernier commit.
+PS> git restore -- src/indusense/features/temporal.py
+
+# code retour : 0
+
+# 💬 4) VERT : la suite repasse.
+PS> uv run --frozen pytest -q -p no:warnings
+.............                                                            [100%]
+13 passed in 1.43s
+# code retour : 0
+
+# 💬 5) Aucune trace de la casse (seule cette preuve doit apparaitre).
+PS> git status --short
+
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 0) Depart : 13 passed. (-p no:warnings masque les 4 DeprecationWarning deja connus, pour lire le rouge sans bruit.)
+# 💬 1) Le diff montre UNE seule ligne changee : '.shift(1)' retire (ligne 59).
+# 💬 2) ROUGE : '..........F..' -> le F = le test anti-fuite. Le message 'assert np.float64(25.0) == 15.0' donne
+# 💬    la valeur obtenue (25.0 = moyenne(20, 30), qui inclut la mesure courante 30) et la valeur attendue (15.0).
+# 💬    C'est EXACTEMENT la valeur 'fuite' calculee au M23 TP 2 : le test detecte la regression, avec la bonne raison.
+# 💬    Code retour 1 : dans la CI, l'etape Tests serait rouge, le job quality echouerait, et grace a
+# 💬    'needs: quality' le job build ne demarrerait PAS.
+# 💬 3) git restore : remet le fichier du dernier commit (annule la casse, sans toucher aux autres fichiers).
+# 💬 4) VERT : 13 passed, code retour 0.
+# 💬 5) git status vide : la casse n'a laisse aucune trace ; rien n'a ete commite.
+# 💬 PREDICTION CONFIRMEE : 1 failed (le test anti-fuite, 25.0 au lieu de 15.0), 12 passed.

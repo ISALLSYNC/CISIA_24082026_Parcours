@@ -1,0 +1,176 @@
+apiVersion: 1
+groups:
+    - orgId: 1
+      name: indusense-exercice
+      folder: InduSense
+      interval: 30s
+      rules:
+        - uid: indusense-ex-api-morte
+          title: EXERCICE — API morte (up < 1)
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 300
+                to: 0
+              datasourceUid: prometheus
+              model:
+                expr: up{job="indusense-api"}
+                instant: true
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 1
+                        type: lt
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: ""
+          panelId: 0
+          noDataState: Alerting
+          execErrState: Error
+          for: 1m
+          annotations:
+            description: Incident A (docker compose stop api). Voir le runbook.
+            runbook_url: docs/runbook.md
+            summary: Prometheus ne joint plus l'API depuis 1 min
+          labels:
+            severity: critical
+            slo: "1"
+          isPaused: false
+        - uid: indusense-ex-pic-401
+          title: EXERCICE — Pic de 401 (> 0,1 / s)
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 300
+                to: 0
+              datasourceUid: prometheus
+              model:
+                expr: sum(rate(http_requests_total{status="401"}[1m])) or vector(0)
+                instant: true
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0.1
+                        type: gt
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: ""
+          panelId: 0
+          noDataState: OK
+          execErrState: Error
+          for: 1m
+          annotations:
+            description: Incident B (POST sans clé). Client mal configuré ou tentative d'accès.
+            runbook_url: docs/runbook.md
+            summary: Plus de 0,1 requête refusée (401) par seconde depuis 1 min
+          labels:
+            securite: M26
+            severity: warning
+          isPaused: false
+    - orgId: 1
+      name: indusense-production
+      folder: InduSense
+      interval: 1m
+      rules:
+        - uid: indusense-prod-p95
+          title: PROD — Latence p95 /predict-tabular > 300 ms
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: prometheus
+              model:
+                expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler="/predict-tabular"}[5m])) by (le))
+                instant: true
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0.3
+                        type: gt
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: ""
+          panelId: 0
+          noDataState: OK
+          execErrState: Error
+          for: 5m
+          annotations:
+            description: 'Plus strict que le SLO 2 (p95 < 1 s) : prévient AVANT la violation. Buckets plafonnés à 1 s.'
+            runbook_url: docs/runbook.md
+            summary: p95 de /predict-tabular au-dessus de 300 ms depuis 5 min
+          labels:
+            severity: warning
+            slo: "2"
+          isPaused: false
+        - uid: indusense-prod-5xx
+          title: PROD — Taux de 5xx > 1 %
+          condition: C
+          data:
+            - refId: A
+              relativeTimeRange:
+                from: 600
+                to: 0
+              datasourceUid: prometheus
+              model:
+                expr: (sum(rate(http_requests_total{status=~"5.."}[5m])) or vector(0)) / sum(rate(http_requests_total[5m]))
+                instant: true
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: A
+            - refId: C
+              datasourceUid: __expr__
+              model:
+                conditions:
+                    - evaluator:
+                        params:
+                            - 0.01
+                        type: gt
+                expression: A
+                intervalMs: 1000
+                maxDataPoints: 43200
+                refId: C
+                type: threshold
+          dashboardUid: ""
+          panelId: 0
+          noDataState: OK
+          execErrState: Error
+          for: 5m
+          annotations:
+            description: Défaillance de l'API elle-même (pas du client). Seuil = SLO 3.
+            runbook_url: docs/runbook.md
+            summary: Plus de 1 % de réponses 5xx sur 5 min
+          labels:
+            severity: critical
+            slo: "3"
+          isPaused: false

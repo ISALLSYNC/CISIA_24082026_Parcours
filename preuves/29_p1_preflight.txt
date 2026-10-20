@@ -1,0 +1,58 @@
+﻿# Preuve : M29 - Ouverture + preflight (scenario A)
+# Date : 2026-10-12 12:11
+# Branche : ismael-sall @ c701227
+
+# 💬 BUT : verifier que Prefect est installe (3.7.6 attendu, deja dans uv sync : pas de 'uv add') et forcer l'orchestration LOCALE.
+
+# 💬 1) Environnement conforme au lock.
+PS> uv sync --frozen --extra dev --extra mlops
+Checked 252 packages in 68ms
+# code retour : 0
+
+# 💬 2) Version de Prefect (pas-a-pas : 3.7.6).
+PS> uv run --frozen python -c "import prefect; print(prefect.__version__)"
+3.7.6
+# code retour : 0
+
+# 💬 3) AVANT de forcer le profil : quel profil Prefect est actif sur ce poste ?
+PS> uv run --frozen prefect profile ls
+┌─────────────────────┐
+│ Available Profiles: │
+├─────────────────────┤
+└─────────────────────┘
+   * active profile
+# code retour : 0
+
+# 💬 4) Forcer l'orchestration LOCALE (guide multiplateforme, section 10) - pour cette session de terminal :
+PS> $env:PREFECT_PROFILE = 'ephemeral'
+PS> $env:PREFECT_SERVER_ANALYTICS_ENABLED = 'false'
+PS> $env:PREFECT_CLOUD_ENABLE_ORCHESTRATION_TELEMETRY = 'false'
+
+# 💬 5) APRES : profil effectivement utilise et reglages (aucune URL d'API Cloud attendue).
+PS> uv run --frozen prefect config view
+PREFECT_PROFILE='ephemeral'
+PREFECT_CLOUD_ENABLE_ORCHESTRATION_TELEMETRY='false' (from env)
+PREFECT_SERVER_ALLOW_EPHEMERAL_MODE='true' (from profile)
+PREFECT_SERVER_ANALYTICS_ENABLED='false' (from env)
+# code retour : 0
+
+# 💬 6) Prefect Cloud n'est pas utilise ? (PREFECT_API_URL et PREFECT_API_KEY vides attendus)
+PS> uv run --frozen python -c "from prefect.settings import PREFECT_API_URL, PREFECT_API_KEY; print('PREFECT_API_URL =', repr(PREFECT_API_URL.value())); print('PREFECT_API_KEY definie ?', bool(PREFECT_API_KEY.value()))"
+PREFECT_API_URL = None
+PREFECT_API_KEY definie ? False
+# code retour : 0
+
+# 💬 7) Le dossier src/indusense/flows existe-t-il deja ? (a CREER au TP)
+PS> cmd /c if exist src\indusense\flows (echo present) else (echo ABSENT - a creer au TP)
+ABSENT - a creer au TP
+# code retour : 0
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 - Prefect 3.7.6 : version attendue par le pas-a-pas, deja dans le lock (aucun 'uv add').
+# 💬 - Aucun profil Prefect enregistre sur le poste (liste vide) : pas de compte Prefect Cloud configure.
+# 💬 - Apres forcage : PREFECT_PROFILE='ephemeral', mode ephemere autorise (PREFECT_SERVER_ALLOW_EPHEMERAL_MODE='true'),
+# 💬   telemetrie et statistiques desactivees. PREFECT_API_URL = None et aucune cle API : TOUT RESTE LOCAL
+# 💬   (Prefect demarre un petit serveur temporaire en memoire le temps d'un run, rien n'est envoye en ligne).
+# 💬 - ATTENTION : ces variables ne valent que pour la session de terminal en cours. Chaque script de preuve Prefect
+# 💬   les repositionne au debut (sinon un profil Cloud eventuel serait herite).
+# 💬 - src/indusense/flows n'existe pas encore : a creer au TP 'flow hello'.

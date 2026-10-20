@@ -1,0 +1,154 @@
+﻿# Preuve : M26 TP 3 - preuve complementaire : NON-DIVULGATION dans les logs (tests/test_logs_no_leak.py)
+# Date : 2026-09-29 13:39
+# Branche : ismael-sall @ a54e7e8 (+ test cree, pas encore commite)
+
+# 💬 CHOIX : option 'non-divulgation dans les logs' (l'option OpenAPI existe deja : test_rate_limit_policy_is_not_exposed_as_query_parameters).
+# 💬 PRINCIPE : envoyer des valeurs MARQUEES (vraie cle, fausse cle 'cle-a-ne-pas-logger-123', machine 'MACH-4242', temperature 123.456)
+# 💬 sur 3 chemins (200, 401, 422), capturer TOUS les logs (loguru + logging standard), verifier qu'aucune n'y apparait.
+# 💬 LIMITE (pas-a-pas) : ce test NE PROUVE PAS que l'audit logging existe : il reste Planifie v0.
+
+# 💬 1) VERT : les 2 tests (non-divulgation + controle du detecteur).
+PS> uv run --frozen pytest -v -p no:warnings tests/test_logs_no_leak.py
+============================= test session starts =============================
+platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\issal\CISIA_24082026_Parcours\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\issal\CISIA_24082026_Parcours
+configfile: pyproject.toml
+plugins: anyio-4.14.1, Faker-40.23.0, hydra-core-1.3.3
+collecting ... collected 2 items
+
+tests/test_logs_no_leak.py::test_logs_do_not_leak_api_key_or_payload PASSED [ 50%]
+tests/test_logs_no_leak.py::test_leak_detector_catches_a_logged_secret PASSED [100%]
+
+============================== 2 passed in 7.69s ==============================
+# code retour : 0
+
+# 💬 2) Que journalise REELLEMENT l'API pendant ces appels ? (la capture n'est pas vide)
+PS> uv run --frozen python -c "import sys; sys.path.insert(0, 'tests'); import test_logs_no_leak as t; from fastapi.testclient import TestClient; from indusense.api.main import app; from indusense.api.model_store import get_model_bundle; from indusense.config import settings; app.dependency_overrides[get_model_bundle]=t._bundle; cm=t._captured_logs(); lines=cm.__enter__(); c=TestClient(app); c.__enter__(); c.post('/predict-tabular', headers={'X-API-Key': settings.api_key}, json={'machine_id': t.MARKED_MACHINE, 'readings': t._readings(8)}); c.__exit__(None,None,None); cm.__exit__(None,None,None); print('lignes capturees :', len(lines)); [print('  ', l.strip()) for l in lines]"
+C:\Users\issal\CISIA_24082026_Parcours\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+2026-09-29 13:40:09.031 | INFO     | indusense.api.main:lifespan:150 - Modèle chargé
+lignes capturees : 3
+   asyncio: Using proactor: IocpProactor
+   Modèle chargé | {}
+   httpx: HTTP Request: POST http://testserver/predict-tabular "HTTP/1.1 200 OK"
+# code retour : 0
+
+# 💬 3) ROUGE : on introduit TEMPORAIREMENT une fuite dans l'API (la cle recue est journalisee dans require_api_key).
+   mutation appliquee.
+PS> (diff de la mutation)
+PS> git diff -U0 -- src/indusense/api/main.py
+diff --git a/src/indusense/api/main.py b/src/indusense/api/main.py
+index 5b85e2c..ff594a2 100644
+--- a/src/indusense/api/main.py
++++ b/src/indusense/api/main.py
+@@ -244,0 +245 @@ def require_api_key(x_api_key: str | None = Header(None, alias="X-API-Key")) ->
++    logger.info(f"FUITE VOLONTAIRE cle recue = {x_api_key}")  # MUTATION TEMPORAIRE TP3
+# code retour : 0
+
+# 💬 3b) Le test doit echouer et NOMMER la valeur qui fuit.
+PS> uv run --frozen pytest -q -p no:warnings tests/test_logs_no_leak.py::test_logs_do_not_leak_api_key_or_payload
+F                                                                        [100%]
+================================== FAILURES ===================================
+__________________ test_logs_do_not_leak_api_key_or_payload ___________________
+
+    def test_logs_do_not_leak_api_key_or_payload():
+        """Aucun log ne contient la clé d'API ni les valeurs envoyées (200, 401 et 422)."""
+        secrets = [settings.api_key, FAKE_KEY, MARKED_MACHINE, str(MARKED_TEMPERATURE)]
+        security._hits.clear()  # [PÉDAGOGIE] quota remis à zéro : le test ne dépend pas des autres
+        app.dependency_overrides[get_model_bundle] = _bundle
+        try:
+            with _captured_logs() as lines:
+                # [PÉDAGOGIE] `with TestClient(app)` lance le démarrage (lifespan) : il journalise au
+                # [PÉDAGOGIE] moins le chargement du modèle, donc la capture ne peut pas être vide.
+                with TestClient(app) as client:
+                    ok = client.post(
+                        "/predict-tabular",
+                        headers={"X-API-Key": settings.api_key},
+                        json={"machine_id": MARKED_MACHINE, "readings": _readings(8)},
+                    )
+                    wrong_key = client.post(
+                        "/predict-tabular",
+                        headers={"X-API-Key": FAKE_KEY},
+                        json={"machine_id": MARKED_MACHINE, "readings": _readings(8)},
+                    )
+                    invalid = client.post(
+                        "/predict-tabular",
+                        headers={"X-API-Key": settings.api_key},
+                        json={"machine_id": MARKED_MACHINE, "readings": _readings(3)},
+                    )
+        finally:
+            app.dependency_overrides.pop(get_model_bundle, None)
+            security._hits.clear()
+    
+        # [PÉDAGOGIE] ORACLE 1 — les 3 chemins ont bien été parcourus (succès, clé refusée, invalide).
+        assert (ok.status_code, wrong_key.status_code, invalid.status_code) == (200, 401, 422)
+        # [PÉDAGOGIE] ORACLE 2 — la capture n'est pas vide : sinon « aucune fuite » ne prouverait rien.
+        assert lines, "aucun log capturé : le test ne prouverait rien"
+        # [PÉDAGOGIE] ORACLE 3 — aucun secret ni aucune valeur marquée dans les logs.
+>       assert _leaks(lines, secrets) == []
+E       AssertionError: assert ['dev-key', '...s-logger-123'] == []
+E         
+E         Left contains 2 more items, first extra item: 'dev-key'
+E         Use -v to get more diff
+
+tests\test_logs_no_leak.py:129: AssertionError
+---------------------------- Captured stderr call -----------------------------
+2026-09-29 13:40:26.550 | INFO     | indusense.api.main:lifespan:150 - Modèle chargé
+2026-09-29 13:40:26.560 | INFO     | indusense.api.main:require_api_key:245 - FUITE VOLONTAIRE cle recue = dev-key
+2026-09-29 13:40:26.679 | INFO     | indusense.api.main:require_api_key:245 - FUITE VOLONTAIRE cle recue = cle-a-ne-pas-logger-123
+2026-09-29 13:40:26.685 | INFO     | indusense.api.main:require_api_key:245 - FUITE VOLONTAIRE cle recue = dev-key
+------------------------------ Captured log call ------------------------------
+DEBUG    asyncio:proactor_events.py:629 Using proactor: IocpProactor
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/predict-tabular "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/predict-tabular "HTTP/1.1 401 Unauthorized"
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/predict-tabular "HTTP/1.1 422 Unprocessable Entity"
+=========================== short test summary info ===========================
+FAILED tests/test_logs_no_leak.py::test_logs_do_not_leak_api_key_or_payload
+1 failed in 13.05s
+# code retour : 1
+
+# 💬 4) Retour a la normale : restaurer main.py tel qu'au dernier commit.
+PS> git restore -- src/indusense/api/main.py
+
+# code retour : 0
+
+# 💬 4b) Plus aucune difference sur main.py ? (aucune sortie attendue)
+PS> git diff --stat -- src/indusense/api/main.py
+
+# code retour : 0
+
+# 💬 5) VERT a nouveau.
+PS> uv run --frozen pytest -q -p no:warnings tests/test_logs_no_leak.py
+..                                                                       [100%]
+2 passed in 6.12s
+# code retour : 0
+
+# 💬 6) Toute la suite reste verte.
+PS> uv run --frozen pytest -q -p no:warnings
+...............................                                          [100%]
+31 passed in 7.59s
+# code retour : 0
+
+# 💬 7) ruff.
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+# 💬 7b) black.
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+30 files would be left unchanged.
+# code retour : 0
+
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 - VERT : test_logs_do_not_leak_api_key_or_payload + test_leak_detector_catches_a_logged_secret -> 2 passed.
+# 💬 - Ce que l'API journalise reellement pendant un appel : 3 lignes ('Modele charge', 1 ligne technique asyncio,
+# 💬   1 ligne httpx 'POST .../predict-tabular HTTP/1.1 200 OK') -> la capture n'est PAS vide, et aucune ne contient de secret.
+# 💬 - ROUGE (mutation temporaire : require_api_key journalise la cle recue) -> 1 failed, le test NOMME les fuites :
+# 💬   ['dev-key', 'cle-a-ne-pas-logger-123']. Le test detecte donc une vraie fuite dans l'API, pas seulement dans le test.
+# 💬 - git restore -> main.py identique au dernier commit (aucune difference) ; VERT a nouveau ; 31 passed ; ruff et black propres.
+# 💬 - Note : 'dev-key' apparait dans CETTE preuve (sortie du test rouge) : c'est la cle de DEVELOPPEMENT par defaut, publique
+# 💬   dans config.py, pas un secret. La fausse cle 'cle-a-ne-pas-logger-123' est inventee pour le test.
+# 💬 - LIMITE : ne prouve pas l'audit logging (Planifie v0) ; ne couvre que les chemins testes (200, 401, 422) et le code actuel.

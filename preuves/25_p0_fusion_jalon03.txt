@@ -1,0 +1,354 @@
+﻿# Preuve : M25 etape 0 - fusion MANUELLE du jalon 03 (2 conflits resolus)
+# Date : 2026-09-29 10:23
+# Branche : ismael-sall @ 7e80b02 (avant fusion)
+
+# 💬 POURQUOI MANUELLE : la simulation (git merge-tree) a detecte 2 conflits. Le script officiel annule la fusion en cas de conflit,
+# 💬 et son option -Rattrapage ferait repartir la branche du jalon officiel (mon M24 ne resterait que dans une sauvegarde).
+# 💬 RESOLUTION DECIDEE : .github/workflows/ci.yml = MA version (--frozen + job build du M24 ; le jalon 03 n'y change que des commentaires)
+# 💬                     src/indusense/config.py   = version du JALON 03 (ajoute api_key et decision_threshold pour le M25 ; je n'y avais rien change)
+
+# 💬 1) Branche de sauvegarde sur l'etat actuel (comme le fait mettre_a_niveau.ps1).
+PS> git branch sauvegarde/ismael-sall/20260929-102328
+
+# code retour : 0
+
+# 💬 2) Recuperer le jalon 03 officiel.
+PS> git fetch origin jalon/03
+From https://github.com/thomasfesq/CISIA_24082026_Parcours
+ * branch            jalon/03   -> FETCH_HEAD
+# code retour : 0
+
+# 💬 2b) Commit du jalon recupere.
+PS> git rev-parse --short FETCH_HEAD
+0babe3e
+# code retour : 0
+
+# 💬 3) Fusion : attendu = 2 conflits (ci.yml, config.py), le reste fusionne automatiquement.
+PS> git merge --no-ff --no-edit -m "Merge branch 'jalon/03' of https://github.com/thomasfesq/CISIA_24082026_Parcours into ismael-sall" FETCH_HEAD
+Auto-merging .github/workflows/ci.yml
+CONFLICT (content): Merge conflict in .github/workflows/ci.yml
+Auto-merging .gitignore
+Auto-merging pyproject.toml
+Auto-merging scripts/demo_versioning.py
+Auto-merging src/indusense/config.py
+CONFLICT (content): Merge conflict in src/indusense/config.py
+Automatic merge failed; fix conflicts and then commit the result.
+# code retour : 1
+
+# 💬 3b) Fichiers en conflit (U = unmerged).
+PS> git diff --name-only --diff-filter=U
+.github/workflows/ci.yml
+src/indusense/config.py
+# code retour : 0
+
+# 💬 4) Resolution ci.yml : garder MA version (ours = ma branche).
+PS> git checkout --ours -- .github/workflows/ci.yml
+
+# code retour : 0
+
+# 💬 5) Resolution config.py : prendre la version du JALON 03 (theirs = jalon/03).
+PS> git checkout --theirs -- src/indusense/config.py
+
+# code retour : 0
+
+# 💬 6) Marquer les 2 conflits comme resolus.
+PS> git add -- .github/workflows/ci.yml src/indusense/config.py
+
+# code retour : 0
+
+# 💬 7) Reste-t-il des conflits ? (aucune sortie attendue)
+PS> git diff --name-only --diff-filter=U
+
+# code retour : 0
+
+# 💬 7b) Aucun marqueur de conflit oublie dans les 2 fichiers ? (aucune sortie attendue)
+PS> findstr /n /c:"<<<<<<<" /c:">>>>>>>" .github\workflows\ci.yml src\indusense\config.py
+
+# code retour : 1
+
+# 💬 8) ci.yml garde-t-il bien --frozen et le job build ?
+PS> findstr /n /c:"--frozen" /c:"build:" /c:"needs: quality" .github\workflows\ci.yml
+58:        # [PÉDAGOGIE] M24 — --frozen : installer exactement uv.lock, jamais de résolution à la
+60:        run: uv sync --frozen --extra dev
+66:        run: uv run --frozen ruff check .
+72:        run: uv run --frozen black --check .
+78:        run: uv run --frozen pytest -q
+82:  build:
+83:    # [PÉDAGOGIE] GARDE — `needs: quality` : build ne démarre que si quality est vert. On ne
+85:    needs: quality
+# code retour : 0
+
+# 💬 9) config.py contient-il les reglages API du jalon 03 ?
+PS> findstr /n /c:"api_key" /c:"decision_threshold" src\indusense\config.py
+60:    api_key: str = "dev-key"
+61:    decision_threshold: float = (
+# code retour : 0
+
+
+# 💬 ======== VERIFICATIONS AVANT DE VALIDER LA FUSION (commit pas encore fait) ========
+
+# 💬 10) Le marqueur de jalon a-t-il bien change ? (attendu : 03-j2-matin-m25)
+PS> findstr /b /c:"# Jalon actuel" FORMATION\JALON_ACTUEL.md
+# Jalon actuel : 03-j2-matin-m25
+# code retour : 0
+
+# 💬 11) Script officiel de verification du jalon 03 : sync de l'environnement, tests, ruff, marqueur.
+PS> powershell -ExecutionPolicy Bypass -File .\scripts\formation\verifier_jalon.ps1 -Jalon 03
+   Building indusense-sprint3-starter @ file:///C:/Users/issal/CISIA_24082026_Parcours
+Downloading beartype (1.3MiB)
+Downloading plotly (18.2MiB)
+Downloading statsmodels (9.1MiB)
+Downloading evidently (11.2MiB)
+Downloading nltk (1.5MiB)
+Downloading faker (1.9MiB)
+Downloading apprise (1.6MiB)
+Downloading burner-redis (1.1MiB)
+Downloading psycopg-binary (3.4MiB)
+Downloading prefect (14.3MiB)
+ Downloaded burner-redis
+ Downloaded apprise
+      Built indusense-sprint3-starter @ file:///C:/Users/issal/CISIA_24082026_Parcours
+ Downloaded nltk
+ Downloaded beartype
+ Downloaded psycopg-binary
+ Downloaded faker
+ Downloaded evidently
+ Downloaded statsmodels
+ Downloaded prefect
+ Downloaded plotly
+Prepared 70 packages in 2m 29s
+Uninstalled 31 packages in 8.26s
+Installed 78 packages in 43.51s
+ + aiosqlite==0.22.1
+ + amplitude-analytics==1.2.3
+ + apprise==1.11.0
+ + asgi-lifespan==2.1.0
+ + asyncpg==0.31.0
+ + beartype==0.22.9
+ - blinker==1.9.0
+ + burner-redis==0.1.7
+ - contourpy==1.3.3
+ + coolname==5.0.0
+ + cronsim==2.7
+ - cycler==0.12.1
+ + cyclopts==4.20.0
+ - databricks-sdk==0.119.0
+ + dateparser==1.4.1
+ + deprecation==2.1.0
+ + docstring-parser==0.18.0
+ + dynaconf==3.3.2
+ + evidently==0.7.21
+ + exceptiongroup==1.3.1
+ + faker==40.23.0
+ - flask==3.1.3
+ - flask-cors==6.0.5
+ - fonttools==4.63.0
+ - google-auth==2.55.1
+ - graphene==3.4.3
+ - graphql-core==3.2.11
+ - graphql-relay==3.2.0
+ + graphviz==0.21
+ + griffe==2.1.0
+ + griffecli==2.1.0
+ + griffelib==2.1.0
+ + h2==4.3.0
+ + hpack==4.2.0
+ + httpcore==1.0.9
+ + httptools==0.8.0
+ + httpx==0.28.1
+ - huey==3.0.3
+ + humanize==4.15.0
+ + hyperframe==6.1.0
+ - importlib-metadata==9.0.0
+ ~ indusense-sprint3-starter==0.1.0 (from file:///C:/Users/issal/CISIA_24082026_Parcours)
+ - itsdangerous==2.2.0
+ + jinja2-humanize-extension==0.4.0
+ + jsonpatch==1.33
+ + jsonpointer==3.1.1
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ - kiwisolver==1.5.0
+ + litestar==2.24.0
+ + litestar-htmx==0.5.0
+ + markdown==3.10.2
+ - matplotlib==3.11.0
+ - mlflow==3.14.0
+ - mlflow-skinny==3.14.0
+ - mlflow-tracing==3.14.0
+ + msgspec==0.21.1
+ + multipart==1.3.1
+ + nltk==3.9.4
+ + oauthlib==3.3.1
+ - opentelemetry-sdk==1.43.0
+ - opentelemetry-semantic-conventions==0.64b0
+ + patsy==1.0.2
+ - pillow==12.2.0
+ + plotly==5.24.1
+ + polyfactory==3.3.0
+ + prefect==3.7.6
+ - prettytable==3.18.0
+ + prometheus-client==0.25.0
+ + prometheus-fastapi-instrumentator==8.0.2
+ + psycopg==3.3.4
+ + psycopg-binary==3.3.4
+ + py-key-value-aio==0.4.5
+ - pyasn1==0.6.3
+ - pyasn1-modules==0.4.2
+ + pydantic-extra-types==2.11.1
+ + pydocket==0.22.0
+ + python-json-logger==4.1.0
+ + python-multipart==0.0.32
+ + python-slugify==8.0.4
+ + readchar==4.2.2
+ + redis==8.0.1
+ + referencing==0.37.0
+ + regex==2026.6.28
+ + requests-oauthlib==2.0.0
+ + rfc3339-validator==0.1.4
+ + rich-click==1.9.8
+ + rich-rst==2.0.2
+ + rpds-py==2026.5.1
+ + ruamel-yaml-clib==0.2.15
+ - skops==0.14.0
+ + sniffio==1.3.1
+ - sqlparse==0.5.5
+ + statsmodels==0.14.6
+ + tenacity==9.1.4
+ + text-unidecode==1.3
+ + toml==0.10.2
+ + typing-inspect==0.9.0
+ + ujson==5.13.0
+ + uncalled-for==0.3.2
+ + uuid6==2025.0.1
+ - waitress==3.0.2
+ + watchdog==6.0.0
+ + watchfiles==1.2.0
+ + websockets==16.0
+ - werkzeug==3.1.8
+ + whenever==0.10.0
+ - zipp==4.1.0
+...................                                                      [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\issal\CISIA_24082026_Parcours\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:152: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    tolerance=pd.Timedelta(minutes=tolerance_minutes),
+
+tests/test_loaders.py::test_build_dataset_has_binary_target
+tests/test_loaders.py::test_merge_asof_never_matches_other_machine
+  C:\Users\issal\CISIA_24082026_Parcours\src\indusense\data\loaders.py:169: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+    window = pd.Timedelta(hours=window_hours)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+19 passed, 5 warnings in 35.67s
+All checks passed!
+Jalon verifie : jalon/03
+# code retour : 0
+
+# 💬 12) Reinstaller aussi l'extra mlops (verifier_jalon n'installe que dev) ; lock du jalon, non modifie par moi.
+PS> uv sync --frozen --extra dev --extra mlops
+Installed 30 packages in 24.03s
+ + blinker==1.9.0
+ + contourpy==1.3.3
+ + cycler==0.12.1
+ + databricks-sdk==0.119.0
+ + flask==3.1.3
+ + flask-cors==6.0.5
+ + fonttools==4.63.0
+ + google-auth==2.55.1
+ + graphene==3.4.3
+ + graphql-core==3.2.11
+ + graphql-relay==3.2.0
+ + huey==3.0.3
+ + importlib-metadata==9.0.0
+ + itsdangerous==2.2.0
+ + kiwisolver==1.5.0
+ + matplotlib==3.11.0
+ + mlflow==3.14.0
+ + mlflow-skinny==3.14.0
+ + mlflow-tracing==3.14.0
+ + opentelemetry-sdk==1.43.0
+ + opentelemetry-semantic-conventions==0.64b0
+ + pillow==12.2.0
+ + prettytable==3.18.0
+ + pyasn1==0.6.3
+ + pyasn1-modules==0.4.2
+ + skops==0.14.0
+ + sqlparse==0.5.5
+ + waitress==3.0.2
+ + werkzeug==3.1.8
+ + zipp==4.1.0
+# code retour : 0
+
+# 💬 13) Toute la suite de tests, dont les nouveaux tests d'API du jalon 03 et mon test_cleaning du M23.
+PS> uv run --frozen pytest -q -p no:warnings
+...................                                                      [100%]
+19 passed in 8.56s
+# code retour : 0
+
+# 💬 14) Linter.
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+# 💬 15) Formatage (verifie sans modifier).
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+24 files would be left unchanged.
+# code retour : 0
+
+# 💬 16) Mon extension M23 est-elle toujours la ?
+PS> cmd /c dir /b src\indusense\features\cleaning.py tests\test_cleaning.py
+cleaning.py
+test_cleaning.py
+# code retour : 0
+
+# 💬 17) Mes livrables M24 sont-ils toujours la ?
+PS> cmd /c dir /b versioning_strategy.md metrics.json params.yaml artifacts\models\rf.joblib.dvc data\gold\gold_dataset.csv.dvc
+versioning_strategy.md
+metrics.json
+params.yaml
+rf.joblib.dvc
+gold_dataset.csv.dvc
+# code retour : 0
+
+# 💬 18) DVC toujours coherent ?
+PS> uv run --frozen dvc status
+Data and pipelines are up to date.
+# code retour : 0
+
+# 💬 19) Ce qui sera dans le commit de fusion (resume).
+PS> git status --short
+A  FORMATION/EXERCICES/tp_api_m25_v1_20260823/APPLIQUER_PREUVES_M25.ps1
+A  FORMATION/EXERCICES/tp_api_m25_v1_20260823/APPLIQUER_PREUVES_M25.py
+A  FORMATION/EXERCICES/tp_api_m25_v1_20260823/README.md
+A  FORMATION/EXERCICES/tp_api_m25_v1_20260823/scripts/validate_model_card.py
+A  FORMATION/EXERCICES/tp_api_m25_v1_20260823/templates/model_card.md
+A  FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/fixtures/model_card_template.md
+A  FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_model_card_gate.py
+A  FORMATION/EXERCICES/tp_api_m25_v1_20260823/tests/test_readiness_probe.py
+M  FORMATION/JALON_ACTUEL.md
+A  payload.json
+M  pyproject.toml
+A  src/indusense/api/__init__.py
+A  src/indusense/api/main.py
+A  src/indusense/api/model_store.py
+A  src/indusense/api/schemas.py
+M  src/indusense/config.py
+A  tests/test_api.py
+M  uv.lock
+?? preuves/25_p0_fusion_jalon03.txt
+# code retour : 0
+
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 - 2 conflits, attendus d'apres la simulation, resolus comme decide : ci.yml = ma version (M24 conserve, verifie lignes
+# 💬   60-85), config.py = version du jalon (api_key, decision_threshold). Aucun marqueur de conflit oublie.
+# 💬 - verifier_jalon : 'Jalon verifie : jalon/03', 19 passed (13 d'avant + 6 tests d'API), ruff propre.
+# 💬 - Mon travail M23 (cleaning.py) et M24 (CI, DVC, MLflow, versioning_strategy.md) est intact.
+# 💬 - Fusion validee ensuite : commit 48485a5 (parents 7e80b02 = ma branche, 0babe3e = jalon/03), hooks Passed.
+# 💬 - Sauvegarde disponible : branche sauvegarde/ismael-sall/20260929-102328 (etat juste avant la fusion).

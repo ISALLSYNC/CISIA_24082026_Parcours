@@ -1,0 +1,41 @@
+﻿# Preuve : M31 - contre-epreuve de reference (pas-a-pas miroir, 10h30-10h50)
+# Date : 2026-10-19 10:35
+# Parcours @ 1e4e94a | execution dans C:\CISIA\tp_drift_indusense (miroir autonome, son propre uv.lock)
+
+# 💬 MA PREDICTION : janvier contre la reference 'haute' -> A (le PSI temperature reste fort, ~6).
+# 💬 Rappel : janvier contre 'normale' -> PSI temperature 6,213 (preuve 31_02).
+
+PS C:\CISIA\tp_drift_indusense> uv run python .\scripts\drift_lab.py --fenetre janvier --reference normale
+
+=== Fenêtre janvier vs référence normale (32177 vs 11155 relevés, 10 bins) ===
+     feature   psi ks_pvalue         verdict
+ temperature 6.213  0.00e+00 !! dérive forte
+pressure_bar 0.002  7.64e-02          OK RAS
+# code retour : 0
+
+PS C:\CISIA\tp_drift_indusense> uv run python .\scripts\drift_lab.py --fenetre janvier --reference haute
+
+=== Fenêtre janvier vs référence haute (11156 vs 11155 relevés, 10 bins) ===
+     feature   psi ks_pvalue verdict
+ temperature 0.001  9.97e-01  OK RAS
+pressure_bar 0.001  3.96e-03  OK RAS
+# code retour : 0
+
+PS C:\CISIA\tp_drift_indusense> uv run python .\scripts\drift_lab.py --fenetre 2 --reference normale
+
+=== Fenêtre 2 vs référence normale (32177 vs 8842 relevés, 10 bins) ===
+     feature   psi ks_pvalue         verdict
+ temperature 6.845  0.00e+00 !! dérive forte
+pressure_bar 0.025  4.39e-07          OK RAS
+# code retour : 0
+
+PS C:\CISIA\tp_drift_indusense> uv run python .\scripts\drift_lab.py --fenetre 2 --reference normale --machine MACH-03
+
+=== Fenêtre 2 vs référence normale · MACH-03 (2181 vs 459 relevés, 10 bins) ===
+     feature    psi ks_pvalue         verdict
+ temperature 19.469 1.48e-323 !! dérive forte
+pressure_bar  0.094  5.95e-03          OK RAS
+# code retour : 0
+
+PS> git status --short -- uv.lock  (dans le miroir : pas un depot Git -> rien attendu)
+Rapports : drift_f1_ref-normale.csv, drift_f2_ref-normale.csv, drift_f2_ref-normale_MACH-03.csv, drift_f3_ref-normale.csv, drift_fjanvier_ref-haute.csv, drift_fjanvier_ref-normale.csv, suivi_fenetres.csv

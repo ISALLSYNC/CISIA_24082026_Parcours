@@ -1,0 +1,72 @@
+# Preuve : M29 - preuve finale (flow hello + retry visible + design)
+# Date : 2026-10-12 13:59
+# Branche : ismael-sall @ d685a78 (+ docs/flow_design.md rempli, pas encore commite)
+
+# 💬 PREUVE FINALE VISEE (pas-a-pas) : flow 'hello' executable (retries) . design ingest->feature->predict->store (schema + table I/O).
+# 💬 DEFINITION OF DONE (fiche TD 29) : hello vert ; --flaky rend un retry observable ; flow_design.md = mermaid des 4 taches + table I/O.
+
+# 💬 1) Flow hello.
+PS> uv run --frozen python -m indusense.flows.hello
+13:59:57.875 | INFO    | prefect - Starting temporary server on http://127.0.0.1:8748
+See https://docs.prefect.io/v3/concepts/server#how-to-guides for more information on running a dedicated Prefect server.
+14:00:11.832 | INFO    | Flow run 'accelerated-orca' - Beginning flow run 'accelerated-orca' for flow 'hello-indusense'
+14:00:11.888 | INFO    | Task run 'ping-85c' - Finished in state Completed()
+14:00:11.889 | INFO    | Flow run 'accelerated-orca' - Résultat de la task ping : pong:indusense
+14:00:12.879 | INFO    | Flow run 'accelerated-orca' - Finished in state Completed()
+14:00:12.923 | INFO    | prefect - Stopping temporary server on http://127.0.0.1:8748
+pong:indusense
+# code retour : 0
+
+# 💬 2) Retry visible (on ne garde que les lignes utiles).
+PS> uv run --frozen python scripts/demo_prefect_idempotence.py --flaky
+14:00:56.955 | INFO    | Flow run 'sly-cow' - Beginning flow run 'sly-cow' for flow 'indusense-predict-demo'
+14:00:57.232 | INFO    | Task run 'ingest-bd7' - Finished in state Completed()
+14:00:58.380 | INFO    | Task run 'predict_batch-627' - Finished in state Completed()
+14:00:58.395 | INFO    | Task run 'store-c90' - Task run failed with exception: RuntimeError('panne transitoire simulée de la base - Prefect va réessayer') - Retry 1/2 will start 1 second(s) from now
+14:00:59.415 | INFO    | Task run 'store-c90' - store : 12 prédictions traitées | lignes en base 12 -> 12 (nouvelles : 0)
+14:00:59.423 | INFO    | Task run 'store-c90' - Finished in state Completed()
+14:00:59.426 | INFO    | Flow run 'sly-cow' - FLOW terminé : 12 lignes en base -> IDEMPOTENT (0 nouvelle ligne)
+14:01:00.069 | INFO    | Flow run 'sly-cow' - Finished in state Completed()
+# code retour : 0
+
+# 💬 3) docs/flow_design.md contient-il le diagramme mermaid et les 4 taches ?
+bloc mermaid present : True
+tache ingest   : dans le diagramme = True | ligne de la table des contrats = True | ligne de la table des erreurs = True
+tache feature  : dans le diagramme = True | ligne de la table des contrats = True | ligne de la table des erreurs = True
+tache predict  : dans le diagramme = True | ligne de la table des contrats = True | ligne de la table des erreurs = True
+tache store    : dans le diagramme = True | ligne de la table des contrats = True | ligne de la table des erreurs = True
+colonnes de la table des contrats : | Task | Entree | Sortie | Effet de bord | Retry | Cle d'idempotence |
+retries uniquement sur store : **store**
+
+# 💬 4) Suite complete (smoke compose sautes : stack arretee).
+PS> uv run --frozen pytest -q -p no:warnings
+............................sss...                                       [100%]
+31 passed, 3 skipped in 12.46s
+# code retour : 0
+
+# 💬 5) ruff + black.
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+# 💬 5b)
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+35 files would be left unchanged.
+# code retour : 0
+
+# 💬 6) uv.lock inchange ; fichiers generes ignores.
+PS> git status --short
+ M docs/flow_design.md
+# code retour : 0
+
+
+# 💬 CORRECTION : la 1re version du controle 3 cherchait 'ingest[' alors que le diagramme ecrit 'I[ingest]' -> 'False' a tort.
+# 💬 Motif corrige ('[ingest]') : les 4 taches sont bien dans le diagramme. Erreur de MON controle, pas du document.
+
+# 💬 ---- LECTURE DES RESULTATS ----
+# 💬 - PREUVE FINALE M29 ATTEINTE : flow hello Completed (pong:indusense) ; retry visible (Retry 1/2 puis succes) ;
+# 💬   flow_design.md = diagramme mermaid des 4 taches + table des contrats (Entree/Sortie/Effet de bord/Retry/Cle) + table des erreurs.
+# 💬 - Retries UNIQUEMENT sur store (ressource externe) : conforme a la regle 'on ne reessaie que le transitoire'.
+# 💬 - BONUS : 2e passage de la demo -> 'lignes en base 12 -> 12 (nouvelles : 0)' / 'IDEMPOTENT (0 nouvelle ligne)' : apercu du M30.
+# 💬 - 31 passed, 3 skipped (smoke compose, stack arretee) ; ruff et black propres.

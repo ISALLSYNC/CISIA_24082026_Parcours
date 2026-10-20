@@ -1,0 +1,97 @@
+﻿# Preuve : M26 preuve finale
+# Date : 2026-09-29 13:48
+# Branche : ismael-sall @ 4987add
+
+# 💬 BUT : rejouer la 'Preuve finale' du pas-a-pas R2 (M26), puis les controles qualite du M24.
+# 💬 Attendu : tests a 0 echec ; codes 401/422/429/413 ; 5 lignes de registre correctement classees (4 Implemente + 1 Planifie v0).
+# 💬 Preuve C2 : risques et controles ; preuve C8 : tests et risques residuels.
+
+# 💬 1) Commande EXACTE du pas-a-pas : les suites API et securite (verbeux pour voir ce que chaque test prouve).
+PS> uv run --frozen pytest -v -p no:warnings tests/test_api.py tests/test_security.py
+============================= test session starts =============================
+platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\issal\CISIA_24082026_Parcours\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\issal\CISIA_24082026_Parcours
+configfile: pyproject.toml
+plugins: anyio-4.14.1, Faker-40.23.0, hydra-core-1.3.3
+collecting ... collected 10 items
+
+tests/test_api.py::test_health_ok PASSED                                 [ 10%]
+tests/test_api.py::test_missing_api_key_returns_401 PASSED               [ 20%]
+tests/test_api.py::test_insufficient_readings_returns_422 PASSED         [ 30%]
+tests/test_api.py::test_predict_ok_with_bundle PASSED                    [ 40%]
+tests/test_api.py::test_predict_normalizes_noncanonical_machine_id PASSED [ 50%]
+tests/test_api.py::test_predict_invalid_machine_id_returns_422 PASSED    [ 60%]
+tests/test_security.py::test_payload_too_large_returns_413 PASSED        [ 70%]
+tests/test_security.py::test_invalid_content_length_returns_400 PASSED   [ 80%]
+tests/test_security.py::test_rate_limit_policy_is_not_exposed_as_query_parameters PASSED [ 90%]
+tests/test_security.py::test_rate_limit_blocks_after_limit PASSED        [100%]
+
+============================= 10 passed in 7.38s ==============================
+# code retour : 0
+
+# 💬 2) Controle du registre : bloc EXACT du pas-a-pas (s'il echoue, il leve 'Registre attendu : 4 Implemente + 1 Planifie v0.').
+PS> $rows = @(Get-Content -LiteralPath .\security_controls.md | Where-Object { $_ -match '^\| (Auth|Validation|Rate limit|Taille payload|Audit logging) \|' }) ; ...
+  lignes=5 Implémenté=4 Planifié v0=1 -> aucune exception levee : REGISTRE CONFORME
+  les 5 lignes reconnues :
+   Auth | Implémenté | 401
+   Validation | Implémenté | 422
+   Rate limit | Implémenté | 429
+   Taille payload | Implémenté | 413
+   Audit logging | Planifié v0 | —
+
+# 💬 3) Preuve de la fiche jalon 04 : la politique de quota n'est pas surchargeable.
+PS> uv run --frozen python -c "from inspect import signature; from indusense.api.security import rate_limit_dependency; print(signature(rate_limit_dependency))"
+(request: 'Request') -> 'None'
+# code retour : 0
+
+# 💬 4) Preuve complementaire du TP 3 (non-divulgation dans les logs).
+PS> uv run --frozen pytest -q -p no:warnings tests/test_logs_no_leak.py
+..                                                                       [100%]
+2 passed in 6.26s
+# code retour : 0
+
+# 💬 5) Qualite : toute la suite.
+PS> uv run --frozen pytest -q -p no:warnings
+...............................                                          [100%]
+31 passed in 7.98s
+# code retour : 0
+
+# 💬 6) ruff.
+PS> uv run --frozen ruff check .
+All checks passed!
+# code retour : 0
+
+# 💬 7) black.
+PS> uv run --frozen black --check .
+All done! ✨ 🍰 ✨
+30 files would be left unchanged.
+# code retour : 0
+
+# 💬 8) pre-commit (dont gitleaks : aucun secret).
+PS> uv run --frozen pre-commit run --all-files
+ruff.....................................................................Passed
+black....................................................................Passed
+Detect hardcoded secrets.................................................Passed
+# code retour : 0
+
+# 💬 9) uv.lock non modifie pendant le M26 ; .env jamais suivi par Git (2 sorties vides attendues).
+PS> git status --short -- uv.lock
+
+# code retour : 0
+
+PS> git ls-files .env
+PS> git ls-files .env
+
+# code retour : 0
+
+# 💬 10) Les livrables M26 sont presents a la racine.
+PS> cmd /c dir /b threat_model.md security_controls.md tests\test_logs_no_leak.py tests\test_security.py
+threat_model.md
+security_controls.md
+test_logs_no_leak.py
+test_security.py
+# code retour : 0
+
+# 💬 11) Codes en vrai (TP 2, serveur reel) : /health 200 sans cle . 401 . 413 . 400 . rafale 60 x 200 puis 429 -> preuves/26_tp2_durcir.txt
+

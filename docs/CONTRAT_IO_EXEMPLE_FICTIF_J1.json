@@ -1,0 +1,62 @@
+{
+  "example_only": true,
+  "title": "Exemple fictif de contrat I/O tabulaire pour le diagnostic J1",
+  "reference": "Repères du cours Sprint 2, module 22",
+  "notice": "Schémas et valeurs illustratifs. Ce fichier ne provient pas d'un modèle apprenant validé, ne décrit pas le seuil du dépôt commun et ne prouve aucune prédiction exécutée.",
+  "request_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["machine_id", "readings"],
+    "additionalProperties": false,
+    "properties": {
+      "machine_id": {"type": "string", "minLength": 1},
+      "readings": {
+        "type": "array",
+        "minItems": 7,
+        "items": {
+          "type": "object",
+          "required": ["timestamp", "temperature", "pressure_bar"],
+          "additionalProperties": false,
+          "properties": {
+            "timestamp": {"type": "string", "format": "date-time"},
+            "temperature": {"type": "number", "minimum": -20, "maximum": 200},
+            "pressure_bar": {"type": "number", "exclusiveMinimum": 0, "maximum": 400}
+          }
+        }
+      }
+    }
+  },
+  "response_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["machine_id", "proba_panne", "decision", "model_version", "threshold"],
+    "additionalProperties": false,
+    "properties": {
+      "machine_id": {"type": "string", "minLength": 1},
+      "proba_panne": {"type": "number", "minimum": 0, "maximum": 1},
+      "decision": {"type": "string", "enum": ["ok", "alerte"]},
+      "model_version": {"type": "string", "minLength": 1},
+      "threshold": {"type": "number", "minimum": 0, "maximum": 1}
+    }
+  },
+  "synthetic_request": {
+    "machine_id": "MACH-EXEMPLE",
+    "readings": [
+      {"timestamp": "2026-09-01T08:00:00Z", "temperature": 45.1, "pressure_bar": 190.2},
+      {"timestamp": "2026-09-01T09:00:00Z", "temperature": 45.4, "pressure_bar": 190.8},
+      {"timestamp": "2026-09-01T10:00:00Z", "temperature": 46.0, "pressure_bar": 191.1},
+      {"timestamp": "2026-09-01T11:00:00Z", "temperature": 46.3, "pressure_bar": 191.5},
+      {"timestamp": "2026-09-01T12:00:00Z", "temperature": 46.9, "pressure_bar": 191.9},
+      {"timestamp": "2026-09-01T13:00:00Z", "temperature": 47.5, "pressure_bar": 192.3},
+      {"timestamp": "2026-09-01T14:00:00Z", "temperature": 48.1, "pressure_bar": 192.8}
+    ]
+  },
+  "synthetic_response": {
+    "machine_id": "MACH-EXEMPLE",
+    "proba_panne": 0.72,
+    "decision": "alerte",
+    "model_version": "EXEMPLE-FICTIF-1",
+    "threshold": 0.65
+  },
+  "synthetic_decision_explanation": "Pour cet exemple inventé seulement : 0,72 est supérieur ou égal au seuil inventé de 0,65, donc la décision illustrée est alerte."
+}

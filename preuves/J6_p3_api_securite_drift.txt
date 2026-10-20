@@ -1,0 +1,40 @@
+﻿# Preuve : J6 Game Day - phase 3 (API, securite, drift, definition of done)
+# Date : 2026-10-20 13:50
+# Clone : C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall @ 24eabfc
+
+# 💬 AVANT (apres la phase 2) : uv run pytest -q -> 5 failed, 27 passed (4 x 401 dans test_api ; verdict_psi(0.18) = 'OK RAS').
+
+# 💬 Les 4 sabotages de la phase 3 (diff entre l'etat certifie et la branche cassee)
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git diff -U0 v1.0-sain J6-gameday -- src/indusense/api/main.py src/indusense/api/security.py tests/test_security.py src/indusense/monitoring/drift.py
+-def require_api_key(x_api_key: str | None = Header(None, alias="X-API-Key")) -> None:
++def require_api_key(x_api_key: str | None = Header(None, alias="X-Api-Token")) -> None:
+-def rate_limit(request: Request, limit: int = 60, window: float = 60.0) -> None:
++def rate_limit(request: Request, limit: int = 2, window: float = 60.0) -> None:
+-SEUIL_PSI_SURVEILLER = 0.10
+-SEUIL_PSI_FORT = 0.25
++SEUIL_PSI_SURVEILLER = 0.25
++SEUIL_PSI_FORT = 0.10
+-    assert e.value.status_code == 429
++    assert e.value.status_code in (200, 429)  # TODO: revoir, test instable ?
+# code retour : 0
+
+# 💬 APRES : suite complete
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> uv run --frozen pytest -q -p no:warnings
+................................                                         [100%]
+32 passed in 8.70s
+# code retour : 0
+
+# 💬 APRES : contrat de test identique a v1.0-sain (aucune sortie attendue)
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git diff --stat v1.0-sain -- tests/
+
+# code retour : 0
+
+# 💬 Commits de la phase 3
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git log --oneline bedd8ca..HEAD
+24eabfc docs(postmortem): consigner la phase 3 (API, securite, drift, pannes 8 a 11)
+4c0ea41 fix(drift): remettre les bandes PSI dans le bon ordre (0,10 surveiller / 0,25 fort)
+4e50236 test(security): restaurer l'assertion 429 du test de rate limit depuis v1.0-sain
+3cd6683 fix(security): restaurer la politique de debit certifiee (60 requetes / 60 s)
+f614ceb fix(api): restaurer l'en-tete d'authentification X-API-Key
+# code retour : 0
+

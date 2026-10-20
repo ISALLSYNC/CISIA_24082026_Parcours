@@ -1,0 +1,33 @@
+﻿# Preuve : M32 - rapport JSON de drift et anti-spam (pas-a-pas miroir, 10h50-11h15)
+# Date : 2026-10-19 11:02
+# Parcours @ 4515421 | execution dans C:\CISIA\tp_drift_indusense (miroir autonome)
+
+# 💬 3 controles : F1 saine (09h00) -> F2 derive +8 C (09h00) -> F2 derive (10h00). Seuil PSI 0,25 ; cooldown 6 h par feature.
+# 💬 MA PREDICTION (raisonnee controle par controle avec Claude Code) : 0 -> 1 -> 0, une seule ligne drift_events.
+# 💬 Base SQLite : :memory: (defaut du script) -> aucun fichier .db cree.
+
+PS C:\CISIA\tp_drift_indusense> uv run python .\scripts\alerting_demo.py --report-out .\reports\drift_report_f2.json
+sequence=0 -> 1 -> 0
+drift_events=1
+event_feature=temperature
+event_psi=6.845
+report_out=reports\drift_report_f2.json
+# code retour : 0
+
+PS C:\CISIA\tp_drift_indusense> Get-Content .\reports\drift_report_f2.json
+{
+  "_global": {
+    "drift": true
+  },
+  "pressure_bar": {
+    "drift": false,
+    "ks_p": 4.389823145415238e-07,
+    "psi": 0.02547758469858365
+  },
+  "temperature": {
+    "drift": true,
+    "ks_p": 0.0,
+    "psi": 6.845079893393694
+  }
+}
+

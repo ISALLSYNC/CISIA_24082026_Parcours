@@ -1,0 +1,141 @@
+# [PÉDAGOGIE] ============================================================================
+# [PÉDAGOGIE] FICHIER — monitoring/grafana/provisioning/alerting/rules.yml
+# [PÉDAGOGIE] MODULE  — M34 — règles d'alerte Grafana (Unified Alerting), provisionnées
+# [PÉDAGOGIE] RÔLE    — Relier chaque SLO de docs/slo.md à une alerte, et préparer deux incidents
+# [PÉDAGOGIE]           d'exercice déterministes.
+# [PÉDAGOGIE] THÉORIE — une alerte = condition + durée (`for:`) + destination
+# [PÉDAGOGIE]           • `for:` = anti-clignotement : la condition doit DURER avant Firing
+# [PÉDAGOGIE]           • production : for 5m (on ne réveille personne pour un pic) ;
+# [PÉDAGOGIE]             exercice : for 1m (observer Pending -> Firing -> Normal en séance)
+# [PÉDAGOGIE] PIÈGE   — « pas de données » n'est pas « tout va bien » : chaque requête gère
+# [PÉDAGOGIE]           l'absence (or vector(0)) ou déclare explicitement noDataState.
+# [PÉDAGOGIE] GARDE   — Toutes les lignes marquées [PÉDAGOGIE] sont des commentaires.
+# [PÉDAGOGIE] ============================================================================
+apiVersion: 1
+groups:
+  # [PÉDAGOGIE] PRODUCTION — protègent les SLO 2 et 3 ; for 5m.
+  - orgId: 1
+    name: indusense-production
+    folder: InduSense
+    interval: 1m
+    rules:
+      - uid: indusense-prod-p95
+        title: "PROD — Latence p95 /predict-tabular > 300 ms"
+        condition: C
+        for: 5m
+        # [PÉDAGOGIE] Pas de trafic -> p95 = NaN -> pas d'alerte (l'absence est suivie par le SLO 2).
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning, slo: "2" }
+        annotations:
+          summary: "p95 de /predict-tabular au-dessus de 300 ms depuis 5 min"
+          description: "Plus strict que le SLO 2 (p95 < 1 s) : prévient AVANT la violation. Buckets plafonnés à 1 s."
+          runbook_url: "docs/runbook.md"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler="/predict-tabular"}[5m])) by (le))'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.3] }
+
+      - uid: indusense-prod-5xx
+        title: "PROD — Taux de 5xx > 1 %"
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: critical, slo: "3" }
+        annotations:
+          summary: "Plus de 1 % de réponses 5xx sur 5 min"
+          description: "Défaillance de l'API elle-même (pas du client). Seuil = SLO 3."
+          runbook_url: "docs/runbook.md"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: '(sum(rate(http_requests_total{status=~"5.."}[5m])) or vector(0)) / sum(rate(http_requests_total[5m]))'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.01] }
+
+  # [PÉDAGOGIE] EXERCICE — incidents déterministes A et B ; for 1m.
+  - orgId: 1
+    name: indusense-exercice
+    folder: InduSense
+    interval: 30s
+    rules:
+      - uid: indusense-ex-api-morte
+        title: "EXERCICE — API morte (up < 1)"
+        condition: C
+        for: 1m
+        # [PÉDAGOGIE] API arrêtée -> Prometheus publie up = 0 (la série existe) ; si la série
+        # [PÉDAGOGIE]           disparaissait, NoData doit ALERTER (cible perdue = aveugle).
+        noDataState: Alerting
+        execErrState: Error
+        labels: { severity: critical, slo: "1" }
+        annotations:
+          summary: "Prometheus ne joint plus l'API depuis 1 min"
+          description: "Incident A (docker compose stop api). Voir le runbook."
+          runbook_url: "docs/runbook.md"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'up{job="indusense-api"}'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      - uid: indusense-ex-pic-401
+        title: "EXERCICE — Pic de 401 (> 0,1 / s)"
+        condition: C
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning, securite: "M26" }
+        annotations:
+          summary: "Plus de 0,1 requête refusée (401) par seconde depuis 1 min"
+          description: "Incident B (POST sans clé). Client mal configuré ou tentative d'accès."
+          runbook_url: "docs/runbook.md"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'sum(rate(http_requests_total{status="401"}[1m])) or vector(0)'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.1] }

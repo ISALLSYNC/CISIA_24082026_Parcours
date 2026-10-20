@@ -1,0 +1,179 @@
+﻿# Preuve : M28 - Autonomie, correction et preuve (redemarrage depuis une stack ARRETEE)
+# Date : 2026-10-12 11:44
+# Branche : ismael-sall @ 67503e4
+
+# 💬 CONSIGNE (pas-a-pas) : rejouer le demarrage depuis une stack arretee, verifier le healthcheck de db, refaire les 3 smoke tests.
+# 💬 ATTENDU : docker compose ps montre la stack attendue, /health repond 200 et le smoke est REPRODUCTIBLE.
+
+# 💬 1) ARRET : docker compose down = arrete et SUPPRIME les conteneurs et le reseau (sans -v : le volume pgdata est CONSERVE).
+PS> docker compose down
+ Container cisia_24082026_parcours-grafana-1 Stopping 
+ Container cisia_24082026_parcours-api-1 Stopping 
+ Container cisia_24082026_parcours-grafana-1 Stopped 
+ Container cisia_24082026_parcours-grafana-1 Removing 
+ Container cisia_24082026_parcours-grafana-1 Removed 
+ Container cisia_24082026_parcours-prometheus-1 Stopping 
+ Container cisia_24082026_parcours-prometheus-1 Stopped 
+ Container cisia_24082026_parcours-prometheus-1 Removing 
+ Container cisia_24082026_parcours-prometheus-1 Removed 
+ Container cisia_24082026_parcours-api-1 Stopped 
+ Container cisia_24082026_parcours-api-1 Removing 
+ Container cisia_24082026_parcours-api-1 Removed 
+ Container cisia_24082026_parcours-db-1 Stopping 
+ Container cisia_24082026_parcours-db-1 Stopped 
+ Container cisia_24082026_parcours-db-1 Removing 
+ Container cisia_24082026_parcours-db-1 Removed 
+ Network cisia_24082026_parcours_default Removing 
+ Network cisia_24082026_parcours_default Removed
+# code retour : 0
+
+# 💬 1b) Plus aucun conteneur de la stack ? (aucune ligne attendue)
+PS> docker compose ps --all --format "{{.Service}} {{.State}}"
+
+# code retour : 0
+
+# 💬 1c) Le volume des donnees a-t-il survecu ?
+PS> docker volume ls --filter name=pgdata --format "{{.Name}}"
+cisia_24082026_parcours_pgdata
+# code retour : 0
+
+# 💬 1d) Ports liberes ?
+port 8000 : libre
+port 9090 : libre
+port 3000 : libre
+
+# 💬 2) Stack ARRETEE : les smoke tests doivent etre SAUTES (skipif), PAS echoues (c'est ce qui se passe en CI).
+PS> uv run --frozen pytest tests/test_smoke_compose.py -v -rs -p no:warnings
+============================= test session starts =============================
+platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\issal\CISIA_24082026_Parcours\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\issal\CISIA_24082026_Parcours
+configfile: pyproject.toml
+plugins: anyio-4.14.1, Faker-40.23.0, hydra-core-1.3.3
+collecting ... collected 3 items
+
+tests/test_smoke_compose.py::test_health_returns_200 SKIPPED (stack ...) [ 33%]
+tests/test_smoke_compose.py::test_predict_without_key_returns_401 SKIPPED [ 66%]
+tests/test_smoke_compose.py::test_predict_with_key_returns_200 SKIPPED   [100%]
+
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_smoke_compose.py:47: stack Compose non démarrée
+SKIPPED [1] tests\test_smoke_compose.py:52: stack Compose non démarrée
+SKIPPED [1] tests\test_smoke_compose.py:58: stack Compose non démarrée
+============================= 3 skipped in 2.99s ==============================
+# code retour : 0
+
+# 💬 3) REDEMARRAGE depuis zero : docker compose up -d --wait
+PS> docker compose up -d --wait
+  Network cisia_24082026_parcours_default Creating
+  Network cisia_24082026_parcours_default Creating
+  Network cisia_24082026_parcours_default Created
+  Network cisia_24082026_parcours_default Created
+  Container cisia_24082026_parcours-prometheus-1 Creating
+  Container cisia_24082026_parcours-db-1 Creating
+  Container cisia_24082026_parcours-prometheus-1 Created
+  Container cisia_24082026_parcours-grafana-1 Creating
+  Container cisia_24082026_parcours-db-1 Created
+  Container cisia_24082026_parcours-api-1 Creating
+  Container cisia_24082026_parcours-grafana-1 Created
+  Container cisia_24082026_parcours-api-1 Created
+  Container cisia_24082026_parcours-prometheus-1 Starting
+  Container cisia_24082026_parcours-db-1 Starting
+  Container cisia_24082026_parcours-db-1 Started
+  Container cisia_24082026_parcours-db-1 Waiting
+  Container cisia_24082026_parcours-prometheus-1 Started
+  Container cisia_24082026_parcours-grafana-1 Starting
+  Container cisia_24082026_parcours-grafana-1 Started
+  Container cisia_24082026_parcours-db-1 Healthy
+  Container cisia_24082026_parcours-api-1 Starting
+  Container cisia_24082026_parcours-api-1 Started
+  Container cisia_24082026_parcours-api-1 Waiting
+  Container cisia_24082026_parcours-db-1 Waiting
+  Container cisia_24082026_parcours-prometheus-1 Waiting
+  Container cisia_24082026_parcours-grafana-1 Waiting
+  Container cisia_24082026_parcours-prometheus-1 Healthy
+  Container cisia_24082026_parcours-grafana-1 Healthy
+  Container cisia_24082026_parcours-db-1 Healthy
+  Container cisia_24082026_parcours-api-1 Healthy
+# code retour : 0   | duree : 40 s (contre 176 s au 1er lancement : images deja presentes)
+
+# 💬 4) Etat de la stack.
+PS> docker compose ps --format "table {{.Service}}\t{{.Status}}\t{{.Ports}}"
+SERVICE      STATUS                    PORTS
+api          Up 31 seconds (healthy)   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+db           Up 38 seconds (healthy)   5432/tcp
+grafana      Up 36 seconds             0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+prometheus   Up 38 seconds             0.0.0.0:9090->9090/tcp, [::]:9090->9090/tcp
+# code retour : 0
+
+# 💬 5) HEALTHCHECK de db : la sonde pg_isready, rejouee a la main dans le conteneur.
+PS> docker compose exec -T db pg_isready -U indusense
+/var/run/postgresql:5432 - accepting connections
+# code retour : 0
+
+# 💬 5b) Historique des sondes de sante de db (Docker garde les derniers resultats).
+PS> docker inspect cisia_24082026_parcours-db-1 --format "statut={{.State.Health.Status}} | echecs consecutifs={{.State.Health.FailingStreak}} | dernier controle : {{(index .State.Health.Log 0).Output}}"
+statut=healthy | echecs consecutifs=0 | dernier controle : /var/run/postgresql:5432 - accepting connections
+# code retour : 0
+
+# 💬 6) /health repond 200.
+PS> curl.exe -s -w " | HTTP %{http_code}" http://127.0.0.1:8000/health
+{"status":"ok"} | HTTP 200
+# code retour : 0
+
+# 💬 7) Les 3 smoke tests, REJOUES apres redemarrage : reproductibles ?
+PS> uv run --frozen pytest tests/test_smoke_compose.py -v -p no:warnings
+============================= test session starts =============================
+platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\issal\CISIA_24082026_Parcours\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\issal\CISIA_24082026_Parcours
+configfile: pyproject.toml
+plugins: anyio-4.14.1, Faker-40.23.0, hydra-core-1.3.3
+collecting ... collected 3 items
+
+tests/test_smoke_compose.py::test_health_returns_200 PASSED              [ 33%]
+tests/test_smoke_compose.py::test_predict_without_key_returns_401 PASSED [ 66%]
+tests/test_smoke_compose.py::test_predict_with_key_returns_200 PASSED    [100%]
+
+============================== 3 passed in 1.63s ==============================
+# code retour : 0
+
+# 💬 8) Ordre de demarrage, de nouveau : db prete AVANT l'api ? (horodatages des journaux)
+PS> docker compose logs --no-color --timestamps db api
+api-1  | 2026-10-12T09:44:46.911253245Z INFO:     Started server process [1]
+api-1  | 2026-10-12T09:44:46.911380263Z INFO:     Waiting for application startup.
+db-1   | 2026-10-12T09:44:32.950726359Z 
+api-1  | 2026-10-12T09:44:47.118395976Z 2026-10-12 09:44:47.117 | INFO     | indusense.api.main:lifespan:150 - Modèle chargé
+db-1   | 2026-10-12T09:44:32.950785267Z PostgreSQL Database directory appears to contain a database; Skipping initialization
+db-1   | 2026-10-12T09:44:32.950793069Z 
+db-1   | 2026-10-12T09:44:33.167974805Z 2026-10-12 09:44:33.167 UTC [1] LOG:  starting PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+db-1   | 2026-10-12T09:44:33.168766918Z 2026-10-12 09:44:33.168 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+db-1   | 2026-10-12T09:44:33.168932442Z 2026-10-12 09:44:33.168 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+db-1   | 2026-10-12T09:44:33.195121972Z 2026-10-12 09:44:33.193 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+api-1  | 2026-10-12T09:44:47.118614407Z INFO:     Application startup complete.
+db-1   | 2026-10-12T09:44:33.217918420Z 2026-10-12 09:44:33.217 UTC [32] LOG:  database system was shut down at 2026-10-12 09:44:16 UTC
+api-1  | 2026-10-12T09:44:47.124304621Z INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+api-1  | 2026-10-12T09:44:53.756166271Z INFO:     172.19.0.3:38114 - "GET /metrics HTTP/1.1" 200 OK
+db-1   | 2026-10-12T09:44:33.282769357Z 2026-10-12 09:44:33.282 UTC [1] LOG:  database system is ready to accept connections
+api-1  | 2026-10-12T09:45:08.736043156Z INFO:     172.19.0.3:57296 - "GET /metrics HTTP/1.1" 200 OK
+api-1  | 2026-10-12T09:45:09.102850292Z INFO:     127.0.0.1:35030 - "GET /health HTTP/1.1" 200 OK
+api-1  | 2026-10-12T09:45:10.770109758Z INFO:     172.19.0.1:54758 - "GET /health HTTP/1.1" 200 OK
+api-1  | 2026-10-12T09:45:15.063447624Z INFO:     172.19.0.1:54770 - "GET /health HTTP/1.1" 200 OK
+api-1  | 2026-10-12T09:45:15.344601076Z INFO:     172.19.0.1:54774 - "GET /health HTTP/1.1" 200 OK
+api-1  | 2026-10-12T09:45:15.394834539Z INFO:     172.19.0.1:54778 - "POST /predict-tabular HTTP/1.1" 401 Unauthorized
+api-1  | 2026-10-12T09:45:15.524865790Z INFO:     172.19.0.1:54784 - "POST /predict-tabular HTTP/1.1" 200 OK
+# code retour : 0
+
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 ATTENDU DU PAS-A-PAS ATTEINT : stack attendue dans docker compose ps, /health 200, smoke REPRODUCTIBLE.
+# 💬 - ARRET : docker compose down -> 4 conteneurs arretes PUIS supprimes (grafana, prometheus, api, enfin db) + reseau supprime ;
+# 💬   ports 8000, 9090, 3000 liberes ; le VOLUME pgdata a SURVECU (down sans -v).
+# 💬 - STACK ARRETEE : les 3 smoke tests sont SKIPPED ('stack Compose non demarree'), code retour 0 -> c'est ce que verra la CI.
+# 💬 - REDEMARRAGE : code 0 en 40 s (contre 176 s au 1er lancement : images deja presentes, rien a telecharger ni a construire).
+# 💬   De nouveau : db Started -> Waiting -> Healthy, PUIS api Starting. Horodatages : db 'ready to accept connections' a 09:44:33,
+# 💬   api 'Started server process' a 09:44:46 -> l'API demarre ~13 s APRES que la base est prete. Pas de course au demarrage.
+# 💬 - Postgres : 'Database directory appears to contain a database; Skipping initialization' -> PREUVE que les donnees ont
+# 💬   persiste dans le volume entre l'arret et le redemarrage (au 1er lancement, il avait initialise la base).
+# 💬 - HEALTHCHECK de db : pg_isready rejoue a la main -> 'accepting connections' ; Docker : healthy, 0 echec consecutif.
+# 💬 - /health 200 ; les 3 smoke tests PASSED de nouveau -> REPRODUCTIBLE.

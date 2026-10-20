@@ -1,0 +1,35 @@
+﻿# Preuve : J6 Game Day - phase 2 (donnees et features)
+# Date : 2026-10-20 12:11
+# Clone : C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall @ bedd8ca
+
+# 💬 AVANT (branche cassee) : les 3 echecs
+# 💬 AVANT : sur J6-gameday, pytest loaders/temporel -> 3 failed, 10 passed (M-2 -> MACH-2 ; TypeError naif/tz-aware ; roll2_mean 25.0 != 15.0).
+# 💬 AVANT : tolerance 5 min -> joined_rows=65253, residu 2,32 % (mesure sur data/drift_source).
+
+# 💬 APRES : tests donnees et features
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> uv run --frozen pytest tests/test_loaders.py tests/test_temporal.py tests/test_temporal_gold.py -q -p no:warnings
+.............                                                            [100%]
+13 passed in 2.54s
+# code retour : 0
+
+# 💬 APRES : volumetrie sur le jeu complet (attendu 65625 / 1,76 %)
+PS> uv run --frozen python volumetrie_gameday.py   (build_dataset avec les valeurs par defaut, data/drift_source)
+joined_rows=65625 residu=1.76% machines=15
+# code retour : 0
+# 💬 Correction de ma preuve : 1er essai en ligne de commande echoue (echappement %% invalide), refait avec un script.
+
+# 💬 APRES : loaders.py et temporal.py identiques a v1.0-sain (aucune sortie attendue)
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git diff --stat v1.0-sain -- src/indusense/data/loaders.py src/indusense/features/temporal.py
+
+# code retour : 0
+
+# 💬 Commits de la phase 2
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git log --oneline 49e4beb..HEAD
+bedd8ca docs(postmortem): consigner la phase 2 (donnees et features, pannes 4 a 7)
+aa56d66 fix(features): restaurer temporal.py octet pour octet depuis v1.0-sain
+6ef8f13 fix(features): retablir shift(1) avant rolling (fuite temporelle)
+70941e3 fix(data): restaurer la tolerance de jointure capteurs a 90 minutes
+86a8ac3 fix(data): normaliser les horodatages de pression en UTC avant la jointure
+15dc32f fix(data): restaurer le format canonique MACH-xx sur 2 chiffres
+# code retour : 0
+

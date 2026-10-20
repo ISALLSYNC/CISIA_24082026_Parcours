@@ -1,0 +1,81 @@
+﻿# Preuve : M30 - preuve OFFICIELLE, mode PostgreSQL, JEU COMPLET : 2 runs -> 0 doublon
+# Date : 2026-10-19 13:22
+# Branche : ismael-sall @ 79b66e9
+
+# 💬 Jeu complet = data/drift_source (jalon 10) : 66 800 temperatures, 15 machines.
+# 💬 Attendu (pas-a-pas R2) : joined_rows=65625 joined_panne_count=3137 joined_panne_rate=0.04780190 ;
+# 💬   gold_rows=64625 gold_panne_count=3109 gold_panne_rate=0.04810832 ; count1 == count2 == 15 ; 0 doublon.
+# 💬 COMPOSE_PROJECT_NAME = cisia_m30_officiel_20261019_132226 (base neuve). Image indusense-api:v1.0 non reconstruite : predict_flow.py inchange depuis son build du 13/10.
+# 💬 PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=120 : delai de demarrage Prefect dans le conteneur (incident du 13/10).
+
+# 💬 0) Demarrer UNIQUEMENT la base, attendre healthy.
+PS> docker compose up -d --wait db
+ Volume cisia_m30_officiel_20261019_132226_pgdata Created 
+ Network cisia_m30_officiel_20261019_132226_default Created 
+ Container cisia_m30_officiel_20261019_132226-db-1 Created 
+ Container cisia_m30_officiel_20261019_132226-db-1 Healthy
+# code retour : 0 | duree : 8 s
+
+# 💬 1) RUN 1 (base vide). Attendu : populations du jeu complet, 15 machines scorees, lignes 0 -> 15.
+PS> docker compose run --rm --no-deps -e PREFECT_PROFILE=ephemeral -e PREFECT_SERVER_ANALYTICS_ENABLED=false -e PREFECT_CLOUD_ENABLE_ORCHESTRATION_TELEMETRY=false -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=120 -e INDUSENSE_DATA_DIR=/app/data/run --volume "C:\Users\issal\CISIA_24082026_Parcours\data\drift_source:/app/data/run:ro" api python -m indusense.flows.predict_flow
+2026-10-19 11:23:14.278 | INFO     | indusense.data.loaders:build_dataset:160 - merge_asof: 1175 rows without pressure under +/-90 min dropped (1.76%)
+11:23:16.572 | INFO    | Task run 'ingest-a42' - joined_rows=65625 joined_panne_count=3137 joined_panne_rate=0.04780190
+11:23:16.728 | INFO    | Task run 'feature-88a' - gold_rows=64625 gold_panne_count=3109 gold_panne_rate=0.04810832
+11:23:16.937 | INFO    | Task run 'predict-d8e' - predict : 15 machines scorées | seuil=0.5 | alertes=0
+11:23:17.289 | INFO    | Task run 'store-684' - store : 15 prédictions | base=postgresql | lignes 0 -> 15 (nouvelles : 15)
+11:23:17.298 | INFO    | Flow run 'light-panda' - FLOW terminé : 15 lignes en base -> 15 nouvelle(s) ligne(s)
+11:23:17.619 | INFO    | Flow run 'light-panda' - Finished in state Completed()
+# code retour : 0 | duree : 45 s
+
+# 💬 2) count1
+PS> docker compose exec -T db psql -U indusense -d indusense -tA -c "SELECT count(*) FROM predictions;"
+15
+# code retour : 0 | duree : 1 s
+
+# 💬 3) RUN 2 (meme base). Attendu : lignes 15 -> 15, IDEMPOTENT.
+PS> docker compose run --rm --no-deps -e PREFECT_PROFILE=ephemeral -e PREFECT_SERVER_ANALYTICS_ENABLED=false -e PREFECT_CLOUD_ENABLE_ORCHESTRATION_TELEMETRY=false -e PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=120 -e INDUSENSE_DATA_DIR=/app/data/run --volume "C:\Users\issal\CISIA_24082026_Parcours\data\drift_source:/app/data/run:ro" api python -m indusense.flows.predict_flow
+2026-10-19 11:23:56.847 | INFO     | indusense.data.loaders:build_dataset:160 - merge_asof: 1175 rows without pressure under +/-90 min dropped (1.76%)
+11:23:59.371 | INFO    | Task run 'ingest-948' - joined_rows=65625 joined_panne_count=3137 joined_panne_rate=0.04780190
+11:23:59.524 | INFO    | Task run 'feature-25c' - gold_rows=64625 gold_panne_count=3109 gold_panne_rate=0.04810832
+11:23:59.714 | INFO    | Task run 'predict-10b' - predict : 15 machines scorées | seuil=0.5 | alertes=0
+11:23:59.937 | INFO    | Task run 'store-ad9' - store : 15 prédictions | base=postgresql | lignes 15 -> 15 (nouvelles : 0)
+11:23:59.947 | INFO    | Flow run 'sarcastic-loris' - FLOW terminé : 15 lignes en base -> IDEMPOTENT (0 nouvelle ligne)
+11:24:00.256 | INFO    | Flow run 'sarcastic-loris' - Finished in state Completed()
+# code retour : 0 | duree : 42 s
+
+# 💬 4) count2
+PS> docker compose exec -T db psql -U indusense -d indusense -tA -c "SELECT count(*) FROM predictions;"
+15
+# code retour : 0 | duree : 1 s
+
+# 💬 5) Doublons sur (machine, prediction_ts). Attendu : 0.
+PS> docker compose exec -T db psql -U indusense -d indusense -tA -c "SELECT count(*) FROM (SELECT machine, prediction_ts FROM predictions GROUP BY 1, 2 HAVING count(*) != 1) d;"
+0
+# code retour : 0 | duree : 1 s
+
+# 💬 6) Contenu (une ligne par machine).
+PS> docker compose exec -T db psql -U indusense -d indusense -tA -c "SELECT machine, prediction_ts, round(proba_panne::numeric, 4), decision FROM predictions ORDER BY machine;"
+MACH-01|2026-02-26 23:00:00|0.0850|ok
+MACH-02|2026-02-26 23:00:00|0.0950|ok
+MACH-03|2026-02-26 23:00:00|0.1150|ok
+MACH-04|2026-02-26 23:00:00|0.0350|ok
+MACH-05|2026-02-26 23:00:00|0.0350|ok
+MACH-06|2026-02-26 23:00:00|0.0350|ok
+MACH-07|2026-02-26 23:00:00|0.1050|ok
+MACH-08|2026-02-26 23:00:00|0.1150|ok
+MACH-09|2026-02-26 23:00:00|0.0850|ok
+MACH-10|2026-02-26 23:00:00|0.0950|ok
+MACH-11|2026-02-26 23:00:00|0.1050|ok
+MACH-12|2026-02-26 23:00:00|0.0950|ok
+MACH-13|2026-02-26 23:00:00|0.0950|ok
+MACH-14|2026-02-26 23:00:00|0.0350|ok
+MACH-15|2026-02-26 23:00:00|0.1050|ok
+# code retour : 0 | duree : 1 s
+
+# 💬 VERDICT : count1=15 count2=15 -> IDEMPOTENT, population officielle (15 machines) OK
+
+# 💬 7) Depot : rien de modifie par les runs (uv.lock inchange).
+PS> git status --short
+?? "FORMATION/EXERCICES/tp_drift_indusense/sprint 3 pas \303\240 pas d\303\251taill\303\251.pdf"
+# code retour : 0 | duree : 0 s
+

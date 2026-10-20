@@ -1,0 +1,26 @@
+﻿# Preuve : M34 - Incident B 'pic de 401' : Normal -> Pending -> Firing -> Normal
+# Date : 2026-10-19 15:39
+# Branche : ismael-sall @ d3141e6
+
+# 💬 Regle : EXERCICE - Pic de 401 (sum(rate(http_requests_total{status="401"}[1m])) > 0,1 /s), for: 1m, evaluee toutes les 30 s.
+# 💬 Source : ~1 POST /predict-tabular par seconde SANS en-tete X-API-Key (aucune cle utilisee).
+# 💬 MA PREDICTION : A (Firing ~10 s apres le debut de l'envoi).
+
+[T+   0 s] etat initial : regle=inactive | taux 401=0.00/s
+[T+   2 s] ACTION : debut de l'envoi sans cle (tache de fond, ~1/s, arret force a 240 s)
+[T+   2 s] regle=inactive | taux 401=0.00/s
+[T+  42 s] regle=pending | taux 401=0.65/s
+[T+ 102 s] regle=firing | taux 401=0.98/s
+
+# 💬 DIAGNOSTIC (runbook) :
+[T+ 102 s] 1) taux 401 actuel -> 0.98/s (seuil 0,1)
+[T+ 102 s] 2) autres codes : taux 200 -> 0.00/s ; 429 -> 0.00/s
+[T+ 102 s] 3) source identifiee : client local sans cle (le script d'exercice)
+
+# 💬 ACTION : arreter la source (en reel : corriger la configuration du client ou bloquer l'origine)
+[T+ 102 s] regle=firing | taux 401=0.98/s
+[T+ 193 s] regle=inactive | taux 401=0.00/s
+[T+ 102 s] ACTION : envoi arrete (Stop-Job).
+
+# 💬 Correction de ma preuve : le comptage cote client a echoue (tache de fond interrompue, aucun resultat renvoye).
+# 💬 Comptage cote serveur a la place : sum(increase(http_requests_total{status="401",handler="/predict-tabular"}[10m])) = 103.65923140441416 (estimation interpolee par Prometheus).

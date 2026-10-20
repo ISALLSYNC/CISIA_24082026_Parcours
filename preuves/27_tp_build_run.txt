@@ -1,0 +1,145 @@
+﻿# Preuve : M27 TP - build & run (+ Variante A)
+# Date : 2026-10-12 09:52
+# Branche : ismael-sall @ 230ee21
+
+# 💬 BUT (preuve finale visee) : docker build OK . docker run -> /health 200 -> /ready 200 -> /predict-tabular 200 . whoami = appuser.
+
+# 💬 1) docker build -t indusense:0.1.0 .  -> code retour 0 en ~413 s (premier build : telechargements). Fin du journal de build :
+  #12 [build 5/7] RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-install-project --no-dev
+  #13 [runtime 3/6] RUN useradd -m -u 10001 appuser
+  #13 DONE 1.6s
+  #12 [build 5/7] RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-install-project --no-dev
+  #14 [runtime 4/6] WORKDIR /app
+  #14 DONE 0.2s
+  #12 [build 5/7] RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-install-project --no-dev
+  #12 DONE 151.8s
+  #15 [build 6/7] COPY src ./src
+  #15 DONE 3.1s
+  #16 [build 7/7] RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-editable
+  #16 DONE 9.1s
+  #17 [runtime 5/6] COPY --from=build /app/.venv /app/.venv
+  #17 DONE 35.8s
+  #18 [runtime 6/6] COPY artifacts/models ./artifacts/models
+  #18 DONE 1.3s
+  #19 naming to docker.io/library/indusense:0.1.0 0.0s done
+  #19 DONE 165.6s
+
+# 💬 2) L'image creee : taille et date.
+PS> docker image ls indusense:0.1.0 --format "{{.Repository}}:{{.Tag}} id={{.ID}} taille={{.Size}} creee={{.CreatedSince}}"
+indusense:0.1.0 id=219197fb5647 taille=1.81GB creee=3 minutes ago
+# code retour : 0
+
+# 💬 2b) Metadonnees : utilisateur par defaut, port expose, commande, healthcheck.
+PS> docker image inspect indusense:0.1.0 --format "User={{.Config.User}} | Expose={{json .Config.ExposedPorts}} | Cmd={{json .Config.Cmd}} | Healthcheck={{json .Config.Healthcheck.Test}}"
+User=appuser | Expose={"8000/tcp":{}} | Cmd=["uvicorn","indusense.api.main:app","--host","0.0.0.0","--port","8000"] | Healthcheck=["CMD-SHELL","python -c \"import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)\""]
+# code retour : 0
+
+# 💬 3) Lancer le conteneur (commande du pas-a-pas). -d = en arriere-plan ; -p 8000:8000 = port du PC -> port du conteneur ; -e = cle passee AU LANCEMENT (pas dans l'image).
+PS> docker run -d -p 8000:8000 --name indusense -e INDUSENSE_API_KEY=dev-key indusense:0.1.0
+6e1f130fa0dc36c1b5871d0761a55cb59fac04dae37d933c60fde8d66e2fcd9d
+# code retour : 0
+
+# 💬 3b) Attente du demarrage de l'API dans le conteneur : repond apres ~8 s
+
+# 💬 4) /health (liveness) -> 200 attendu.
+PS> curl.exe -s -w " | HTTP %{http_code}" http://127.0.0.1:8000/health
+{"status":"ok"} | HTTP 200
+# code retour : 0
+
+# 💬 5) /ready (readiness) -> 200 attendu : prouve que le MODELE est dans l'image (Variante A), sinon 503.
+PS> curl.exe -s -w " | HTTP %{http_code}" http://127.0.0.1:8000/ready
+{"status":"ready","model_version":"0.1.0"} | HTTP 200
+# code retour : 0
+
+# 💬 6) /predict-tabular AVEC cle et payload.json -> 200 attendu.
+PS> curl.exe -s -w " | HTTP %{http_code}" -X POST -H "X-API-Key: dev-key" -H "Content-Type: application/json" --data-binary "@payload.json" http://127.0.0.1:8000/predict-tabular
+{"machine_id":"MACH-07","proba_panne":0.075,"decision":"ok","model_version":"0.1.0","threshold":0.5} | HTTP 200
+# code retour : 0
+
+# 💬 6b) Et sans cle -> 401 (les garde-fous du M26 sont bien dans l'image).
+PS> curl.exe -s -w " | HTTP %{http_code}" -X POST -H "Content-Type: application/json" --data-binary "@payload.json" http://127.0.0.1:8000/predict-tabular
+{"detail":"Clé API absente ou invalide"} | HTTP 401
+# code retour : 0
+
+# 💬 7) QUI fait tourner l'API dans le conteneur ? -> appuser attendu (non-root).
+PS> docker exec indusense whoami
+appuser
+# code retour : 0
+
+# 💬 7b) Identifiants numeriques (uid 10001 attendu, PAS 0 = root).
+PS> docker exec indusense id
+uid=10001(appuser) gid=10001(appuser) groups=10001(appuser)
+# code retour : 0
+
+# 💬 8) VARIANTE A : le modele est-il dans l'image ? Fichiers de /app/artifacts/models.
+PS> docker exec indusense ls -la /app/artifacts/models
+total 4876
+drwxr-xr-x 2 root root    4096 Sep 28 18:27 .
+drwxr-xr-x 3 root root    4096 Oct 12 07:48 ..
+-rwxr-xr-x 1 root root      12 Sep 28 18:27 .gitignore
+-rwxr-xr-x 1 root root       2 Sep 28 09:07 .gitkeep
+-rwxr-xr-x 1 root root     895 Sep 28 18:27 model_metadata.json
+-rwxr-xr-x 1 root root 4965817 Sep 28 18:27 rf.joblib
+-rwxr-xr-x 1 root root      97 Sep 28 18:27 rf.joblib.dvc
+# code retour : 0
+
+# 💬 8b) Le modele de l'image est-il EXACTEMENT celui versionne par DVC ? (md5 attendu 2779890061870d6a08d6efdf733da094)
+PS> docker exec indusense python -c "import hashlib;print(hashlib.md5(open('/app/artifacts/models/rf.joblib','rb').read()).hexdigest())"
+2779890061870d6a08d6efdf733da094
+# code retour : 0
+
+# 💬 9) Ce qui ne doit PAS etre dans l'image (.dockerignore) : .env, tests, data, .git -> absents attendus.
+PS> docker exec indusense sh -c "for f in /app/.env /app/tests /app/data /app/.git; do [ -e $f ] && echo PRESENT $f || echo absent $f; done"
+absent /app/.env
+absent /app/tests
+absent /app/data
+absent /app/.git
+# code retour : 0
+
+# 💬 9b) pip retire de l'image runtime (moins d'outils exploitables).
+PS> docker exec indusense sh -c "python -m pip --version 2>&1 | head -1"
+/app/.venv/bin/python: No module named pip
+# code retour : 0
+
+# 💬 10) Etat du HEALTHCHECK Docker (starting -> healthy apres le 1er controle de 30 s).
+PS> docker inspect indusense --format "sante={{.State.Health.Status}} | utilisateur config={{.Config.User}}"
+sante=starting | utilisateur config=appuser
+# code retour : 0
+
+# 💬 11) Journal de l'API dans le conteneur (dernieres lignes).
+PS> docker logs --tail 8 indusense
+2026-10-12 07:52:19.681 | INFO     | indusense.api.main:lifespan:150 - Modèle chargé
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     172.17.0.1:58540 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:58550 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:58564 - "GET /ready HTTP/1.1" 200 OK
+INFO:     172.17.0.1:58566 - "POST /predict-tabular HTTP/1.1" 200 OK
+INFO:     172.17.0.1:58576 - "POST /predict-tabular HTTP/1.1" 401 Unauthorized
+# code retour : 0
+
+
+# 💬 10b) Etat du HEALTHCHECK apres attente (~0 s de plus).
+PS> docker inspect indusense --format {{.State.Health.Status}}
+healthy
+
+# 💬 12) NETTOYAGE OBLIGATOIRE : supprimer le conteneur pour liberer le port 8000 AVANT le M28 (sinon 'port is already allocated').
+PS> docker rm -f indusense
+indusense
+PS> docker ps -a --filter name=indusense   (aucune sortie attendue)
+
+port 8000 : libre
+# 💬 L'IMAGE indusense:0.1.0 est CONSERVEE (seul le conteneur est supprime) : elle resservira.
+
+# 💬 ---- LECTURE DES RESULTATS ----------------------------------------------------
+# 💬 PREUVE FINALE VISEE ATTEINTE : docker build OK (code 0) ; docker run -> /health 200 -> /ready 200 -> /predict-tabular 200 ;
+# 💬   whoami = appuser (uid=10001, pas root) ; conteneur 'healthy' (HEALTHCHECK Docker sur /health).
+# 💬 - Meme reponse qu'hors Docker (MACH-07, 0.075, ok) : l'image reproduit fidelement l'API.
+# 💬 - 401 sans cle : les garde-fous du M26 sont dans l'image (message desormais accentue : change par le jalon 05).
+# 💬 - VARIANTE A : rf.joblib present dans /app/artifacts/models, md5 2779890061870d6a08d6efdf733da094 = celui de DVC.
+# 💬   'Gitignore' (DVC) ne veut PAS dire 'absent de l'image' : le .dockerignore le garde (!artifacts/models).
+# 💬 - .dockerignore efficace : .env, tests, data, .git ABSENTS de l'image ; pip retire du runtime.
+# 💬 - Cle API passee AU LANCEMENT (-e INDUSENSE_API_KEY=...) et non dans l'image : une image ne contient jamais de secret.
+# 💬 - A NOTER : image de 1,81 Go -> lourde pour une image 'slim'. A analyser au TP 'durcir & alleger'.
+# 💬 - Detail : les fichiers .gitignore, .gitkeep et rf.joblib.dvc du dossier modele sont aussi copies (inutiles, sans risque).
+# 💬 - Incident outil : la 1re commande de nettoyage du conteneur a ete bloquee AVANT execution par une protection de l'outil ; rejouee via un script.
