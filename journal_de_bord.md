@@ -2406,6 +2406,22 @@ Construits question par question ; **mes réponses** et les corrections reçues 
 - **Réponse à la question du support** : c'est **`pyproject.toml`** qui fait foi (uv le lit) ; le README doit le refléter.
 - *Erreurs de Claude Code, signalées* : un commit passé avec `-c core.hooksPath=NUL` (désactive les hooks) — sans effet ici (aucun hook installé dans le clone), à ne plus faire ; un filtre d'affichage qui masquait les lignes Markdown en `- ` ; un contrôle `git grep` qui comptait le post-mortem (corrigé dans la preuve).
 
+**Phase 2 — Données & features** · preuve : [`preuves/J6_p2_donnees_features.txt`](preuves/J6_p2_donnees_features.txt)
+
+- Départ : `pytest tests/test_loaders.py tests/test_temporal.py tests/test_temporal_gold.py` → **3 failed, 10 passed**. `git diff v1.0-sain` montre **4 sabotages** (3 dans `loaders.py`, 1 dans `temporal.py`) :
+
+| # | Symptôme | Cause racine | Correctif | Preuve |
+|---|---|---|---|---|
+| 4 | `M-2` → `MACH-2` (attendu `MACH-02`) | padding `:02d` retiré : une machine, deux noms → mesures orphelines à la jointure `by="machine"` | `15dc32f` | 5 variantes vertes |
+| 5 | `TypeError: can't compare offset-naive and offset-aware datetimes` | `utc=True` + `tz_localize(None)` retirés dans `load_pressure` (pandas suggérait `utc=True`) | `86a8ac3` | test vert |
+| 6 | **Silencieux** — aucun test rouge : **65 253** lignes, **2,32 %** non jointes | tolérance `merge_asof` 90 → **5** min : 372 lignes perdues | `70941e3` | **65 625 / 1,76 %** retrouvés |
+| 7 | `roll2_mean` = **25,0** au lieu de 15,0 | `shift(1)` supprimé avant `rolling` : **fuite temporelle** (piège du M23) | `6ef8f13` + `aa56d66` | 13 passed |
+
+- Arrivée : **13 passed** · `loaders.py` et `temporal.py` **identiques à `v1.0-sain`**.
+- 🔑 **Leçon de la phase** : un test vert **n'exclut pas** une perte silencieuse (panne 6) ; seul l'**état certifié chiffré** (65 625 / 1,76 %) l'a révélée → action préventive : un test de volumétrie.
+- *Note* : la panne 5 restaure le traitement UTC certifié, celui que j'avais signalé au M30 comme « anomalie de fuseau » (décalage d'une heure des lignes `+01:00`) : le Game Day exige l'état certifié ; la question au formateur reste ouverte.
+- *Erreurs de Claude Code, signalées et corrigées* : un commit refusé par Git à cause de guillemets dans le message (refait via un fichier de message) ; `temporal.py` restauré d'abord avec un **BOM** et des fins de ligne Windows (redirection PowerShell) → refait avec `git restore --source v1.0-sain` (octet pour octet) ; un contrôle de volumétrie en ligne de commande cassé par un échappement `%%` (refait avec un script).
+
 - Ce que j'ai fait : … (dépôt `J6-gameday` cloné · pannes triées · réparations menées, ex. n/14 pannes)
 - Ma preuve : … (CI de nouveau verte · `docker compose up -d --wait` *healthy* · `/health` + `/ready` 200 · dashboard qui remonte)
 - Post-mortem (ce qui a cassé, pourquoi, comment l'éviter) : …
