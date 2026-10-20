@@ -2420,7 +2420,23 @@ Construits question par question ; **mes réponses** et les corrections reçues 
 - Arrivée : **13 passed** · `loaders.py` et `temporal.py` **identiques à `v1.0-sain`**.
 - 🔑 **Leçon de la phase** : un test vert **n'exclut pas** une perte silencieuse (panne 6) ; seul l'**état certifié chiffré** (65 625 / 1,76 %) l'a révélée → action préventive : un test de volumétrie.
 - *Note* : la panne 5 restaure le traitement UTC certifié, celui que j'avais signalé au M30 comme « anomalie de fuseau » (décalage d'une heure des lignes `+01:00`) : le Game Day exige l'état certifié ; la question au formateur reste ouverte.
-- *Erreurs de Claude Code, signalées et corrigées* : un commit refusé par Git à cause de guillemets dans le message (refait via un fichier de message) ; `temporal.py` restauré d'abord avec un **BOM** et des fins de ligne Windows (redirection PowerShell) → refait avec `git restore --source v1.0-sain` (octet pour octet) ; un contrôle de volumétrie en ligne de commande cassé par un échappement `%%` (refait avec un script).
+**Phase 3 — API, sécurité, drift… et la definition of done** · preuve : [`preuves/J6_p3_api_securite_drift.txt`](preuves/J6_p3_api_securite_drift.txt)
+
+- Départ : suite complète → **5 failed, 27 passed** (4 × **401** dans `test_api`, 1 verdict PSI).
+- **Rapport d'astreinte vérifié** : « l'API refuse des clés valides » est **vrai**, mais la cause n'est pas la clé (`dev-key` inchangée) : c'est **ce qui la transporte** (l'en-tête) qui a changé.
+
+| # | Symptôme | Cause racine | Correctif | Preuve |
+|---|---|---|---|---|
+| 8 | 401 avec une clé valide | en-tête `X-API-Key` → **`X-Api-Token`** dans le code seul (README, tests, config disent `X-API-Key`) | `f614ceb` | `main.py` = `v1.0-sain` |
+| 9 | 429 dès la 3ᵉ requête | rate limit **60 → 2** requêtes / min : déni de service auto-infligé | `3cd6683` | 10 passed (API + sécurité) |
+| 10 | **Test vert pour de mauvaises raisons** | assertion affaiblie en `in (200, 429)` + « TODO : test instable ? » : ne pouvait plus détecter un rate limit cassé | `4e50236` — **restauré** depuis `v1.0-sain` | assertion stricte verte |
+| 11 | `verdict_psi(0.18)` = « OK RAS » | seuils PSI **inversés** (0,25 / 0,10) : bande « à surveiller » inatteignable | `4c0ea41` | 0,05 RAS · 0,18 surveiller · 0,30 forte |
+
+- **Definition of done atteinte** : `uv run pytest -q` → **32 passed** · `git diff v1.0-sain -- tests/` **vide**.
+- 🔑 **Leçons** : un rapport d'incident se **vérifie** (le symptôme était vrai, l'explication non) · les **tests se réparent par restauration**, le code par compréhension · un test affaibli rend le vert **sans valeur**.
+- *Erreur de Claude Code, signalée* : le message du commit `f614ceb` annonçait « test_api vert » alors que 2 échecs (429) restaient — écrit avant le résultat ; rectifié dans le message du commit suivant (`3cd6683`).
+
+- *Erreurs de Claude Code, signalées et corrigées* (phase 2) : un commit refusé par Git à cause de guillemets dans le message (refait via un fichier de message) ; `temporal.py` restauré d'abord avec un **BOM** et des fins de ligne Windows (redirection PowerShell) → refait avec `git restore --source v1.0-sain` (octet pour octet) ; un contrôle de volumétrie en ligne de commande cassé par un échappement `%%` (refait avec un script).
 
 - Ce que j'ai fait : … (dépôt `J6-gameday` cloné · pannes triées · réparations menées, ex. n/14 pannes)
 - Ma preuve : … (CI de nouveau verte · `docker compose up -d --wait` *healthy* · `/health` + `/ready` 200 · dashboard qui remonte)
