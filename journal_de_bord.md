@@ -2362,7 +2362,50 @@ Construits question par question ; **mes réponses** et les corrections reçues 
 
 ### J6 — jeu. 03/09 — Journée Game Day « Opération lundi matin »
 
-**Game Day — réparer un dépôt cassé, prouver C8/C9** · *C8 · C9*
+*(Joué le **mar. 20/10/2026**, en **solo**, au signal du formateur.)*
+
+**Où est la documentation du Game Day** :
+
+| Document | Emplacement | Rôle |
+|---|---|---|
+| **Post-mortem** (livrable) | `C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall\POSTMORTEM.md` (clone, branche `reparation-ismael-sall`) | chronologie horodatée, tableau des pannes, causes, prévention |
+| **Commits de réparation** | même clone : `git log --oneline J6-gameday..HEAD` | un commit par correctif, message symptôme → cause → preuve |
+| **Preuves** | `preuves/J6_*.txt` (ce dépôt) | sorties brutes des commandes |
+| **Ce journal** | section J6 ci-dessous | déroulé, décisions, aide IA |
+| Support et briefing officiels | `FORMATION/EXERCICES/J6/` (jalon 11) | consignes, chiffres de référence, gabarit |
+
+**Charge le jalon 11 — AVANT le brief** · preuve : [`preuves/J6_p1_jalon11_phases0_1.txt`](preuves/J6_p1_jalon11_phases0_1.txt)
+
+- Sauvegarde `sauvegarde/ismael-sall/20261020-112537` · fusion manuelle : **4 conflits** (`ci.yml`, `.pre-commit-config.yaml`, `datasource.yml` à cause de mon `uid: prometheus` du M34, `test_smoke_compose.py`), fichiers **inchangés par le formateur** depuis le jalon 10 → **ma version**. Commit `a8dcf96` · 42 passed · « **Jalon verifie : jalon/11** » · MLflow réinstallé après le vérificateur.
+- Kit reçu : `BRIEFING.md`, `gameday_apprenant.md/.pdf`, `postmortem_template.md`, **`J6-gameday.bundle`** (SHA-256 **conforme**), `demarrer_gameday.ps1`. Le bundle n'était donc **pas** à attendre du formateur : il est dans le jalon.
+- Démarrage : `demarrer_gameday.ps1 -Binome ismael-sall` → clone `C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall`, branche **`reparation-ismael-sall`**, remote `bundle-local` (push **désactivé**).
+
+**Phase 0 — Prise de poste : observer sans toucher**
+
+- **4 commits** entre `v1.0-sain` (`88d5af5`, certifié) et `J6-gameday` (`4f78a52`) ; **15 fichiers** modifiés, 1 créé (`BRIEFING.md`), 0 supprimé.
+- Le commit **« maintenance du week-end »** (`b2711eb`) touche **12 fichiers dans 6 familles**, dont **code, tests et CI** : suspect principal. Les 3 commits suivants (« durcir l'image », « Docs », « aligner ») sont à trier : tout ce qui change n'est pas cassé.
+
+| Famille | Fichiers |
+|---|---|
+| Environnement | `pyproject.toml`, `uv.lock` |
+| Documentation | `README.md`, `CONTRIBUTING.md`, `BRIEFING.md` |
+| Code | `api/main.py`, `api/security.py`, `data/loaders.py`, `features/temporal.py`, `monitoring/drift.py` |
+| Tests | `tests/test_security.py` |
+| Infra | `docker-compose.yml`, `monitoring/prometheus.yml`, `Dockerfile` |
+| CI | `.github/workflows/ci.yml` |
+
+**Phase 1 — L'environnement**
+
+| # | Symptôme | Cause racine | Correctif | Preuve |
+|---|---|---|---|---|
+| 1 | `uv sync` : « No interpreter found for Python **>=3.99**, <4.0 » | `requires-python` saboté dans `b2711eb` (version inexistante : Python 3 va de 3.0 à 3.14 aujourd'hui) | une seule ligne → `>=3.13,<3.14` — commit `7c20663` | `uv sync` OK · Python **3.13.15** · `import indusense` OK · `uv.lock` inchangé |
+| 2 | README : `uv sync --extra all` | extra `all` **non définie** (seules `dev`, `mlops`) et `--frozen` retiré → recalcul du verrou (`b2711eb`) | commande certifiée `uv sync --frozen --extra dev --extra mlops` — `07bd322` | commande rejouée : code 0, verrou intact |
+| 3 | Doc pointant vers un tag `v1.1-sain` | tag **absent** du dépôt (README, BRIEFING, CONTRIBUTING, commits `7e55d6a` / `4f78a52`), contraire au briefing officiel | alignement sur `v1.0-sain` — `07bd322`, `d208af6` | `git grep v1.1-sain` hors post-mortem → 0 |
+
+- **Mes décisions** : utiliser la **version compatible** (3.13) plutôt que la plus récente installée (3.14.7) — `uv.lock` est figé sur `==3.13.*` et la mission est de revenir à l'état certifié · corriger **seulement la ligne sabotée** de `pyproject.toml` (le déplacement des dépendances de `2871686` est légitime, verrou mis à jour avec lui) · corriger aussi la doc du tag inexistant (**choix A**).
+- **Réponse à la question du support** : c'est **`pyproject.toml`** qui fait foi (uv le lit) ; le README doit le refléter.
+- *Erreurs de Claude Code, signalées* : un commit passé avec `-c core.hooksPath=NUL` (désactive les hooks) — sans effet ici (aucun hook installé dans le clone), à ne plus faire ; un filtre d'affichage qui masquait les lignes Markdown en `- ` ; un contrôle `git grep` qui comptait le post-mortem (corrigé dans la preuve).
+
 - Ce que j'ai fait : … (dépôt `J6-gameday` cloné · pannes triées · réparations menées, ex. n/14 pannes)
 - Ma preuve : … (CI de nouveau verte · `docker compose up -d --wait` *healthy* · `/health` + `/ready` 200 · dashboard qui remonte)
 - Post-mortem (ce qui a cassé, pourquoi, comment l'éviter) : …

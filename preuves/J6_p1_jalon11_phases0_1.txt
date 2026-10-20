@@ -1,0 +1,90 @@
+﻿# Preuve : J6 Game Day - jalon 11, phase 0 (observation) et phase 1 (environnement)
+# Date : 2026-10-20 11:59
+# Parcours @ a8dcf96 | clone Game Day : C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall
+
+# 💬 JALON 11 : fusion manuelle, 4 conflits (ci.yml, .pre-commit-config.yaml, datasource.yml, test_smoke_compose.py) -> ma version
+# 💬   (fichiers inchanges par le formateur depuis jalon/10). Commit a8dcf96 ; verifier_jalon -> 'Jalon verifie : jalon/11' ; 42 passed.
+# 💬   Bundle FORMATION/EXERCICES/J6/J6-gameday.bundle : SHA-256 conforme (5D65DF78...117558).
+
+# 💬 PHASE 0 - remotes (seul bundle-local, push desactive)
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git remote -v
+bundle-local	C:\Users\issal\CISIA_24082026_Parcours\FORMATION\EXERCICES\J6\J6-gameday.bundle (fetch)
+bundle-local	DISABLED (push)
+# code retour : 0
+
+# 💬 PHASE 0 - commits entre l'etat certifie et la branche cassee
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git log --oneline --decorate v1.0-sain~0..J6-gameday
+4f78a52 (bundle-local/J6-gameday, J6-gameday) Game Day: aligner la branche sur le socle durci
+7e55d6a Docs: pointer le Game Day vers le socle durci
+2871686 CI: durcir l image et actualiser les dependances
+b2711eb maintenance du week-end : mises à jour diverses
+# code retour : 0
+
+# 💬 PHASE 0 - fichiers modifies depuis v1.0-sain
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git diff --stat v1.0-sain J6-gameday
+ .github/workflows/ci.yml           |  12 ++---
+ BRIEFING.md                        |  29 +++++++++++
+ CONTRIBUTING.md                    |   4 +-
+ Dockerfile                         |   9 ++++
+ README.md                          |   5 +-
+ docker-compose.yml                 |   4 +-
+ monitoring/prometheus.yml          |   2 +-
+ pyproject.toml                     |  17 +++---
+ src/indusense/api/main.py          |   2 +-
+ src/indusense/api/security.py      |   2 +-
+ src/indusense/data/loaders.py      |   6 +--
+ src/indusense/features/temporal.py |   3 +-
+ src/indusense/monitoring/drift.py  |   4 +-
+ tests/test_security.py             |   2 +-
+ uv.lock                            | 104 ++++++++++++++++++++-----------------
+ 15 files changed, 126 insertions(+), 79 deletions(-)
+# code retour : 0
+
+# 💬 PHASE 1 - symptome sur la branche cassee : requires-python sabote
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git show J6-gameday:pyproject.toml | findstr /C:"requires-python"
+requires-python = ">=3.99,<4.0"
+# code retour : 0
+
+# 💬 PHASE 1 - etat certifie
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git show v1.0-sain:pyproject.toml | findstr /C:"requires-python"
+requires-python = ">=3.13,<3.14"
+# code retour : 0
+
+# 💬 PHASE 1 - apres correctif : installation
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> uv sync --frozen --extra dev --extra mlops
+Checked 253 packages in 86ms
+# code retour : 0
+
+# 💬 PHASE 1 - interpreteur et import
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> uv run --frozen python -c "import sys, indusense; print(sys.version.split()[0], indusense.__name__)"
+3.13.15 indusense
+# code retour : 0
+
+# 💬 PHASE 1 - uv.lock inchange (aucune sortie attendue)
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git status --short -- uv.lock
+
+# code retour : 0
+
+# 💬 PHASE 1 - plus aucune mention du tag inexistant v1.1-sain (aucune sortie attendue)
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git grep -n v1.1-sain
+POSTMORTEM.md:23:| 11:50 | README : `uv sync --extra all` (extra inexistante, sans `--frozen`) ; tag `v1.1-sain` cité alors qu'absent | `git tag` → `v1.0-sain` seul ; extras = `dev`, `mlops` | Restaurer la commande certifiée et `v1.0-sain` |
+POSTMORTEM.md:24:| 11:53 | README corrigé, commande re-jouée : code 0, verrou intact | commit `07bd322` | Chercher `v1.1-sain` ailleurs |
+POSTMORTEM.md:25:| 11:56 | `v1.1-sain` aussi dans `BRIEFING.md` et `CONTRIBUTING.md`, en contradiction avec le briefing officiel du kit | `git grep v1.1-sain` → 6 lignes | Aligner les deux fichiers sur `v1.0-sain` |
+POSTMORTEM.md:26:| 11:57 | Plus aucune mention de `v1.1-sain` ; `CONTRIBUTING.md` identique à `v1.0-sain` | commit `d208af6` · `git grep` → 0 | **Phase 1 terminée** → phase 2 |
+POSTMORTEM.md:45:| 3 | Documentation renvoyant vers un point de retour introuvable | Tag `v1.1-sain` cité dans README, BRIEFING, CONTRIBUTING (`7e55d6a`, `4f78a52`), absent du dépôt | Alignement sur `v1.0-sain` et le briefing officiel — `07bd322`, `d208af6` | Vérifier en CI que tout tag cité existe |
+# code retour : 0
+
+# 💬 Commits de reparation
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git log --oneline J6-gameday..HEAD
+49e4beb docs(postmortem): consigner la phase 1 (environnement, pannes 1 a 3)
+d208af6 docs: aligner BRIEFING.md et CONTRIBUTING.md sur l'etat certifie v1.0-sain
+07bd322 docs(readme): restaurer la commande d'installation et le tag certifie v1.0-sain
+7c20663 fix(env): restaurer requires-python >=3.13,<3.14 (etat certifie)
+48978ce docs(postmortem): ouvrir le post-mortem et la timeline (phase 0)
+# code retour : 0
+
+
+# 💬 CORRECTION de ma preuve : les seules mentions restantes sont dans POSTMORTEM.md, qui decrit l'incident (attendu).
+PS> git grep -n v1.1-sain -- . ":!POSTMORTEM.md"
+(aucune sortie)
+# code retour : 1 (1 = aucune correspondance)
