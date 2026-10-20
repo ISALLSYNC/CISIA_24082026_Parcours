@@ -123,33 +123,52 @@ signée, le proxy TLS, Alertmanager ni les workers Prefect de la référence (se
 
 ```mermaid
 flowchart LR
-  subgraph DEV[Versionner et vérifier]
-    G[Git + GitHub<br/>fork ISALLSYNC]:::support --> PC[pre-commit<br/>ruff · black · gitleaks]:::core
-    G --> CI[GitHub Actions<br/>quality + build]:::core
-    CI --> W[wheel<br/>indusense]:::data
+  subgraph CICD[CI/CD]
+    G[Git + GitHub<br/>fork ISALLSYNC]:::support --> PC[pre-commit<br/>ruff · black · gitleaks]:::critical
+    PC --> CI[CI GitHub Actions<br/>quality → build]:::critical
+    CI --> W[wheel indusense]:::data
+    CI --> IMG[Image Docker<br/>indusense-api:v1.0<br/>build local]:::core
   end
-  subgraph DATA[Données et modèle]
-    RAW[data/raw · data/drift_source<br/>3 sources]:::data --> DVC[DVC<br/>remote local]:::data
-    DVC --> RF[rf.joblib + metadata<br/>RandomForest]:::data
-    ML[MLflow local<br/>2 runs]:::data
+  subgraph MOD[Modèle]
+    TR[Entraînement<br/>demo_versioning.py · split temporel<br/>RandomForest 200 arbres]:::core --> RF[rf.joblib<br/>+ model_metadata.json]:::data
+    RF --> DVC[DVC<br/>remote dvc-store]:::data
+    TR --> ML[MLflow<br/>2 runs · indusense-rf]:::data
   end
-  subgraph RUN[Stack Compose locale]
+  subgraph SRC[Données]
+    RAW[data/raw · data/drift_source<br/>température · pression · incidents]:::data
+  end
+  subgraph PREF[Prefect]
+    PF[predict_flow<br/>ingest → feature → predict → store]:::core
+  end
+  subgraph PERS[Persistance]
+    DB[(PostgreSQL 16<br/>table predictions<br/>PK machine, prediction_ts)]:::data
+    SQ[(SQLite<br/>développement)]:::data
+  end
+  subgraph APIB[API]
     CLIENT[Client / Locust]:::support -->|X-API-Key| API[FastAPI / Uvicorn<br/>:8000 · non-root]:::core
-    RF -->|copié dans l'image<br/>Variante A| API
-    PF[Flow Prefect<br/>predict_flow]:::core --> DB[(PostgreSQL 16<br/>table predictions)]:::data
-    RAW --> PF
   end
-  subgraph OBS[Mesurer et agir]
-    API -->|/metrics| PRO[Prometheus<br/>:9090]:::core
-    EXP[Exporteur drift<br/>hôte :9109]:::core --> PRO
-    PRO --> GR[Grafana<br/>:3000 · dashboards + 4 alertes]:::core
-    GR --> RB[Runbook<br/>joué]:::critical
+  subgraph OBS[Observabilité]
+    PRO[Prometheus :9090]:::core --> GR[Grafana :3000<br/>dashboards + 4 alertes]:::core
+    EXP[Exporteur drift<br/>:9109]:::core --> PRO
+    GR --> RB[Runbook joué]:::critical
   end
+  RF -->|COPY Variante A| IMG
+  IMG -->|docker compose up| API
+  RF -->|chargé au lifespan| API
+  RAW --> PF
+  RF -->|predict| PF
+  PF -->|upsert| DB
+  PF -->|upsert dev| SQ
+  API -->|/metrics| PRO
   classDef core fill:#0B4F6C,color:#FFFFFF,stroke:#093544;
   classDef critical fill:#A61B29,color:#FFFFFF,stroke:#A61B29;
   classDef data fill:#EAF3F5,color:#093544,stroke:#2E7E92;
   classDef support fill:#F4F6F7,color:#093544,stroke:#C9D4D8;
 ```
+
+*Lecture* : chaque bloc correspond à un domaine du TP. Le **modèle** est produit par l'entraînement
+(`demo_versioning.py`, dernier run en split temporel), versionné (DVC, MLflow), puis **copié dans l'image** (Variante A) que l'**API** charge au
+démarrage ; le flow **Prefect** l'utilise aussi pour scorer et écrit dans la **persistance**.
 
 ### 4.1 Lecture de gauche à droite
 
@@ -256,6 +275,27 @@ brancher ») ; la référence interdit toute route d'inférence simulée → à 
 
 ### 5.5 Modèle et features
 
+**Cycle de vie du modèle réalisé :**
+
+```mermaid
+flowchart LR
+  GOLD[gold_dataset.csv<br/>1 896 lignes · 12 features]:::data --> TR[Entraînement<br/>demo_versioning.py · split temporel<br/>RandomForest 200 arbres · balanced · seed 42]:::core
+  TR --> RF[rf.joblib]:::data
+  TR --> MD[model_metadata.json<br/>features · seuil 0,975]:::data
+  TR --> ML[MLflow<br/>run stratifié + run temporel<br/>indusense-rf : 2 versions]:::data
+  RF -->|dvc add + push| DVC[(dvc-store<br/>md5 2779…a094)]:::data
+  RF -->|pointeur .dvc| GIT[Git]:::support
+  RF -->|COPY Variante A| IMG[Image Docker]:::core
+  IMG -->|lifespan| API[API : bundle chargé<br/>indusense_model_loaded = 1]:::core
+  RF -->|load_model| PF[Flow Prefect : predict]:::core
+  API -->|seuil appliqué 0,5| DEC{décision<br/>alerte / ok}:::critical
+  PF -->|seuil appliqué 0,5| DEC
+  classDef core fill:#0B4F6C,color:#FFFFFF,stroke:#093544;
+  classDef critical fill:#A61B29,color:#FFFFFF,stroke:#A61B29;
+  classDef data fill:#EAF3F5,color:#093544,stroke:#2E7E92;
+  classDef support fill:#F4F6F7,color:#093544,stroke:#C9D4D8;
+```
+
 - `RandomForestClassifier` : 200 arbres, `class_weight="balanced"`, `random_state=42`, **12
   features** (2 brutes, 6 lags, 4 moyennes glissantes), 1 896 lignes d'entraînement (échantillon).
 - Versionné par DVC (pointeur `rf.joblib.dvc`, remote local `dvc-store`) et par MLflow (2 runs).
@@ -291,12 +331,17 @@ brancher ») ; la référence interdit toute route d'inférence simulée → à 
 
 ```mermaid
 flowchart LR
-  ENV[INDUSENSE_DATA_DIR<br/>INDUSENSE_DB_URL]:::support --> I
-  I[ingest<br/>loaders + merge_asof by=machine]:::core -->|joined_*| F[feature<br/>shift avant rolling]:::core
-  F -->|gold_*| P[predict<br/>dernière ligne par machine]:::core
-  P --> S[store<br/>upsert · 3 retries 5/15/45 s<br/>si OperationalError]:::critical
-  S --> DB[(predictions<br/>PK machine, prediction_ts)]:::data
-  S -.historique.-> UI[Prefect UI locale<br/>:4200 · optionnelle]:::support
+  SRC[(Sources<br/>INDUSENSE_DATA_DIR)]:::data --> I
+  subgraph FLOW[Flow Prefect indusense-predict]
+    I[ingest<br/>loaders + merge_asof by=machine]:::core -->|joined_*| F[feature<br/>shift avant rolling]:::core
+    F -->|gold_*| P[predict<br/>dernière ligne par machine]:::core
+    P --> S[store<br/>upsert · 3 retries 5/15/45 s<br/>si OperationalError]:::critical
+  end
+  MOD[(Modèle<br/>rf.joblib · seuil 0,5)]:::data -->|load_model| P
+  URL[INDUSENSE_DB_URL<br/>jamais journalisée]:::support --> S
+  S -->|sqlite:///…| SQ[(SQLite<br/>développement)]:::data
+  S -->|postgresql+psycopg://…@db:5432| DB[(PostgreSQL 16<br/>preuve officielle)]:::data
+  FLOW -.états · logs · paramètres.-> UI[Prefect<br/>ephemeral ou serveur :4200]:::support
   classDef core fill:#0B4F6C,color:#FFFFFF,stroke:#093544;
   classDef critical fill:#A61B29,color:#FFFFFF,stroke:#A61B29;
   classDef data fill:#EAF3F5,color:#093544,stroke:#2E7E92;
@@ -382,6 +427,35 @@ l'implémentation (M30). *Écart* : pas de `prefect.yaml`.
 
 ### 7.4 Contrat de persistance réalisé
 
+**Idempotence des prédictions : 2 runs sur le jeu complet (preuve officielle du M30) :**
+
+```mermaid
+sequenceDiagram
+  participant F as Flow Prefect (task store)
+  participant DB as PostgreSQL · table predictions
+  Note over F,DB: Run 1 — base neuve
+  F->>DB: CREATE TABLE IF NOT EXISTS predictions
+  F->>DB: SELECT count(*)
+  DB-->>F: 0
+  F->>DB: INSERT 15 lignes ... ON CONFLICT (machine, prediction_ts) DO UPDATE
+  DB-->>F: 15 nouvelles clés
+  F->>DB: SELECT count(*)
+  DB-->>F: 15
+  Note over F,DB: Run 2 — mêmes données
+  F->>DB: INSERT 15 lignes ... ON CONFLICT (machine, prediction_ts) DO UPDATE
+  DB-->>F: 15 clés déjà présentes : mise à jour, aucune insertion
+  F->>DB: SELECT count(*)
+  DB-->>F: 15 → IDEMPOTENT, 0 doublon
+```
+
+| | SQLite (développement) | PostgreSQL (preuve) |
+|---|---|---|
+| Où tourne le flow | hôte, `uv run python -m indusense.flows.predict_flow` | service `api` de Compose (`db:5432`) |
+| Base | fichier neuf sous `$env:TEMP` | projet Compose neuf, volume `pgdata` neuf |
+| `prediction_ts` | texte ISO 8601 (`isoformat`) | `timestamp without time zone` |
+| `created_at` | texte ISO 8601 UTC | `timestamp with time zone` |
+| Résultat | 0 → 4 → 4 (échantillon) | 0 → 15 → 15 (jeu complet) |
+
 ```text
 predictions(machine VARCHAR(16), prediction_ts TIMESTAMP, proba_panne DOUBLE PRECISION,
             decision VARCHAR(8), created_at TIMESTAMP WITH TIME ZONE,
@@ -436,19 +510,38 @@ de preuve.
 
 ### 9.1 Chaîne réalisée
 
+Traits pleins = **réalisé** ; pointillés = présent dans la référence, **non réalisé**.
+
 ```mermaid
 flowchart LR
-  C[Commit]:::support --> H[pre-commit<br/>ruff v0.15.20 · black 26.5.1 · gitleaks]:::critical
-  H --> PU[git push<br/>hook pre-push]:::critical
-  PU --> Q[CI quality<br/>uv sync --frozen · ruff · black · pytest]:::critical
-  Q -->|vert| B[CI build<br/>uv build → wheel]:::core
-  Q -->|échec| X[corriger]:::critical
-  B --> A[(artefact<br/>indusense-wheel)]:::data
+  subgraph CI[CI — intégration continue · GitHub Actions]
+    C[Commit]:::support --> H[pre-commit<br/>ruff v0.15.20 · black 26.5.1 · gitleaks]:::critical
+    H --> PU[git push<br/>hook pre-push]:::critical
+    PU --> Q[job quality<br/>uv sync --frozen · ruff · black · pytest]:::critical
+    Q -->|vert| B[job build<br/>uv build]:::core
+    Q -->|échec| X[corriger]:::critical
+    B --> A[(artefact<br/>indusense-wheel)]:::data
+  end
+  subgraph CD[CD — livraison et déploiement]
+    DB2[docker compose build<br/>image indusense-api:v1.0<br/>poste local]:::core --> UP[docker compose up -d --wait<br/>healthchecks + smoke tests]:::core
+    UP --> RUN[Stack locale en service]:::core
+    REG[Registry d'images<br/>scan · SBOM · signature]:::ext
+    STG[Staging]:::ext
+    PRD[Production + rollback]:::ext
+  end
+  Q -.même commit.-> DB2
+  DB2 -.push.-> REG
+  REG -.-> STG -.-> PRD
   classDef core fill:#0B4F6C,color:#FFFFFF,stroke:#093544;
   classDef critical fill:#A61B29,color:#FFFFFF,stroke:#A61B29;
   classDef data fill:#EAF3F5,color:#093544,stroke:#2E7E92;
   classDef support fill:#F4F6F7,color:#093544,stroke:#C9D4D8;
+  classDef ext fill:#FFFFFF,color:#5A6B73,stroke:#5A6B73,stroke-dasharray:5 4;
 ```
+
+*Lecture* : la **CI** est automatique sur GitHub à chaque push ; la **CD** est **manuelle et
+locale** (construction de l'image et déploiement Compose sur le poste). Registry, staging et
+production restent à construire.
 
 ### 9.2 Gates réalisés
 
