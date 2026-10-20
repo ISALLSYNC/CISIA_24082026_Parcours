@@ -2436,6 +2436,33 @@ Construits question par question ; **mes réponses** et les corrections reçues 
 - 🔑 **Leçons** : un rapport d'incident se **vérifie** (le symptôme était vrai, l'explication non) · les **tests se réparent par restauration**, le code par compréhension · un test affaibli rend le vert **sans valeur**.
 - *Erreur de Claude Code, signalée* : le message du commit `f614ceb` annonçait « test_api vert » alors que 2 échecs (429) restaient — écrit avant le résultat ; rectifié dans le message du commit suivant (`3cd6683`).
 
+**Phase 4 — Le pipeline drift et la salle de contrôle** · preuve : [`preuves/J6_p4_drift_salle_controle.txt`](preuves/J6_p4_drift_salle_controle.txt)
+
+*4A — pipeline drift :*
+
+| Sortie | Obtenu | Support | Verdict |
+|---|---|---|---|
+| Fenêtres drift | **64 535** lignes · panne_v1 5,18 % · réelle 4,81 % | 64 535 · ≈ 5,2 % · ≈ 4,8 % | ✅ |
+| PSI F1 / F2 / F3 | 0,002 / **6,834** / 0,002 | 0,002 / 6,834 / 0,002 | ✅ |
+| PSI janvier normale / haute | 6,203 / 0,001 | 6,213 / 0,001 | ≈ |
+| Seuil gelé · rappels F1 / F2 / F3 / janv. | **0,04** · 0,753 / 0,738 / **0,051** / 0,802 | 0,03 · 0,822 / 0,811 / 0,092 / 0,868 | ⚠️ écart |
+
+- **Enquête sur l'écart** : `scripts/` et les données ne sont pas dans le diff ; hypothèse « dépendances mises à jour » **réfutée** (scikit-learn, NumPy, pandas, SciPy, joblib identiques dans les deux `uv.lock`) ; **l'état certifié `v1.0-sain` contient lui-même `"seuil": 0.04` et ces rappels** (et mon dépôt Parcours, jamais saboté, donnait déjà 0,04 / 0,738 au M34).
+- **Conclusion** : pas une panne — c'est le **support** qui diverge du tag certifié. **Je ne « corrige » pas** un état certifié pour coller à un document → question au formateur. La leçon F3 reste lisible : PSI muet + rappel effondré = **concept drift** (attendu).
+- Fichiers régénérés par les scripts (contenu équivalent ; CRLF, ordre des lignes, un fichier F3 en plus) **restaurés** pour garder le dépôt propre.
+
+*4B — salle de contrôle :* stack Parcours et son exporteur **arrêtés** d'abord (ports 8000 / 9090 / 3000 / 9109), `docker compose down` **sans `-v`**.
+
+| # | Symptôme (test maillon par maillon) | Cause racine | Correctif |
+|---|---|---|---|
+| 12 | API injoignable depuis l'hôte, mais **200 à l'intérieur** du conteneur | publication `8000:80` (rien n'écoute sur 80) | `6f6a756` → `8000:8000` |
+| 13 | Grafana muet sur :3000, **répond sur :300** | publication `300:3000` | `3cf041b` → `3000:3000` |
+| 14 | Cible `indusense-drift` **DOWN** (`[::1]:9109` refusé) | `localhost:9109` = le conteneur Prometheus **lui-même** | `fe30d9c` → `host.docker.internal:9109` |
+
+- **Preuves finales** : `/health` et `/ready` **200** · **2 cibles UP** · Grafana **200** sur 3000 · sans clé **401**, `X-API-Key` **200**, `X-Api-Token` 401 · rafale : **60** requêtes acceptées puis **429** · dashboard de dérive alimenté (10 séries). `docker-compose.yml` et `prometheus.yml` identiques à `v1.0-sain`.
+- 🔑 **Leçons** : tester **du producteur vers le consommateur** (l'API marchait, seul son port publié était faux) · `localhost` désigne **le processus qui l'emploie** · syntaxe `hôte:conteneur`.
+- *À faire par moi* : capture d'écran du dashboard (http://localhost:3000) pour le post-mortem.
+
 - *Erreurs de Claude Code, signalées et corrigées* (phase 2) : un commit refusé par Git à cause de guillemets dans le message (refait via un fichier de message) ; `temporal.py` restauré d'abord avec un **BOM** et des fins de ligne Windows (redirection PowerShell) → refait avec `git restore --source v1.0-sain` (octet pour octet) ; un contrôle de volumétrie en ligne de commande cassé par un échappement `%%` (refait avec un script).
 
 - Ce que j'ai fait : … (dépôt `J6-gameday` cloné · pannes triées · réparations menées, ex. n/14 pannes)
