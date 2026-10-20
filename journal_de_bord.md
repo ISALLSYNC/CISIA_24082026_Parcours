@@ -2463,6 +2463,18 @@ Construits question par question ; **mes réponses** et les corrections reçues 
 - 🔑 **Leçons** : tester **du producteur vers le consommateur** (l'API marchait, seul son port publié était faux) · `localhost` désigne **le processus qui l'emploie** · syntaxe `hôte:conteneur`.
 - *À faire par moi* : capture d'écran du dashboard (http://localhost:3000) pour le post-mortem.
 
+**Phase 5 — Hygiène finale : la CI qui ment** · preuve : [`preuves/J6_p5_ci_qui_ment.txt`](preuves/J6_p5_ci_qui_ment.txt)
+
+- `git diff v1.0-sain -- .github/` : la maintenance a remplacé l'étape Tests par **`uv run pytest -q || true`** ; les autres changements (versions d'actions, `--extra mlops`, Trivy) viennent du durcissement.
+- **Pourquoi Actions affichait vert** — les « **deux choses invisibles dans un diff de contenu** » de la phase 0 :
+  1. **aucun contrôle n'a tourné** sur la branche de maintenance : la CI ne se déclenche que sur `push` vers `main` et sur `pull_request` ; le vert visible était celui de `main` (l'état sain) ;
+  2. même lancée (via une PR), elle serait tombée rouge **dès l'étape Install** (Python 3.99) ; puis, l'installation réparée, `|| true` l'aurait rendue **verte avec des tests rouges**.
+- **Preuve** (test volontairement faux, hors dépôt, en `bash` comme la CI) : avec `|| true` → code **0** (vert) ; sans → code **1** (rouge).
+- **Ma décision** : retirer **seulement** `|| true` (commit `0fb7cef`), garder le durcissement. Restaurer le workflow à l'identique de `v1.0-sain` rendrait la CI **rouge pour une mauvaise raison** : les tests drift importent SciPy, désormais dans l'extra `mlops`. Écart assumé à la lettre de la *definition of done* (« workflow identique »).
+- **Preuves finales** : étapes rejouées localement (install, ruff, black, pytest) → code 0, **32 passed** · branche `reparation-ismael-sall` **propre**, **22 commits** de réparation · seul reste vs `v1.0-sain` : durcissement légitime + briefing officiel.
+- *Limites* : build Docker de la CI et scan Trivy non rejoués (Trivy absent du poste) ; **pas de push ni de PR draft** : aucun dépôt de collaboration fourni → les commits locaux, les tests et le post-mortem sont le livrable (README du kit).
+- 🔑 **Leçon** : une CI verte ne vaut que ce que valent ses étapes **et ses déclencheurs** — « qui garde les gardiens » vaut pour `tests/` (phase 3) **et** pour `.github/`.
+
 - *Erreurs de Claude Code, signalées et corrigées* (phase 2) : un commit refusé par Git à cause de guillemets dans le message (refait via un fichier de message) ; `temporal.py` restauré d'abord avec un **BOM** et des fins de ligne Windows (redirection PowerShell) → refait avec `git restore --source v1.0-sain` (octet pour octet) ; un contrôle de volumétrie en ligne de commande cassé par un échappement `%%` (refait avec un script).
 
 - Ce que j'ai fait : … (dépôt `J6-gameday` cloné · pannes triées · réparations menées, ex. n/14 pannes)

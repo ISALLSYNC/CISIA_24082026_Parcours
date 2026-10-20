@@ -1,0 +1,48 @@
+﻿# Preuve : J6 Game Day - phase 5 (la CI qui ment)
+# Date : 2026-10-20 14:10
+# Clone : C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall @ 02ec660
+
+# 💬 Le sabotage de la CI (commit de maintenance)
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git show -U0 --format="%h %s" b2711eb -- .github/workflows/ci.yml
+b2711eb maintenance du week-end : mises à jour diverses
+-        run: uv run pytest -q
++        run: uv run pytest -q || true
+# code retour : 0
+
+# 💬 Declencheurs identiques dans v1.0-sain et J6-gameday : push sur main + pull_request -> aucun run sur la branche de maintenance.
+
+# 💬 Preuve du mecanisme (test volontairement faux, hors depot, en bash comme l'etape CI) :
+#   uv run pytest -q <test_faux> || true  -> code 0 (etape VERTE)
+#   uv run pytest -q <test_faux>          -> code 1 (etape ROUGE)
+
+# 💬 Restauration a l'identique ecartee : tests drift -> indusense.monitoring.drift -> scipy, desormais dans l'extra mlops (durcissement 2871686).
+
+# 💬 Correctif : seul || true retire
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git show -U0 --format="%h %s" 0fb7cef -- .github/workflows/ci.yml
+0fb7cef fix(ci): ne plus avaler le code retour de pytest (retirer || true)
+-        run: uv run pytest -q || true
++        run: uv run pytest -q
+# code retour : 0
+
+# 💬 Etapes de la CI rejouees localement : Tests
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> uv run --frozen pytest -q -p no:warnings
+................................                                         [100%]
+32 passed in 12.77s
+# code retour : 0
+
+# 💬 Etat final de la branche
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git status --short
+
+# code retour : 0
+
+# 💬 Ce qui differe encore de v1.0-sain (= durcissement legitime + briefing officiel)
+PS C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall> git diff --stat v1.0-sain -- . ":!POSTMORTEM.md"
+ .github/workflows/ci.yml |  10 ++---
+ BRIEFING.md              |  29 +++++++++++++
+ Dockerfile               |   9 ++++
+ pyproject.toml           |  15 +++----
+ uv.lock                  | 104 +++++++++++++++++++++++++----------------------
+ 5 files changed, 107 insertions(+), 60 deletions(-)
+# code retour : 0
+
+# 💬 Non rejoue localement : build Docker de la CI (deja fait via compose) et scan Trivy (outil absent du poste). Pas de push ni de PR draft : aucun depot de collaboration fourni.
