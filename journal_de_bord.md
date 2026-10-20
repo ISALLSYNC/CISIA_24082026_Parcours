@@ -2477,12 +2477,29 @@ Construits question par question ; **mes réponses** et les corrections reçues 
 
 - *Erreurs de Claude Code, signalées et corrigées* (phase 2) : un commit refusé par Git à cause de guillemets dans le message (refait via un fichier de message) ; `temporal.py` restauré d'abord avec un **BOM** et des fins de ligne Windows (redirection PowerShell) → refait avec `git restore --source v1.0-sain` (octet pour octet) ; un contrôle de volumétrie en ligne de commande cassé par un échappement `%%` (refait avec un script).
 
-- Ce que j'ai fait : … (dépôt `J6-gameday` cloné · pannes triées · réparations menées, ex. n/14 pannes)
-- Ma preuve : … (CI de nouveau verte · `docker compose up -d --wait` *healthy* · `/health` + `/ready` 200 · dashboard qui remonte)
-- Post-mortem (ce qui a cassé, pourquoi, comment l'éviter) : …
-- Pitch (la réparation que j'ai expliquée à mon binôme/au groupe) : …
-- Compétence(s) : C8 (mesurer/maintenir), C9 (amélioration continue)
-- Difficulté / question : …
+**Phase 6 — Post-mortem** : `POSTMORTEM.md` complété (résumé, chronologie 11:25 → 14:09, 15 pannes, cause racine, temps perdu / gagné, 3 leçons, 7 actions préventives) — commit `132d2b9`.
+
+*Mon classement des 15 pannes* (construit question par question ; mes réponses entre parenthèses quand elles ont été rediscutées) :
+
+| Qui l'aurait attrapée ? | Pannes | Nb |
+|---|---|---|
+| **CI** si elle avait tourné honnêtement | 1 (j'avais dit « Revue » : juste en partie, mais l'étape Install échoue à coup sûr), 4, 5, 7, 8, 9, 11 | 7 |
+| **Revue** seulement | 2 (j'avais dit « Rien » : le changement est visible dans le diff), 6, 10, 12, 13, 14, 15 | 7 |
+| **Rien de fiable** | 3 (j'avais dit « CI » : aucun test ne vérifie les tags cités, et `v1.1-sain` paraît plausible) | 1 |
+
+→ une seule panne sur les gardiens (15 : `|| true`) neutralisait les 7 détections de la CI.
+
+*Mes 3 leçons* : **1.** la CI ne peut pas tout voir, attention à la confiance aveugle (mes mots) · **2.** la revue de code reste indispensable (mon choix) · **3.** un état certifié chiffré vaut plus qu'un test vert (choix B).
+
+**Bilan J6**
+
+- **Ce que j'ai fait** : intégré le jalon 11 · cloné le bundle (`reparation-ismael-sall`) · observé sans toucher (phase 0) · réparé **15 pannes** en **24 commits** (un correctif par commit, message symptôme → cause → preuve) · enquêté sur un écart sans le « corriger » à tort · rédigé le post-mortem.
+- **Ma preuve** : `pytest -q` **32 passed**, `git diff v1.0-sain -- tests/` vide · jointure **65 625 / 1,76 %** · API 200 / **401** / **429** aux bons endroits · stack : `/health` et `/ready` 200, **2 cibles UP**, Grafana 3000, dashboard alimenté · étapes CI rejouées localement → code 0 · branche propre ; seul écart restant vs `v1.0-sain` = durcissement légitime.
+- **Post-mortem** : `C:\Users\issal\CISIA_J6_GAMEDAY_ismael-sall\POSTMORTEM.md` (cause racine : commit de maintenance non relu, touchant code + test + CI, sur une branche où aucun contrôle ne tournait).
+- **Pitch** (restitution de 4 min) : *à préparer*.
+- **Compétence(s)** : C8 (mesurer / maintenir) · C9 (amélioration continue : « qui garde les gardiens ») · C6 · C3 · C2.
+- **Aide IA reçue** : Claude Code a exécuté les diagnostics, appliqué les correctifs, écrit les messages de commit, le post-mortem et ce journal ; il a signalé ses propres erreurs (hooks désactivés une fois, message de commit trop optimiste, BOM, échappements). **Mes décisions** : Python 3.13 (compatible) plutôt que 3.14, corriger la doc du tag inexistant (A), garder le durcissement légitime, classement des pannes, 3 leçons. **Je dois savoir réexpliquer : pourquoi la CI était verte, `|| true`, pourquoi restaurer un test au lieu de le modifier, `localhost` dans un conteneur, la syntaxe `hôte:conteneur`, pourquoi ne pas « corriger » le seuil 0,04.**
+- **Difficultés / questions** : chiffres du support (seuil 0,03, rappels 0,822 / 0,811 / 0,092 / 0,868) ≠ état certifié `v1.0-sain` (0,04 ; 0,753 / 0,738 / 0,051 / 0,802) → question au formateur · PR draft impossible sans dépôt de collaboration · capture d'écran du dashboard à faire.
 
 ---
 
