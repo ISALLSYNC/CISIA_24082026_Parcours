@@ -2491,6 +2491,19 @@ Construits question par question ; **mes réponses** et les corrections reçues 
 
 *Mes 3 leçons* : **1.** la CI ne peut pas tout voir, attention à la confiance aveugle (mes mots) · **2.** la revue de code reste indispensable (mon choix) · **3.** un état certifié chiffré vaut plus qu'un test vert (choix B).
 
+**Sauvegarde du travail du Game Day** *(le clone n'existe que sur mon PC ; le kit interdit de pousser vers le bundle)*
+
+- **Copie du post-mortem** : [`preuves/J6_POSTMORTEM.md`](preuves/J6_POSTMORTEM.md) (identique à l'original, empreinte vérifiée).
+- **Bundle Git de ma branche** : [`preuves/J6_reparation_ismael-sall.bundle`](preuves/J6_reparation_ismael-sall.bundle) — **21 Ko**, bundle **incrémental** (`J6-gameday..reparation-ismael-sall`, mes 24 commits seulement), `git bundle verify` → *is okay* ; il requiert le commit `4f78a52`, présent dans le bundle officiel du kit. SHA-256 `9BF5AB7A…3401A60`. `.env` jamais commité.
+- **Restauration testée** dans un dossier temporaire → branche au commit `132d2b9`, **24 commits**, `POSTMORTEM.md` identique, tests identiques à `v1.0-sain` :
+
+```powershell
+git clone FORMATION\EXERCICES\J6\J6-gameday.bundle CISIA_J6_restaure
+cd CISIA_J6_restaure
+git fetch ..\preuves\J6_reparation_ismael-sall.bundle reparation-ismael-sall:reparation-ismael-sall
+git switch reparation-ismael-sall
+```
+
 **Bilan J6**
 
 - **Ce que j'ai fait** : intégré le jalon 11 · cloné le bundle (`reparation-ismael-sall`) · observé sans toucher (phase 0) · réparé **15 pannes** en **24 commits** (un correctif par commit, message symptôme → cause → preuve) · enquêté sur un écart sans le « corriger » à tort · rédigé le post-mortem.
